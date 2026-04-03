@@ -1,4 +1,6 @@
-const API_BASE = 'http://localhost:4000/api';
+const API_BASE = window.location.hostname === 'localhost'
+  ? 'http://localhost:4000/api'
+  : 'https://playwise-cda1.onrender.com/api';
 const GAME_LIBRARY = window.GAME_LIBRARY || [];
 const LAPTOP_LIBRARY = window.LAPTOP_LIBRARY || [];
 
@@ -16,29 +18,133 @@ const FEATURE_IDEAS = [
 const CPU_SCORES = {
   'Intel Core i5-10300H': 44,
   'Intel Core i5-11260H': 52,
+  'Intel Core i5-11400H': 55,
+  'Intel Core i5-1235U': 50,
+  'Intel Core i5-12450H': 62,
   'Intel Core i5-12500H': 74,
+  'Intel Core i5-13420H': 72,
+  'Intel Core i5-13500H': 78,
+  'Intel Core i7-1165G7': 48,
+  'Intel Core i7-11800H': 70,
+  'Intel Core i7-12650H': 84,
+  'Intel Core i7-12700H': 88,
+  'Intel Core i7-13620H': 92,
   'Intel Core i7-13650HX': 96,
+  'Intel Core i7-13700H': 98,
+  'Intel Core i9-13900HX': 118,
+  'Intel Core Ultra 5 125H': 86,
+  'Intel Core Ultra 7 155H': 102,
+  'AMD Ryzen 5 3600': 56,
+  'AMD Ryzen 5 5500U': 46,
+  'AMD Ryzen 5 5600': 72,
   'AMD Ryzen 5 5600H': 58,
+  'AMD Ryzen 5 6600H': 68,
+  'AMD Ryzen 5 7535HS': 72,
+  'AMD Ryzen 7 5700X': 84,
   'AMD Ryzen 7 5800H': 76,
   'AMD Ryzen 7 6800H': 82,
+  'AMD Ryzen 7 6800HS': 80,
+  'AMD Ryzen 7 7735HS': 84,
+  'AMD Ryzen 7 7840HS': 96,
+  'AMD Ryzen 7 8845HS': 100,
+  'AMD Ryzen 9 6900HX': 94,
+  'AMD Ryzen 9 7940HS': 104,
+  'AMD Ryzen AI 9 HX 370': 118,
+  'Apple M1': 82,
+  'Apple M2': 92,
+  'Apple M2 Pro': 108,
+  'Apple M3': 104,
+  'Apple M3 Pro': 118,
+  'Apple M3 Max': 134,
   'Intel Core i3-10100F': 40,
   'Intel Core i5-10400F': 48,
   'Intel Core i5-12400F': 78,
-  'AMD Ryzen 5 3600': 56,
-  'AMD Ryzen 5 5600': 72,
-  'AMD Ryzen 7 5700X': 84
+  'Intel Core i7-1265U': 74,
+  'Intel Core i7-1365U': 80
 };
 
 const GPU_SCORES = {
+  'Intel UHD Graphics': 12,
+  'Intel Iris Xe Graphics': 20,
+  'Intel Arc Graphics': 36,
+  'Apple M1 GPU': 40,
+  'Apple M2 GPU': 46,
+  'Apple M2 Pro GPU': 64,
+  'Apple M3 GPU': 54,
+  'Apple M3 Pro GPU': 74,
+  'Apple M3 Max GPU': 102,
   'NVIDIA GTX 1650': 38,
+  'NVIDIA RTX 2050': 44,
   'NVIDIA RTX 3050': 58,
+  'NVIDIA RTX 3050 Ti': 62,
   'NVIDIA RTX 3060': 72,
+  'NVIDIA RTX 4050': 78,
   'NVIDIA RTX 4060': 90,
+  'NVIDIA RTX 4070': 104,
+  'NVIDIA RTX 4080': 128,
+  'NVIDIA RTX 4090': 145,
   'AMD RX 570': 36,
+  'AMD RX 6500M': 46,
   'AMD RX 6600': 64,
+  'AMD RX 6600M': 66,
+  'AMD RX 6700S': 74,
   'AMD RX 7600': 86,
-  'Intel UHD Graphics': 12
+  'AMD Radeon 680M': 34,
+  'AMD Radeon 780M': 46
 };
+
+
+const RAM_OPTIONS = [
+  { value: '8', label: '8 GB' },
+  { value: '12', label: '12 GB' },
+  { value: '16', label: '16 GB' },
+  { value: '18', label: '18 GB' },
+  { value: '24', label: '24 GB' },
+  { value: '32', label: '32 GB' },
+  { value: '36', label: '36 GB' },
+  { value: '64', label: '64 GB' }
+];
+
+let HARDWARE_READY = false;
+
+function replaceObjectValues(target, source) {
+  Object.keys(target).forEach((key) => delete target[key]);
+  Object.entries(source).forEach(([key, value]) => {
+    target[key] = value;
+  });
+}
+
+async function ensureHardwareCatalog() {
+  if (HARDWARE_READY) return;
+
+  try {
+    const response = await fetch(`${API_BASE}/hardware/catalog`);
+    if (!response.ok) throw new Error('Failed to load hardware catalog');
+    const catalog = await response.json();
+
+    const cpuMap = Object.fromEntries((catalog.cpus || []).map((item) => [item.name || item.value || item, item.score || item.value || 0]));
+    const gpuMap = Object.fromEntries((catalog.gpus || []).map((item) => [item.name || item.value || item, item.score || item.value || 0]));
+
+    replaceObjectValues(CPU_SCORES, cpuMap);
+    replaceObjectValues(GPU_SCORES, gpuMap);
+
+    LAPTOP_LIBRARY.length = 0;
+    (catalog.laptops || []).forEach((item) => LAPTOP_LIBRARY.push(item));
+
+    if (Array.isArray(catalog.ramOptions)) {
+      RAM_OPTIONS.length = 0;
+      catalog.ramOptions.forEach((value) => {
+        const numeric = Number(value);
+        RAM_OPTIONS.push({ value: String(numeric), label: `${numeric} GB` });
+      });
+    }
+
+    HARDWARE_READY = true;
+  } catch (error) {
+    console.warn('Using built-in hardware catalog.', error.message);
+    HARDWARE_READY = true;
+  }
+}
 
 function $(selector, scope = document) {
   return scope.querySelector(selector);
@@ -305,15 +411,15 @@ function priceTrackerSectionMarkup(game) {
       <div class="panel-head">
         <div>
           <p class="eyebrow">Price tracker</p>
-          <h2>Best legal price right now</h2>
-          <p class="panel-text">PlayWise checks for the best deal, store-by-store prices, and the historical low when live data is available.</p>
+          <h2>Price comparison</h2>
+          <p class="panel-text">PlayWise checks the current legal store prices for Steam, Epic Games, and the official site when those prices are available from the live provider.</p>
         </div>
       </div>
       <div id="priceTrackerBox" class="price-tracker-shell" data-game-slug="${escapeHtml(game.slug)}">
         <div class="price-loading card-surface">
           <p class="eyebrow">Checking stores</p>
-          <h3>Loading the current price snapshot…</h3>
-          <p>We compare legal store options so visitors can jump to the lowest available offer.</p>
+          <h3>Loading the current store prices…</h3>
+          <p>We compare the tracked store options so visitors can decide where to go.</p>
         </div>
       </div>
     </section>
@@ -346,11 +452,11 @@ function renderPriceTracker(payload) {
     <div class="price-summary-row">
       <article class="price-card highlight-card">
         <div class="price-card-head">
-          <p class="eyebrow">Lowest current option</p>
+          <p class="eyebrow">Best current option</p>
           ${statusPill}
         </div>
         <h3>${bestDeal?.currentPrice || 'Price unavailable'}</h3>
-        <p>${bestDeal?.store ? `${escapeHtml(bestDeal.store)} currently has the best legal option.` : escapeHtml(payload.message || 'Store links are available below.')}</p>
+        <p>${bestDeal?.store ? `${escapeHtml(bestDeal.store)} currently has the lowest tracked live price.` : escapeHtml(payload.message || 'Store links are available below.')}</p>
         <div class="price-meta-line">
           <span>Regular price: ${bestDeal?.regularPrice || '—'}</span>
           <span>${bestDeal?.cut ? `${bestDeal.cut}% off` : 'No live discount found'}</span>
@@ -378,11 +484,11 @@ function renderPriceTracker(payload) {
             <h3>${escapeHtml(store.store)}</h3>
             ${store.isBestCurrent ? '<span class="pill good">Best now</span>' : ''}
           </div>
-          <strong class="store-price">${escapeHtml(store.currentPrice || 'Check store')}</strong>
-          <p>Regular: ${escapeHtml(store.regularPrice || '—')}</p>
-          <p>${store.cut ? `${store.cut}% off` : (store.note ? escapeHtml(store.note) : 'No live cut found')}</p>
+          <strong class="store-price">${escapeHtml(store.currentPrice || 'Price unavailable')}</strong>
+          <p>${store.regularPrice ? `Regular: ${escapeHtml(store.regularPrice)}` : 'Regular price: —'}</p>
+          <p>${store.cut ? `${store.cut}% off` : (store.note ? escapeHtml(store.note) : 'No live discount found')}</p>
           ${store.historicalLow ? `<p>Store low: ${escapeHtml(store.historicalLow)}${store.historicalLowCut ? ` (${store.historicalLowCut}% off)` : ''}</p>` : ''}
-          ${store.url ? `<a class="ghost-btn" href="${escapeHtml(store.url)}" target="_blank" rel="noopener noreferrer">Open store</a>` : ''}
+          ${store.url ? `<a class="ghost-btn" href="${escapeHtml(store.url)}" target="_blank" rel="noopener noreferrer">Open ${escapeHtml(store.store)}</a>` : ''}
         </article>
       `).join('') : '<div class="empty-state">No store entries returned yet.</div>'}
     </div>
@@ -680,7 +786,7 @@ function buildGamePage(game) {
                 <div id="laptopFields">
                   <label>
                     <span>Laptop model</span>
-                    <input type="text" name="laptop" list="laptopOptions" placeholder="Example: Acer Nitro 5 RTX 3050 16GB" />
+                    <input type="text" name="laptop" list="laptopOptions" placeholder="Example: Lenovo LOQ 15 RTX 4060 16GB" />
                     <datalist id="laptopOptions">
                       ${LAPTOP_LIBRARY.map((item) => `<option value="${escapeHtml(item.model)}"></option>`).join('')}
                     </datalist>
@@ -693,7 +799,7 @@ function buildGamePage(game) {
                       ${createCustomSelect({
                         name: 'cpu',
                         placeholder: 'Select CPU',
-                        options: Object.keys(CPU_SCORES)
+                        options: Object.keys(CPU_SCORES).sort((a, b) => a.localeCompare(b))
                       })}
                     </label>
                     <label>
@@ -701,7 +807,7 @@ function buildGamePage(game) {
                       ${createCustomSelect({
                         name: 'gpu',
                         placeholder: 'Select GPU',
-                        options: Object.keys(GPU_SCORES)
+                        options: Object.keys(GPU_SCORES).sort((a, b) => a.localeCompare(b))
                       })}
                     </label>
                     <label>
@@ -709,11 +815,7 @@ function buildGamePage(game) {
                       ${createCustomSelect({
                         name: 'ram',
                         placeholder: 'Select RAM',
-                        options: [
-                          { value: '8', label: '8 GB' },
-                          { value: '16', label: '16 GB' },
-                          { value: '32', label: '32 GB' }
-                        ]
+                        options: RAM_OPTIONS
                       })}
                     </label>
                   </div>
@@ -854,6 +956,8 @@ function renderCompatibilityResult(result) {
   const root = $('#compatibilityResult');
   if (!root) return;
 
+  const details = (result.details || []).map((item) => `<li>${escapeHtml(item)}</li>`).join('');
+
   root.innerHTML = `
     <p class="eyebrow">Performance check</p>
     <span class="pill ${escapeHtml(result.tone)}">${escapeHtml(result.performance)}</span>
@@ -861,11 +965,45 @@ function renderCompatibilityResult(result) {
     <p>Source used: ${escapeHtml(result.source)}</p>
     <div class="result-meta">
       <div><p class="eyebrow">Recommended preset</p><strong>${escapeHtml(result.recommendedPreset)}</strong></div>
-      <div><p class="eyebrow">Warning</p><strong>${escapeHtml(result.warning)}</strong></div>
+      <div><p class="eyebrow">Expected FPS</p><strong>${escapeHtml(result.expectedFps || `${result.fps.low} / ${result.fps.medium}`)}</strong></div>
       <div><p class="eyebrow">Low settings</p><strong>${escapeHtml(result.fps.low)}</strong></div>
       <div><p class="eyebrow">Medium / High</p><strong>${escapeHtml(result.fps.medium)} / ${escapeHtml(result.fps.high)}</strong></div>
+      <div><p class="eyebrow">Warning</p><strong>${escapeHtml(result.warning)}</strong></div>
+      <div><p class="eyebrow">Platform</p><strong>${escapeHtml(result.platform || 'windows')}</strong></div>
     </div>
+    ${details ? `<ul class="compatibility-details">${details}</ul>` : ''}
   `;
+}
+
+function detectHardwarePlatform(hardware = {}) {
+  const cpu = String(hardware.cpu || '').toLowerCase();
+  const gpu = String(hardware.gpu || '').toLowerCase();
+  const source = String(hardware.source || '').toLowerCase();
+  if (cpu.includes('apple') || gpu.includes('apple') || source.includes('macbook')) return 'macos';
+  return 'windows';
+}
+
+async function requestCompatibilityCheck(game, hardware) {
+  try {
+    const response = await fetch(`${API_BASE}/hardware/compatibility`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        game: {
+          slug: game.slug,
+          title: game.title,
+          requirements: game.requirements,
+          supportedPlatforms: game.platform || ['Windows']
+        },
+        hardware
+      })
+    });
+
+    if (!response.ok) throw new Error('Compatibility API unavailable');
+    return await response.json();
+  } catch (error) {
+    return estimatePerformance(game, hardware);
+  }
 }
 
 function setupCompatibilityForm(game) {
@@ -874,7 +1012,7 @@ function setupCompatibilityForm(game) {
 
   setupCustomSelects(form);
 
-  form.addEventListener('submit', (event) => {
+  form.addEventListener('submit', async (event) => {
     event.preventDefault();
     const formData = Object.fromEntries(new FormData(form).entries());
 
@@ -886,7 +1024,8 @@ function setupCompatibilityForm(game) {
           cpu: laptop.cpu,
           gpu: laptop.gpu,
           ram: laptop.ram,
-          source: laptop.model
+          source: laptop.model,
+          platform: laptop.platform || detectHardwarePlatform(laptop)
         };
       }
     }
@@ -896,11 +1035,12 @@ function setupCompatibilityForm(game) {
         cpu: formData.cpu,
         gpu: formData.gpu,
         ram: formData.ram,
-        source: 'Manual entry'
+        source: 'Manual entry',
+        platform: detectHardwarePlatform(formData)
       };
     }
 
-    const result = estimatePerformance(game, hardware);
+    const result = await requestCompatibilityCheck(game, hardware);
     renderCompatibilityResult(result);
   });
 }
@@ -1011,7 +1151,8 @@ function initHomePage() {
   setupContactForm();
 }
 
-function initGamePage() {
+async function initGamePage() {
+  await ensureHardwareCatalog();
   const slug = readQuerySlug();
   const game = getGameBySlug(slug);
   if (!game) return;
@@ -1022,18 +1163,62 @@ function initGamePage() {
   loadPriceTracker(game);
 }
 
-function init() {
+async function init() {
   setupMobileNav();
   const page = document.body.dataset.page;
 
   if (page === 'home') initHomePage();
-  if (page === 'game') initGamePage();
+  if (page === 'game') await initGamePage();
   if (page === 'login' || page === 'register') setupAuthForms();
   if (page === 'open-source') initOpenSourcePage();
+  if (page === 'hardware-admin') await initHardwareAdmin();
 }
 
-document.addEventListener('DOMContentLoaded', init);
+document.addEventListener('DOMContentLoaded', () => { init(); });
 
+
+async function initHardwareAdmin() {
+  await ensureHardwareCatalog();
+  const cpuList = $('#adminCpuList');
+  const gpuList = $('#adminGpuList');
+  const laptopList = $('#adminLaptopList');
+
+  if (cpuList) cpuList.innerHTML = Object.entries(CPU_SCORES).sort((a, b) => a[0].localeCompare(b[0])).map(([name, score]) => `<li><strong>${escapeHtml(name)}</strong><span>${score}</span></li>`).join('');
+  if (gpuList) gpuList.innerHTML = Object.entries(GPU_SCORES).sort((a, b) => a[0].localeCompare(b[0])).map(([name, score]) => `<li><strong>${escapeHtml(name)}</strong><span>${score}</span></li>`).join('');
+  if (laptopList) laptopList.innerHTML = LAPTOP_LIBRARY.map((item) => `<li><strong>${escapeHtml(item.model)}</strong><span>${escapeHtml(item.cpu)} • ${escapeHtml(item.gpu)} • ${escapeHtml(String(item.ram))} GB</span></li>`).join('');
+
+  setupAdminForm('cpuAdminForm', `${API_BASE}/hardware/cpus`, 'CPU saved. Refresh the page to pull it into the client catalog.');
+  setupAdminForm('gpuAdminForm', `${API_BASE}/hardware/gpus`, 'GPU saved. Refresh the page to pull it into the client catalog.');
+  setupAdminForm('laptopAdminForm', `${API_BASE}/hardware/laptops`, 'Laptop preset saved. Refresh the page to pull it into the client catalog.');
+}
+
+function setupAdminForm(formId, endpoint, successMessage) {
+  const form = document.getElementById(formId);
+  if (!form) return;
+  const feedback = form.querySelector('.form-feedback');
+
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const payload = Object.fromEntries(new FormData(form).entries());
+    if (payload.score) payload.score = Number(payload.score);
+    if (payload.ram) payload.ram = Number(payload.ram);
+    if (payload.tags) payload.tags = payload.tags.split(',').map((item) => item.trim()).filter(Boolean);
+
+    try {
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || 'Save failed');
+      if (feedback) feedback.textContent = successMessage;
+      form.reset();
+    } catch (error) {
+      if (feedback) feedback.textContent = error.message;
+    }
+  });
+}
 
 
 function openSourceCardMarkup(game) {

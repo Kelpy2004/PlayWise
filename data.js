@@ -1813,44 +1813,37 @@ window.OPEN_SOURCE_GAMES = [
 window.LAPTOP_LIBRARY = [
   {
     "brand": "Acer",
+    "model": "Acer Nitro 5 GTX 1650 8GB",
+    "cpu": "Intel Core i5-10300H",
+    "gpu": "NVIDIA GTX 1650",
+    "ram": 8
+  },
+  {
+    "brand": "Acer",
     "model": "Acer Nitro 5 RTX 3050 16GB",
     "cpu": "Intel Core i5-12500H",
     "gpu": "NVIDIA RTX 3050",
     "ram": 16
   },
   {
-    "brand": "Acer",
-    "model": "Acer Nitro V GTX 1650 8GB",
-    "cpu": "Intel Core i5-10300H",
+    "brand": "ASUS",
+    "model": "ASUS TUF A15 RTX 3050 16GB",
+    "cpu": "AMD Ryzen 7 6800H",
+    "gpu": "NVIDIA RTX 3050",
+    "ram": 16
+  },
+  {
+    "brand": "HP",
+    "model": "HP Victus GTX 1650 8GB",
+    "cpu": "AMD Ryzen 5 5600H",
     "gpu": "NVIDIA GTX 1650",
     "ram": 8
-  },
-  {
-    "brand": "ASUS",
-    "model": "ASUS TUF A15 RTX 3060 16GB",
-    "cpu": "AMD Ryzen 7 6800H",
-    "gpu": "NVIDIA RTX 3060",
-    "ram": 16
-  },
-  {
-    "brand": "ASUS",
-    "model": "ASUS ROG Strix RTX 4060 16GB",
-    "cpu": "Intel Core i7-13650HX",
-    "gpu": "NVIDIA RTX 4060",
-    "ram": 16
   },
   {
     "brand": "Lenovo",
     "model": "Lenovo Legion 5 RTX 3060 16GB",
     "cpu": "AMD Ryzen 7 5800H",
     "gpu": "NVIDIA RTX 3060",
-    "ram": 16
-  },
-  {
-    "brand": "HP",
-    "model": "HP Victus RTX 3050 16GB",
-    "cpu": "AMD Ryzen 5 5600H",
-    "gpu": "NVIDIA RTX 3050",
     "ram": 16
   },
   {
@@ -1861,17 +1854,276 @@ window.LAPTOP_LIBRARY = [
     "ram": 16
   },
   {
-    "brand": "Custom PC",
-    "model": "Custom PC GTX 1650 8GB",
-    "cpu": "AMD Ryzen 5 3600",
+    "brand": "MSI",
+    "model": "MSI GF63 GTX 1650 8GB",
+    "cpu": "Intel Core i5-11400H",
     "gpu": "NVIDIA GTX 1650",
     "ram": 8
   },
   {
-    "brand": "Custom PC",
-    "model": "Custom PC RX 6600 16GB",
-    "cpu": "Intel Core i5-12400F",
-    "gpu": "AMD RX 6600",
+    "brand": "ASUS",
+    "model": "ASUS ROG Strix RTX 4060 16GB",
+    "cpu": "Intel Core i7-13650HX",
+    "gpu": "NVIDIA RTX 4060",
+    "ram": 16
+  },
+  {
+    "brand": "Apple",
+    "model": "MacBook Air M1 8GB",
+    "cpu": "Apple M1",
+    "gpu": "Apple M1 GPU",
+    "ram": 8
+  },
+  {
+    "brand": "Apple",
+    "model": "MacBook Air M2 8GB",
+    "cpu": "Apple M2",
+    "gpu": "Apple M2 GPU",
+    "ram": 8
+  },
+  {
+    "brand": "Apple",
+    "model": "MacBook Air M2 16GB",
+    "cpu": "Apple M2",
+    "gpu": "Apple M2 GPU",
+    "ram": 16
+  },
+  {
+    "brand": "Apple",
+    "model": "MacBook Air M3 16GB",
+    "cpu": "Apple M3",
+    "gpu": "Apple M3 GPU",
+    "ram": 16
+  },
+  {
+    "brand": "Apple",
+    "model": "MacBook Pro 14 M1 Pro 16GB",
+    "cpu": "Apple M2 Pro",
+    "gpu": "Apple M2 Pro GPU",
+    "ram": 16
+  },
+  {
+    "brand": "Apple",
+    "model": "MacBook Pro 14 M3 Pro 18GB",
+    "cpu": "Apple M3 Pro",
+    "gpu": "Apple M3 Pro GPU",
+    "ram": 18
+  },
+  {
+    "brand": "Apple",
+    "model": "MacBook Pro 16 M3 Pro 18GB",
+    "cpu": "Apple M3 Pro",
+    "gpu": "Apple M3 Pro GPU",
+    "ram": 18
+  },
+  {
+    "brand": "Apple",
+    "model": "MacBook Pro 16 M3 Max 36GB",
+    "cpu": "Apple M3 Max",
+    "gpu": "Apple M3 Max GPU",
+    "ram": 36
+  },
+  {
+    "brand": "Lenovo",
+    "model": "Lenovo LOQ 15 RTX 4060 16GB",
+    "cpu": "Intel Core i7-13620H",
+    "gpu": "NVIDIA RTX 4060",
+    "ram": 16
+  },
+  {
+    "brand": "Lenovo",
+    "model": "Lenovo IdeaPad Gaming 3 RTX 3050 16GB",
+    "cpu": "AMD Ryzen 5 7535HS",
+    "gpu": "NVIDIA RTX 3050",
+    "ram": 16
+  },
+  {
+    "brand": "Lenovo",
+    "model": "Lenovo Legion Slim 5 RTX 4070 16GB",
+    "cpu": "AMD Ryzen 7 7840HS",
+    "gpu": "NVIDIA RTX 4070",
+    "ram": 16
+  },
+  {
+    "brand": "HP",
+    "model": "HP Victus RTX 4050 16GB",
+    "cpu": "Intel Core i5-13500H",
+    "gpu": "NVIDIA RTX 4050",
+    "ram": 16
+  },
+  {
+    "brand": "HP",
+    "model": "HP Omen 16 RTX 4060 16GB",
+    "cpu": "Intel Core i7-13700H",
+    "gpu": "NVIDIA RTX 4060",
+    "ram": 16
+  },
+  {
+    "brand": "HP",
+    "model": "HP Pavilion 15 Iris Xe 16GB",
+    "cpu": "Intel Core i7-1165G7",
+    "gpu": "Intel Iris Xe Graphics",
+    "ram": 16
+  },
+  {
+    "brand": "Dell",
+    "model": "Dell G15 RTX 4060 16GB",
+    "cpu": "Intel Core i7-13650HX",
+    "gpu": "NVIDIA RTX 4060",
+    "ram": 16
+  },
+  {
+    "brand": "Dell",
+    "model": "Dell Inspiron 14 Iris Xe 16GB",
+    "cpu": "Intel Core i5-1235U",
+    "gpu": "Intel Iris Xe Graphics",
+    "ram": 16
+  },
+  {
+    "brand": "Dell",
+    "model": "Dell XPS 15 RTX 4050 32GB",
+    "cpu": "Intel Core i7-13700H",
+    "gpu": "NVIDIA RTX 4050",
+    "ram": 32
+  },
+  {
+    "brand": "ASUS",
+    "model": "ASUS TUF F15 RTX 4050 16GB",
+    "cpu": "Intel Core i7-12700H",
+    "gpu": "NVIDIA RTX 4050",
+    "ram": 16
+  },
+  {
+    "brand": "ASUS",
+    "model": "ASUS Zephyrus G14 RTX 4060 16GB",
+    "cpu": "AMD Ryzen 9 7940HS",
+    "gpu": "NVIDIA RTX 4060",
+    "ram": 16
+  },
+  {
+    "brand": "ASUS",
+    "model": "ASUS ROG Strix Scar 16 RTX 4080 32GB",
+    "cpu": "Intel Core i9-13900HX",
+    "gpu": "NVIDIA RTX 4080",
+    "ram": 32
+  },
+  {
+    "brand": "Acer",
+    "model": "Acer Nitro V RTX 4050 16GB",
+    "cpu": "Intel Core i5-13420H",
+    "gpu": "NVIDIA RTX 4050",
+    "ram": 16
+  },
+  {
+    "brand": "Acer",
+    "model": "Acer Aspire 7 RTX 3050 16GB",
+    "cpu": "AMD Ryzen 5 5600H",
+    "gpu": "NVIDIA RTX 3050",
+    "ram": 16
+  },
+  {
+    "brand": "Acer",
+    "model": "Acer Swift Go Intel Arc 16GB",
+    "cpu": "Intel Core Ultra 7 155H",
+    "gpu": "Intel Arc Graphics",
+    "ram": 16
+  },
+  {
+    "brand": "MSI",
+    "model": "MSI Katana 15 RTX 4060 16GB",
+    "cpu": "Intel Core i7-13620H",
+    "gpu": "NVIDIA RTX 4060",
+    "ram": 16
+  },
+  {
+    "brand": "MSI",
+    "model": "MSI Thin GF63 RTX 4050 16GB",
+    "cpu": "Intel Core i5-12450H",
+    "gpu": "NVIDIA RTX 4050",
+    "ram": 16
+  },
+  {
+    "brand": "MSI",
+    "model": "MSI Prestige 14 Iris Xe 16GB",
+    "cpu": "Intel Core i5-1235U",
+    "gpu": "Intel Iris Xe Graphics",
+    "ram": 16
+  },
+  {
+    "brand": "Gigabyte",
+    "model": "Gigabyte G5 RTX 4060 16GB",
+    "cpu": "Intel Core i5-12500H",
+    "gpu": "NVIDIA RTX 4060",
+    "ram": 16
+  },
+  {
+    "brand": "Samsung",
+    "model": "Samsung Galaxy Book4 Pro 16GB",
+    "cpu": "Intel Core Ultra 7 155H",
+    "gpu": "Intel Arc Graphics",
+    "ram": 16
+  },
+  {
+    "brand": "Microsoft",
+    "model": "Surface Laptop 5 Iris Xe 16GB",
+    "cpu": "Intel Core i7-1265U",
+    "gpu": "Intel Iris Xe Graphics",
+    "ram": 16
+  },
+  {
+    "brand": "Framework",
+    "model": "Framework 13 Ryzen 7 7840U 32GB",
+    "cpu": "AMD Ryzen 7 7840HS",
+    "gpu": "AMD Radeon 780M",
+    "ram": 32
+  },
+  {
+    "brand": "Razer",
+    "model": "Razer Blade 16 RTX 4090 32GB",
+    "cpu": "Intel Core i9-13900HX",
+    "gpu": "NVIDIA RTX 4090",
+    "ram": 32
+  },
+  {
+    "brand": "Alienware",
+    "model": "Alienware m16 RTX 4070 32GB",
+    "cpu": "Intel Core i7-13700H",
+    "gpu": "NVIDIA RTX 4070",
+    "ram": 32
+  },
+  {
+    "brand": "Lenovo",
+    "model": "Lenovo Yoga Pro 7 Radeon 780M 16GB",
+    "cpu": "AMD Ryzen 7 8845HS",
+    "gpu": "AMD Radeon 780M",
+    "ram": 16
+  },
+  {
+    "brand": "HP",
+    "model": "HP Envy x360 Radeon 780M 16GB",
+    "cpu": "AMD Ryzen 7 8845HS",
+    "gpu": "AMD Radeon 780M",
+    "ram": 16
+  },
+  {
+    "brand": "ASUS",
+    "model": "ASUS Vivobook 15 OLED Intel Iris Xe 16GB",
+    "cpu": "Intel Core i5-1235U",
+    "gpu": "Intel Iris Xe Graphics",
+    "ram": 16
+  },
+  {
+    "brand": "Dell",
+    "model": "Dell Latitude 7440 Intel Iris Xe 16GB",
+    "cpu": "Intel Core i7-1365U",
+    "gpu": "Intel Iris Xe Graphics",
+    "ram": 16
+  },
+  {
+    "brand": "Lenovo",
+    "model": "Lenovo ThinkPad E14 Intel Iris Xe 16GB",
+    "cpu": "Intel Core i5-1235U",
+    "gpu": "Intel Iris Xe Graphics",
     "ram": 16
   }
 ];

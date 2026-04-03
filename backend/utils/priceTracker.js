@@ -21,12 +21,28 @@ function withAuth(url) {
 }
 
 async function fetchJson(url, options = {}) {
-  const response = await fetch(url, options);
-  if (!response.ok) {
-    const message = await response.text().catch(() => response.statusText);
-    throw new Error(message || `Request failed with status ${response.status}`);
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15000);
+
+  try {
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal,
+      headers: {
+        Accept: 'application/json',
+        ...(options.headers || {})
+      }
+    });
+
+    if (!response.ok) {
+      const message = await response.text().catch(() => response.statusText);
+      throw new Error(message || `Request failed with status ${response.status}`);
+    }
+
+    return response.json();
+  } finally {
+    clearTimeout(timeout);
   }
-  return response.json();
 }
 
 function formatMoney(price) {
@@ -40,6 +56,33 @@ function formatMoney(price) {
   } catch (_) {
     return `${price.currency || 'USD'} ${price.amount}`;
   }
+}
+
+function normalizeStoreLabel(label) {
+  return String(label || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
+function buildConfiguredStores(slug) {
+  const meta = PRICE_CATALOG[slug];
+  if (!meta?.stores?.length) return [];
+  return meta.stores.map((store) => ({
+    store: store.label,
+    normalizedStore: normalizeStoreLabel(store.label),
+    currentPrice: null,
+    regularPrice: null,
+    cut: null,
+    url: store.url || null,
+    isBestCurrent: false,
+    isHistoricalLow: false,
+    note: ITAD_API_KEY
+      ? (normalizeStoreLabel(store.label) === 'official site'
+        ? 'Official publisher pages usually do not expose a trackable live price in the price provider.'
+        : 'Waiting for the live provider response for this store.')
+      : 'Live price unavailable until the API key is configured.'
+  }));
 }
 
 function buildFallbackSnapshot(slug, extra = {}) {
@@ -62,14 +105,7 @@ function buildFallbackSnapshot(slug, extra = {}) {
     source: 'Store links fallback',
     bestDeal: null,
     historicalLow: null,
-    stores: meta.stores.map((store) => ({
-      store: store.label,
-      currentPrice: null,
-      regularPrice: null,
-      cut: null,
-      url: store.url,
-      note: 'Live price unavailable until the API key is configured.'
-    })),
+    stores: buildConfiguredStores(slug),
     lastUpdated: new Date().toISOString(),
     ...extra
   };
@@ -89,12 +125,16 @@ function mapDealEntry(entry) {
   if (!entry?.shop?.name) return null;
   return {
     store: entry.shop.name,
+    normalizedStore: normalizeStoreLabel(entry.shop.name),
     currentPrice: formatMoney(entry.price),
     regularPrice: formatMoney(entry.regular),
     cut: typeof entry.cut === 'number' ? entry.cut : null,
     url: entry.url || null,
     isBestCurrent: false,
     isHistoricalLow: false,
+    historicalLow: null,
+    historicalLowCut: null,
+    historicalLowAt: null,
     note: entry.voucher ? `Voucher: ${entry.voucher}` : null
   };
 }
@@ -110,13 +150,68 @@ async function fetchOverview(id) {
 }
 
 async function fetchDeals(id) {
-  const request = withAuth(`${ITAD_BASE}/games/prices/v3?country=${COUNTRY_CODE}&vouchers=true&capacity=6`);
+  const request = withAuth(`${ITAD_BASE}/games/prices/v3?country=${COUNTRY_CODE}&vouchers=true&capacity=12`);
   const payload = await fetchJson(request.url, {
     method: 'POST',
     headers: request.headers,
     body: JSON.stringify([id])
   });
   return Array.isArray(payload) ? payload.find((item) => item.id === id) || payload[0] : null;
+}
+
+function matchConfiguredStore(configuredStore, liveDeal) {
+  const configured = configuredStore.normalizedStore;
+  const live = liveDeal.normalizedStore;
+
+  if (configured === live) return true;
+  if (configured.includes('steam') && live.includes('steam')) return true;
+  if (configured.includes('epic') && live.includes('epic')) return true;
+  if (configured.includes('official')) return false;
+  return false;
+}
+
+function mergeLiveIntoConfiguredStores(configuredStores, liveDeals, overview) {
+  const stores = configuredStores.map((store) => ({ ...store }));
+
+  stores.forEach((configuredStore) => {
+    const liveDeal = liveDeals.find((deal) => matchConfiguredStore(configuredStore, deal));
+    if (!liveDeal) return;
+
+    configuredStore.currentPrice = liveDeal.currentPrice;
+    configuredStore.regularPrice = liveDeal.regularPrice;
+    configuredStore.cut = liveDeal.cut;
+    configuredStore.url = liveDeal.url || configuredStore.url;
+    configuredStore.note = liveDeal.note || null;
+  });
+
+  const currentStoreName = normalizeStoreLabel(overview?.current?.shop?.name || '');
+  const historicalStoreName = normalizeStoreLabel(overview?.lowest?.shop?.name || '');
+
+  stores.forEach((store) => {
+    if (store.normalizedStore === currentStoreName) {
+      store.isBestCurrent = true;
+    }
+    if (store.normalizedStore === historicalStoreName) {
+      store.isHistoricalLow = true;
+      store.historicalLow = formatMoney(overview?.lowest?.price);
+      store.historicalLowCut = typeof overview?.lowest?.cut === 'number' ? overview.lowest.cut : null;
+      store.historicalLowAt = overview?.lowest?.timestamp || null;
+    }
+  });
+
+  return stores;
+}
+
+function pickBestDeal(stores) {
+  const liveStores = stores.filter((store) => store.currentPrice);
+  if (!liveStores.length) return null;
+
+  const parseAmount = (value) => Number(String(value).replace(/[^0-9.]/g, ''));
+  return liveStores.reduce((best, current) => {
+    const bestAmount = parseAmount(best.currentPrice);
+    const currentAmount = parseAmount(current.currentPrice);
+    return currentAmount < bestAmount ? current : best;
+  });
 }
 
 async function pullLiveSnapshot(slug) {
@@ -138,65 +233,39 @@ async function pullLiveSnapshot(slug) {
     fetchDeals(gameId)
   ]);
 
-  const storeMap = new Map();
-  const currentDeal = overview?.current || null;
-  const historicalLow = overview?.lowest || null;
+  const liveDeals = (dealsPayload?.deals || [])
+    .map(mapDealEntry)
+    .filter(Boolean);
 
-  const currentEntry = mapDealEntry(currentDeal);
-  if (currentEntry) {
-    currentEntry.isBestCurrent = true;
-    storeMap.set(currentEntry.store, currentEntry);
-  }
+  const stores = mergeLiveIntoConfiguredStores(buildConfiguredStores(slug), liveDeals, overview);
+  const bestDeal = pickBestDeal(stores);
+  const historicalLow = overview?.lowest ? {
+    store: overview.lowest.shop?.name || null,
+    price: formatMoney(overview.lowest.price),
+    regularPrice: formatMoney(overview.lowest.regular),
+    cut: typeof overview.lowest.cut === 'number' ? overview.lowest.cut : null,
+    timestamp: overview.lowest.timestamp || null
+  } : null;
 
-  (dealsPayload?.deals || []).forEach((deal) => {
-    const mapped = mapDealEntry(deal);
-    if (!mapped) return;
-    const existing = storeMap.get(mapped.store);
-    if (!existing) {
-      storeMap.set(mapped.store, mapped);
-      return;
-    }
-    if (existing.currentPrice === null && mapped.currentPrice !== null) {
-      storeMap.set(mapped.store, { ...existing, ...mapped });
-    }
-  });
-
-  if (historicalLow?.shop?.name) {
-    const historicalStore = historicalLow.shop.name;
-    const existing = storeMap.get(historicalStore) || { store: historicalStore, url: null };
-    storeMap.set(historicalStore, {
-      ...existing,
-      historicalLow: formatMoney(historicalLow.price),
-      historicalLowCut: typeof historicalLow.cut === 'number' ? historicalLow.cut : null,
-      historicalLowAt: historicalLow.timestamp || null,
-      isHistoricalLow: true
-    });
-  }
-
-  const stores = Array.from(storeMap.values())
-    .sort((a, b) => (b.isBestCurrent === true) - (a.isBestCurrent === true) || (b.cut || 0) - (a.cut || 0))
-    .slice(0, 6);
+  const currentLiveCount = stores.filter((store) => store.currentPrice).length;
+  const message = currentLiveCount
+    ? 'Live prices loaded for the tracked stores below. Unpriced rows still link directly to the store.'
+    : 'No tracked store returned a live current price just now. You can still use the store links below.';
 
   return {
     supported: true,
-    live: true,
+    live: currentLiveCount > 0,
     source: 'IsThereAnyDeal API',
-    message: 'Live legal deal data loaded from the configured price provider.',
-    bestDeal: currentDeal ? {
-      store: currentDeal.shop?.name || null,
-      currentPrice: formatMoney(currentDeal.price),
-      regularPrice: formatMoney(currentDeal.regular),
-      cut: typeof currentDeal.cut === 'number' ? currentDeal.cut : null,
-      url: currentDeal.url || overview?.urls?.game || null
+    message,
+    bestDeal: bestDeal ? {
+      store: bestDeal.store,
+      currentPrice: bestDeal.currentPrice,
+      regularPrice: bestDeal.regularPrice,
+      cut: bestDeal.cut,
+      url: bestDeal.url || null
     } : null,
-    historicalLow: historicalLow ? {
-      store: historicalLow.shop?.name || null,
-      price: formatMoney(historicalLow.price),
-      regularPrice: formatMoney(historicalLow.regular),
-      cut: typeof historicalLow.cut === 'number' ? historicalLow.cut : null,
-      timestamp: historicalLow.timestamp || null
-    } : null,
-    stores,
+    historicalLow,
+    stores: stores.map(({ normalizedStore, ...rest }) => rest),
     lastUpdated: new Date().toISOString(),
     titleMatched: meta.title,
     country: COUNTRY_CODE

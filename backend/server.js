@@ -4,6 +4,7 @@ const express = require('express')
 const mongoose = require('mongoose')
 const helmet = require('helmet')
 const cors = require('cors')
+const fs = require('fs')
 const path = require('path')
 
 const authRoutes = require('./routes/auth')
@@ -19,7 +20,9 @@ const { ensureHardwareSeeded } = require('./utils/hardware')
 
 const app = express()
 const PORT = process.env.PORT || 4000
-const FRONTEND_ROOT = path.resolve(__dirname, '..')
+const DIST_ROOT = path.resolve(__dirname, '..', 'dist')
+const HAS_FRONTEND_BUILD = fs.existsSync(path.join(DIST_ROOT, 'index.html'))
+const FRONTEND_ROOT = DIST_ROOT
 
 async function connectDatabase() {
   try {
@@ -49,17 +52,31 @@ app.use(cors({ origin: true, credentials: true }))
 app.use(express.json())
 app.use(express.urlencoded({ extended: true }))
 
+app.get('/api/health', (_req, res) => {
+  res.json({
+    ok: true,
+    databaseReady: mongoose.connection.readyState === 1,
+    frontendBuilt: HAS_FRONTEND_BUILD,
+    frontendRoot: FRONTEND_ROOT
+  })
+})
+
 app.use('/api/auth', authRoutes)
 app.use('/api/games', gameRoutes)
 app.use('/api/comments', commentRoutes)
 app.use('/api/contact', contactRoutes)
 app.use('/api/hardware', hardwareRoutes)
 
-app.use(express.static(FRONTEND_ROOT))
-
-app.get('/', (req, res) => {
-  res.sendFile(path.join(FRONTEND_ROOT, 'index.html'))
-})
+if (HAS_FRONTEND_BUILD) {
+  app.use(express.static(FRONTEND_ROOT))
+  app.get(/^(?!\/api).*/, (_req, res) => {
+    res.sendFile(path.join(FRONTEND_ROOT, 'index.html'))
+  })
+} else {
+  app.get(/^(?!\/api).*/, (_req, res) => {
+    res.status(503).send('Frontend build not found. Run npm run build before starting the server.')
+  })
+}
 
 connectDatabase().finally(() => {
   startPriceRefreshLoop()

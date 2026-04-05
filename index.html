@@ -1,162 +1,23 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>PlayWise | Decide Before You Download</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css" />
-</head>
-<body data-page="home">
-  <header class="site-header">
-    <div class="wrapper nav-shell">
-      <a class="brand" href="index.html">
-        <span class="brand-mark">PW</span>
-        <span>
-          <strong>PlayWise</strong>
-          <small>Decide before you download</small>
-        </span>
-      </a>
-
-      <button class="mobile-nav-toggle" id="mobileNavToggle" aria-label="Toggle navigation">☰</button>
-
-      <nav class="site-nav" id="siteNav">
-        <a href="#discover">Discover</a>
-        <a href="#feature-grid">Why Us</a>
-        <a href="#platform-tools">Tools</a>
-        <a href="#contact">Contact</a>
-        <a href="open-source.html" class="ghost-btn">Open-Source / Free</a>
-        <a href="hardware-admin.html" class="ghost-btn">Hardware Admin</a>
-        <a href="login.html" class="ghost-btn">Login</a>
-        <a href="registration.html" class="primary-btn">Register</a>
-      </nav>
-    </div>
-  </header>
-
-  <main>
-    <section class="hero-section">
-      <div class="wrapper hero-grid">
-        <div class="hero-copy">
-          <p class="eyebrow">Steam-style discovery, but more useful</p>
-          <h1>Know if a game fits your PC, your time, and your playstyle.</h1>
-          <p class="hero-text">
-            PlayWise helps players answer what big storefronts often leave vague: performance expectations,
-            optimization quality, player fit, and whether a game is really worth the price.
-          </p>
-          <div class="hero-actions">
-            <a href="#discover" class="primary-btn">Browse games</a>
-            <a href="#platform-tools" class="ghost-btn">See smart tools</a>
-            <a href="open-source.html" class="ghost-btn">Browse open-source games</a>
-          </div>
-          <div class="hero-stats">
-            <div><strong>8</strong><span>decision tools</span></div>
-            <div><strong>10</strong><span>featured games</span></div>
-            <div><strong>2</strong><span>ways to check your PC</span></div>
-          </div>
-        </div>
-        <div class="hero-panel">
-          <div class="hero-card glow-card">
-            <span class="pill blue">Featured insight</span>
-            <h2>Why would someone come here instead of a store page?</h2>
-            <ul class="feature-points compact">
-              <li>Structured ratings for story, gameplay, graphics, optimization, and replayability</li>
-              <li>Bug and stability status at a glance</li>
-              <li>Value rating to tell if a game feels worth full price</li>
-              <li>Player-type recommendation so users know if it matches their taste</li>
-            </ul>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <section class="discover-section" id="discover">
-      <div class="wrapper">
-        <div class="section-head">
-          <div>
-            <p class="eyebrow">Game gallery</p>
-            <h2>Browse story-rich games plus standout open-source picks</h2>
-          </div>
-          <div class="search-wrap">
-            <input type="search" id="gameSearchInput" class="search-input" placeholder="Search by title, genre, or mood" />
-          </div>
-        </div>
-        <div id="gameGrid" class="game-grid"></div>
-      </div>
-    </section>
-
-    <section class="feature-grid-section" id="feature-grid">
-      <div class="wrapper">
-        <div class="section-head narrow">
-          <div>
-            <p class="eyebrow">What the platform solves</p>
-            <h2>Eight useful ideas built into one gaming decision platform</h2>
-          </div>
-        </div>
-        <div class="feature-grid" id="ideasGrid"></div>
-      </div>
-    </section>
-
-    <section class="platform-tools-section" id="platform-tools">
-      <div class="wrapper tools-grid">
-        <article class="tool-card">
-          <p class="eyebrow">Tool spotlight</p>
-          <h2>Smart PC Checker</h2>
-          <p>
-            Users can search their laptop model or enter CPU, GPU, and RAM manually. The system estimates
-            if the game will run, the likely FPS range, and the recommended settings.
-          </p>
-          <a href="game.html?slug=watch-dogs-2" class="primary-btn">Try it on a game page</a>
-        </article>
-        <article class="tool-card muted">
-          <p class="eyebrow">Why this matters</p>
-          <h2>Stores tell you requirements. We tell you what they mean.</h2>
-          <p>
-            Instead of only showing minimum specs, PlayWise turns requirements into understandable insights:
-            run quality, time commitment, playstyle fit, and buying advice.
-          </p>
-        </article>
-      </div>
-    </section>
-
-    <section class="contact-section" id="contact">
-      <div class="wrapper contact-grid">
-        <div>
-          <p class="eyebrow">Contact</p>
-          <h2>Send feedback or project suggestions</h2>
-          <p class="section-text">Use this form if you want to report a bug, suggest a game, or send portfolio feedback.</p>
-        </div>
-        <form id="contactForm" class="contact-form card-surface">
-          <div class="field-grid two-cols">
-            <label>
-              <span>Name</span>
-              <input type="text" name="name" placeholder="Your name" required />
-            </label>
-            <label>
-              <span>Email</span>
-              <input type="email" name="email" placeholder="Your email" required />
-            </label>
-          </div>
-          <label>
-            <span>Message</span>
-            <textarea name="message" rows="5" placeholder="Tell us what should be improved" required></textarea>
-          </label>
-          <button type="submit" class="primary-btn full-width">Send message</button>
-          <p id="contactFeedback" class="form-feedback"></p>
-        </form>
-      </div>
-    </section>
-  </main>
-
-  <footer class="site-footer">
-    <div class="wrapper footer-shell">
-      <p>Built as a college major project and portfolio-ready gaming platform concept.</p>
-      <p>PlayWise © 2026</p>
-    </div>
-  </footer>
-
-  <script src="data.js"></script>
-  <script src="main.js"></script>
-</body>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PlayWise | Decide Before You Download</title>
+    <meta
+      name="description"
+      content="PlayWise helps players compare games, check hardware compatibility, and decide if a title matches their PC, budget, and playstyle."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap"
+      rel="stylesheet"
+    />
+    <script src="/data.js"></script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
 </html>

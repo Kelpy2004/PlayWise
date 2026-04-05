@@ -9,8 +9,8 @@ const LAPTOP_LIBRARY = Laptops.map(({ model, cpu, gpu, ram, brand, platform, tag
 const RAM_OPTIONS = [8, 12, 16, 18, 24, 32, 36, 64]
 
 const MAC_COMPATIBLE_SLUGS = new Set([
-  '0-a-d',
-  'super-tux-kart',
+  '0-ad',
+  'supertuxkart',
   'battle-for-wesnoth',
   'openttd',
   'xonotic'

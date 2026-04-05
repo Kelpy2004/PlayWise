@@ -1,8 +1,26 @@
 {
-  "name": "gamescope-frontend",
-  "version": "1.0.0",
-  "description": "Frontend for the GameScope major project.",
+  "name": "playwise-frontend",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "description": "React frontend for the PlayWise gaming decision platform.",
   "scripts": {
-    "start": "npx serve ."
+    "dev": "vite",
+    "dev:frontend": "vite",
+    "dev:backend": "npm --prefix backend run dev",
+    "build": "vite build",
+    "preview": "vite preview",
+    "start": "npm run build && npm --prefix backend start",
+    "start:backend": "npm --prefix backend start"
+  },
+  "dependencies": {
+    "bootstrap": "^5.3.3",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.28.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.3",
+    "vite": "^5.4.10"
   }
 }

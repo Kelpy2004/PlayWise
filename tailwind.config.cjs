@@ -48,7 +48,13 @@ module.exports = {
       },
       fontFamily: {
         sans: ['Manrope', 'sans-serif'],
-        display: ['Space Grotesk', 'sans-serif']
+        display: ['Space Grotesk', 'sans-serif'],
+        heading: ['Manrope', 'sans-serif'],
+        headline: ['Space Grotesk', 'sans-serif'],
+        body: ['Inter', 'sans-serif'],
+        label: ['Inter', 'sans-serif'],
+        outfit: ['Outfit', 'system-ui', 'sans-serif'],
+        'jet-mono': ['"JetBrains Mono"', 'monospace'],
       },
       boxShadow: {
         playwise: '0 24px 60px rgba(16, 32, 51, 0.12)'

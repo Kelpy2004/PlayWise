@@ -4,13 +4,26 @@ module.exports = {
   theme: {
     extend: {
       colors: {
+        /* ── PlayWise unified palette ── */
+        pw: {
+          lime: '#b1fa50',
+          blue: '#3ba7ff',
+          coral: '#ff7351',
+          surface: '#0e0e0e',
+          panel: '#151515',
+          deep: '#060806',
+          glass: 'rgba(255,255,255,0.04)',
+          'glass-border': 'rgba(255,255,255,0.08)',
+          muted: '#888888',
+          text: '#f0f0f0',
+        },
         playwise: {
           ink: '#102033',
           brand: '#eb6d4a',
           accent: '#0f7d75',
           cream: '#f6efe4',
-          highlight: '#f0bf63'
-        }
+          highlight: '#f0bf63',
+        },
       },
       fontFamily: {
         sans: ['Manrope', 'sans-serif'],

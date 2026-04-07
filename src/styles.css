@@ -108,10 +108,12 @@ body {
   font-family: 'Manrope', sans-serif;
   color: var(--pw-ink);
   overflow-x: hidden;
-  background:
-    radial-gradient(circle at top left, rgba(235, 109, 74, 0.14), transparent 28%),
-    radial-gradient(circle at top right, rgba(15, 125, 117, 0.14), transparent 24%),
-    linear-gradient(180deg, #fff8ef 0%, var(--pw-cream) 52%, #fffaf4 100%);
+  background: #060806;
+  background-image:
+    radial-gradient(circle at 15% 10%, rgba(177, 250, 80, 0.06), transparent 40%),
+    radial-gradient(circle at 85% 20%, rgba(59, 167, 255, 0.05), transparent 35%),
+    radial-gradient(circle at 50% 80%, rgba(255, 115, 81, 0.03), transparent 40%);
+  background-attachment: fixed;
 }
 
 html,

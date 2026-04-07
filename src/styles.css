@@ -47,6 +47,29 @@
   --transition-theme: 0.6s cubic-bezier(0.4,0,0.2,1);
 }
 
+[data-theme="light"] {
+  --deep:        #f5f0e8;
+  --ds-surface:  #efe9df;
+  --panel:       #faf7f2;
+  --card-bg:     #f3ede3;
+  --card-border: rgba(120,90,40,0.1);
+  --border:      rgba(120,90,40,0.12);
+  --cyan:        #007aaa;
+  --cyan-dim:    rgba(0,122,170,0.1);
+  --amber:       #b87800;
+  --amber-dim:   rgba(184,120,0,0.12);
+  --magenta:     #b41050;
+  --lime:        #4a8500;
+  --blue-ds:     #1060bb;
+  --red-ds:      #c03020;
+  --ds-text:     #1e1a16;
+  --ds-muted:    rgba(30,26,22,0.55);
+  --muted-solid: #7a6e60;
+  --input-bg:    #e2d8cc;
+  --metric-bg:   #eee5d8;
+  --tooltip-bg:  rgba(243,237,227,0.96);
+}
+
 * {
   box-sizing: border-box;
 }

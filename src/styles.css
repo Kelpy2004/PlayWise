@@ -22,6 +22,31 @@
   --pw-glass-border: rgba(255, 255, 255, 0.08);
 }
 
+/* ── PlayWise Dashboard Design System (GamePage) ─────────────────────────── */
+:root {
+  --deep:        #06060f;
+  --ds-surface:  #0c0c1a;
+  --panel:       #111126;
+  --card-bg:     #13132a;
+  --card-border: rgba(255,255,255,0.06);
+  --border:      rgba(255,255,255,0.06);
+  --cyan:        #00d4ff;
+  --cyan-dim:    rgba(0,212,255,0.12);
+  --amber:       #ffb800;
+  --amber-dim:   rgba(255,184,0,0.12);
+  --magenta:     #ff2d78;
+  --lime:        #b1fa50;
+  --blue-ds:     #3ba7ff;
+  --red-ds:      #ff7351;
+  --ds-text:     #e8e8f0;
+  --ds-muted:    rgba(255,255,255,0.52);
+  --muted-solid: #6b6b8d;
+  --input-bg:    #1a1a2e;
+  --metric-bg:   #1e1e3a;
+  --tooltip-bg:  rgba(17,17,38,0.95);
+  --transition-theme: 0.6s cubic-bezier(0.4,0,0.2,1);
+}
+
 * {
   box-sizing: border-box;
 }

@@ -57,10 +57,73 @@ module.exports = {
         'jet-mono': ['"JetBrains Mono"', 'monospace'],
       },
       boxShadow: {
-        playwise: '0 24px 60px rgba(16, 32, 51, 0.12)'
-      }
-    }
+        playwise: '0 24px 60px rgba(16, 32, 51, 0.12)',
+        'glass': '0 8px 32px rgba(0,0,0,0.37)',
+        'glass-lg': '0 16px 48px rgba(0,0,0,0.45)',
+        'neon-lime': '0 0 20px rgba(177,250,80,0.25), 0 0 60px rgba(177,250,80,0.10)',
+        'neon-blue': '0 0 20px rgba(59,167,255,0.25), 0 0 60px rgba(59,167,255,0.10)',
+      },
+      backdropBlur: {
+        xs: '2px',
+      },
+      animation: {
+        'glow-pulse': 'glowPulse 2s ease-in-out infinite',
+        'glow-breathe': 'glowBreathe 3s ease-in-out infinite',
+        float: 'float 4s ease-in-out infinite',
+        glitch: 'glitch 0.3s steps(2) 3',
+        shimmer: 'shimmer 2.4s linear infinite',
+        'slide-up': 'slideUp 0.6s cubic-bezier(0.16,1,0.3,1) both',
+        'slide-down': 'slideDown 0.5s cubic-bezier(0.16,1,0.3,1) both',
+        'fade-in': 'fadeIn 0.5s ease both',
+        'scale-in': 'scaleIn 0.4s cubic-bezier(0.16,1,0.3,1) both',
+        'border-spin': 'borderSpin 4s linear infinite',
+      },
+      keyframes: {
+        glowPulse: {
+          '0%, 100%': { boxShadow: '0 0 8px #b1fa50, 0 0 20px rgba(177,250,80,0.25)' },
+          '50%': { boxShadow: '0 0 16px #b1fa50, 0 0 40px rgba(177,250,80,0.35)' },
+        },
+        glowBreathe: {
+          '0%, 100%': { opacity: '0.6' },
+          '50%': { opacity: '1' },
+        },
+        float: {
+          '0%, 100%': { transform: 'translateY(0px)' },
+          '50%': { transform: 'translateY(-12px)' },
+        },
+        glitch: {
+          '0%': { clipPath: 'inset(0 0 95% 0)', transform: 'translate(-4px, 0)' },
+          '25%': { clipPath: 'inset(40% 0 50% 0)', transform: 'translate(4px, 0)' },
+          '50%': { clipPath: 'inset(70% 0 20% 0)', transform: 'translate(-2px, 0)' },
+          '75%': { clipPath: 'inset(10% 0 80% 0)', transform: 'translate(2px, 0)' },
+          '100%': { clipPath: 'inset(0 0 0 0)', transform: 'translate(0, 0)' },
+        },
+        shimmer: {
+          '0%': { backgroundPosition: '-200% 0' },
+          '100%': { backgroundPosition: '200% 0' },
+        },
+        slideUp: {
+          '0%': { opacity: '0', transform: 'translateY(24px)' },
+          '100%': { opacity: '1', transform: 'translateY(0)' },
+        },
+        slideDown: {
+          '0%': { opacity: '0', transform: 'translateY(-16px)' },
+          '100%': { opacity: '1', transform: 'translateY(0)' },
+        },
+        fadeIn: {
+          '0%': { opacity: '0' },
+          '100%': { opacity: '1' },
+        },
+        scaleIn: {
+          '0%': { opacity: '0', transform: 'scale(0.92)' },
+          '100%': { opacity: '1', transform: 'scale(1)' },
+        },
+        borderSpin: {
+          '0%': { '--border-angle': '0deg' },
+          '100%': { '--border-angle': '360deg' },
+        },
+      },
+    },
   },
-  plugins: []
-  
+  plugins: [],
 }

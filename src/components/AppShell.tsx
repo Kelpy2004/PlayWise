@@ -329,7 +329,7 @@ export default function AppShell() {
 
           <div className="ml-auto flex shrink-0 items-center justify-end gap-2 sm:gap-3">
             <form className="hidden items-center gap-2 2xl:flex" onSubmit={handleSearchSubmit}>
-              <div className="flex items-center gap-2 rounded-lg border border-white/8 bg-transparent px-3 py-2 text-white/64 transition-colors hover:border-[#b1fa50]/20 hover:text-white">
+              <div className="flex items-center gap-2 rounded-xl border border-white/8 bg-white/[0.03] px-3 py-2 text-white/64 transition-all duration-300 hover:border-[#b1fa50]/25 hover:text-white focus-within:border-[#b1fa50]/40 focus-within:shadow-[0_0_20px_rgba(177,250,80,0.1)]">
                 <input
                   type="search"
                   value={searchText}

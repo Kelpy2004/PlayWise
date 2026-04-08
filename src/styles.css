@@ -218,9 +218,9 @@ a {
   position: relative;
   isolation: isolate;
   box-shadow:
-    0 24px 48px rgba(16, 32, 51, 0.16),
-    0 0 22px rgba(235, 109, 74, 0.14),
-    0 0 34px rgba(15, 125, 117, 0.12);
+    0 24px 48px rgba(0, 0, 0, 0.4),
+    0 0 22px rgba(177, 250, 80, 0.12),
+    0 0 34px rgba(59, 167, 255, 0.08);
   animation: featuredPulse 2.4s ease-in-out infinite;
 }
 
@@ -230,7 +230,7 @@ a {
   inset: 0;
   padding: 1px;
   border-radius: inherit;
-  background: linear-gradient(135deg, rgba(235, 109, 74, 0.95), rgba(240, 191, 99, 0.78), rgba(15, 125, 117, 0.7));
+  background: linear-gradient(135deg, rgba(177, 250, 80, 0.9), rgba(59, 167, 255, 0.7), rgba(255, 115, 81, 0.6));
   -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
   -webkit-mask-composite: xor;
   mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
@@ -243,16 +243,16 @@ a {
   0%,
   100% {
     box-shadow:
-      0 24px 48px rgba(16, 32, 51, 0.16),
-      0 0 20px rgba(235, 109, 74, 0.14),
-      0 0 28px rgba(15, 125, 117, 0.12);
+      0 24px 48px rgba(0, 0, 0, 0.4),
+      0 0 20px rgba(177, 250, 80, 0.12),
+      0 0 28px rgba(59, 167, 255, 0.08);
   }
 
   50% {
     box-shadow:
-      0 28px 54px rgba(16, 32, 51, 0.2),
-      0 0 28px rgba(235, 109, 74, 0.22),
-      0 0 40px rgba(15, 125, 117, 0.18);
+      0 28px 54px rgba(0, 0, 0, 0.5),
+      0 0 28px rgba(177, 250, 80, 0.2),
+      0 0 40px rgba(59, 167, 255, 0.14);
   }
 }
 
@@ -264,7 +264,7 @@ a {
   overflow: hidden;
   background-size: cover;
   background-position: center;
-  box-shadow: 0 28px 60px rgba(16, 32, 51, 0.24);
+  box-shadow: 0 28px 60px rgba(0, 0, 0, 0.5);
   animation: spotlightTraverse 2.6s ease-in-out both;
 }
 

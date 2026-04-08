@@ -6,3 +6,6 @@ npm-debug.log*
 *.log
 .env
 backend/.env
+
+.vercel
+.env*.local

@@ -1,6 +1,8 @@
 const jwt = require('jsonwebtoken')
 
-const JWT_SECRET = process.env.JWT_SECRET || 'playwise-secret'
+const { env } = require('../lib/env')
+
+const JWT_SECRET = env.JWT_SECRET
 
 function getTokenFromRequest(req) {
   const authHeader = req.headers.authorization || ''
@@ -21,7 +23,7 @@ function optionalAuth(req, _res, next) {
 
   try {
     req.user = decodeToken(token)
-  } catch (_) {
+  } catch {
     req.user = null
   }
 
@@ -37,7 +39,7 @@ function requireAuth(req, res, next) {
   try {
     req.user = decodeToken(token)
     next()
-  } catch (_) {
+  } catch {
     res.status(401).json({ message: 'Invalid or expired session.' })
   }
 }

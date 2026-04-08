@@ -1,10 +1,13 @@
 const express = require('express')
 const bcrypt = require('bcryptjs')
 const jwt = require('jsonwebtoken')
+const { z } = require('zod')
 
-const User = require('../models/user')
+const { env } = require('../lib/env')
+const { ApiError, asyncHandler } = require('../lib/http')
+const { getPrisma, isDatabaseReady } = require('../lib/prisma')
 const { JWT_SECRET, requireAuth } = require('../middleware/auth')
-const { isDatabaseReady } = require('../utils/dbState')
+const { validateBody } = require('../middleware/validate')
 const {
   addDemoUser,
   countDemoAdmins,
@@ -13,36 +16,50 @@ const {
 } = require('../utils/runtimeStore')
 
 const router = express.Router()
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+const PASSWORD_RULE_MESSAGE =
+  'Password must be at least 6 characters and include 1 uppercase letter, 1 lowercase letter, and 1 special character like ! @ # $ % ^ & * ( ) - _ + = ? / \\ . ,'
+const passwordSchema = z
+  .string()
+  .min(6)
+  .refine((value) => /[A-Z]/.test(value), PASSWORD_RULE_MESSAGE)
+  .refine((value) => /[a-z]/.test(value), PASSWORD_RULE_MESSAGE)
+  .refine((value) => /[^A-Za-z0-9]/.test(value), PASSWORD_RULE_MESSAGE)
+
+const registerSchema = z.object({
+  username: z.string().trim().min(3),
+  email: z.string().trim().email(),
+  password: passwordSchema,
+  adminSetupCode: z.string().trim().optional().default('')
+})
+
+const loginSchema = z.object({
+  usernameOrEmail: z.string().trim().min(1),
+  password: z.string().min(1)
+})
+
+function normalizeRole(role) {
+  return String(role || 'USER').toLowerCase()
+}
 
 function signToken(user) {
   return jwt.sign(
     {
-      id: String(user._id || user.id),
-      role: user.role,
+      id: String(user.id),
+      role: normalizeRole(user.role),
       username: user.username,
       email: user.email
     },
     JWT_SECRET,
-    { expiresIn: process.env.JWT_EXPIRES || '7d' }
+    { expiresIn: env.JWT_EXPIRES }
   )
 }
 
 function serializeUser(user) {
   return {
-    id: String(user._id || user.id),
+    id: String(user.id),
     username: user.username,
     email: user.email,
-    role: user.role
-  }
-}
-
-function normalizeRegistrationBody(body = {}) {
-  return {
-    username: String(body.username || '').trim(),
-    email: String(body.email || '').trim().toLowerCase(),
-    password: String(body.password || ''),
-    adminSetupCode: String(body.adminSetupCode || '').trim()
+    role: normalizeRole(user.role)
   }
 }
 
@@ -53,8 +70,15 @@ async function findUserByUsernameOrEmail(usernameOrEmail) {
     return findDemoUserByUsernameOrEmail(needle)
   }
 
-  const regex = new RegExp(`^${needle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i')
-  return User.findOne({ $or: [{ username: regex }, { email: regex }] })
+  const prisma = getPrisma()
+  return prisma.user.findFirst({
+    where: {
+      OR: [
+        { username: { equals: needle, mode: 'insensitive' } },
+        { email: { equals: needle.toLowerCase(), mode: 'insensitive' } }
+      ]
+    }
+  })
 }
 
 async function countAdmins() {
@@ -62,55 +86,54 @@ async function countAdmins() {
     return countDemoAdmins()
   }
 
-  return User.countDocuments({ role: 'admin' })
+  return getPrisma().user.count({ where: { role: 'ADMIN' } })
 }
 
 function shouldGrantAdmin(email, adminSetupCode, adminCount) {
-  const configuredAdmins = String(process.env.ADMIN_EMAILS || '')
+  const configuredAdmins = String(env.ADMIN_EMAILS || '')
     .split(',')
     .map((entry) => entry.trim().toLowerCase())
     .filter(Boolean)
 
   if (configuredAdmins.includes(email)) return true
 
-  if (process.env.ADMIN_SETUP_CODE && adminSetupCode === process.env.ADMIN_SETUP_CODE) {
+  if (env.ADMIN_SETUP_CODE && adminSetupCode === env.ADMIN_SETUP_CODE) {
     return true
   }
 
   return adminCount === 0
 }
 
-router.post('/register', async (req, res) => {
-  try {
-    const { username, email, password, adminSetupCode } = normalizeRegistrationBody(req.body)
+router.post(
+  '/register',
+  validateBody(registerSchema),
+  asyncHandler(async (req, res) => {
+    const { username, email, password, adminSetupCode } = req.validatedBody
 
-    if (!username || !email || !password) {
-      return res.status(400).json({ message: 'Username, email, and password are required.' })
-    }
-
-    if (username.length < 3) {
-      return res.status(400).json({ message: 'Username must be at least 3 characters.' })
-    }
-
-    if (!EMAIL_PATTERN.test(email)) {
-      return res.status(400).json({ message: 'Enter a valid email address.' })
-    }
-
-    if (password.length < 6) {
-      return res.status(400).json({ message: 'Password must be at least 6 characters.' })
-    }
-
-    const existingUser = await findUserByUsernameOrEmail(username) || await findUserByUsernameOrEmail(email)
+    const existingUser = (await findUserByUsernameOrEmail(username)) || (await findUserByUsernameOrEmail(email))
     if (existingUser) {
-      return res.status(409).json({ message: 'A user with that username or email already exists.' })
+      throw new ApiError(409, 'A user with that username or email already exists.')
     }
 
-    const role = shouldGrantAdmin(email, adminSetupCode, await countAdmins()) ? 'admin' : 'user'
+    const role = shouldGrantAdmin(email, adminSetupCode, await countAdmins()) ? 'ADMIN' : 'USER'
     const passwordHash = await bcrypt.hash(password, 10)
 
     const user = isDatabaseReady()
-      ? await User.create({ username, email, passwordHash, role })
-      : addDemoUser({ id: nextDemoUserId(), username, email, passwordHash, role })
+      ? await getPrisma().user.create({
+          data: {
+            username,
+            email: email.toLowerCase(),
+            passwordHash,
+            role
+          }
+        })
+      : addDemoUser({
+          id: nextDemoUserId(),
+          username,
+          email: email.toLowerCase(),
+          passwordHash,
+          role
+        })
 
     const token = signToken(user)
 
@@ -119,49 +142,42 @@ router.post('/register', async (req, res) => {
       token,
       user: serializeUser(user)
     })
-  } catch (error) {
-    res.status(500).json({ message: 'Could not register user right now.' })
-  }
-})
+  })
+)
 
-router.post('/login', async (req, res) => {
-  try {
-    const usernameOrEmail = String(req.body.usernameOrEmail || '').trim()
-    const password = String(req.body.password || '')
-
-    if (!usernameOrEmail || !password) {
-      return res.status(400).json({ message: 'Username/email and password are required.' })
-    }
-
+router.post(
+  '/login',
+  validateBody(loginSchema),
+  asyncHandler(async (req, res) => {
+    const { usernameOrEmail, password } = req.validatedBody
     const user = await findUserByUsernameOrEmail(usernameOrEmail)
     if (!user) {
-      return res.status(401).json({ message: 'Invalid credentials.' })
+      throw new ApiError(401, 'Invalid credentials.')
     }
 
-    const isMatch = typeof user.comparePassword === 'function'
-      ? await user.comparePassword(password)
-      : await bcrypt.compare(password, user.passwordHash)
-
+    const isMatch = await bcrypt.compare(password, user.passwordHash)
     if (!isMatch) {
-      return res.status(401).json({ message: 'Invalid credentials.' })
+      throw new ApiError(401, 'Invalid credentials.')
     }
 
     const token = signToken(user)
     res.json({ token, user: serializeUser(user) })
-  } catch (error) {
-    res.status(500).json({ message: 'Could not log in right now.' })
-  }
-})
-
-router.get('/session', requireAuth, async (req, res) => {
-  res.json({
-    user: {
-      id: req.user.id,
-      username: req.user.username,
-      email: req.user.email,
-      role: req.user.role
-    }
   })
-})
+)
+
+router.get(
+  '/session',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    res.json({
+      user: {
+        id: req.user.id,
+        username: req.user.username,
+        email: req.user.email,
+        role: req.user.role
+      }
+    })
+  })
+)
 
 module.exports = router

@@ -1,0 +1,276 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+enum ReactionKind {
+  LIKE
+  DISLIKE
+}
+
+enum SavedHardwareKind {
+  LAPTOP
+  MANUAL
+}
+
+enum RecommendationDecision {
+  BUY_NOW
+  WAIT_FOR_SALE
+  SKIP
+  TRY_ALTERNATIVE
+}
+
+enum PriceTimingDecision {
+  BUY_NOW
+  WAIT_FOR_DROP
+  WATCH_CLOSELY
+  FAIR_PRICE
+}
+
+enum HardwareEntityKind {
+  CPU
+  GPU
+  LAPTOP
+}
+
+model User {
+  id                  String                   @id @default(cuid())
+  username            String                   @unique
+  email               String                   @unique
+  passwordHash        String
+  role                UserRole                 @default(USER)
+  verified            Boolean                  @default(false)
+  avatarUrl           String                   @default("")
+  createdAt           DateTime                 @default(now())
+  updatedAt           DateTime                 @updatedAt
+  comments            Comment[]
+  favoriteGames       FavoriteGame[]
+  savedHardware       SavedHardwareProfile[]
+  gameReactions       GameReaction[]
+  commentReactions    CommentReaction[]
+  gameViews           GameView[]
+  recommendationRuns  RecommendationSnapshot[]
+  telemetryEvents     TelemetryEvent[]
+}
+
+model Game {
+  id          String   @id @default(cuid())
+  slug        String   @unique
+  title       String
+  year        Int?
+  heroTag     String?
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Comment {
+  id           String            @id @default(cuid())
+  gameSlug      String
+  username      String
+  message       String
+  userId        String?
+  user          User?             @relation(fields: [userId], references: [id], onDelete: SetNull)
+  likeCount     Int               @default(0)
+  dislikeCount  Int               @default(0)
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  reactions     CommentReaction[]
+
+  @@index([gameSlug, createdAt])
+}
+
+model Contact {
+  id        String   @id @default(cuid())
+  name      String
+  email     String
+  message   String
+  createdAt DateTime @default(now())
+}
+
+model Cpu {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  score     Int
+  family    String?
+  platform  String   @default("windows")
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Gpu {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  score     Int
+  family    String?
+  platform  String   @default("windows")
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Laptop {
+  id        String   @id @default(cuid())
+  model     String   @unique
+  brand     String?
+  cpu       String
+  gpu       String
+  ram       Int
+  platform  String   @default("windows")
+  tags      String[]
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model HardwareAlias {
+  id            String            @id @default(cuid())
+  entityKind    HardwareEntityKind
+  alias         String
+  canonicalName String
+  createdAt     DateTime          @default(now())
+
+  @@unique([entityKind, alias])
+  @@index([entityKind, alias])
+  @@index([canonicalName])
+}
+
+model FavoriteGame {
+  id        String   @id @default(cuid())
+  userId    String
+  gameSlug  String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, gameSlug])
+  @@index([gameSlug])
+}
+
+model SavedHardwareProfile {
+  id          String            @id @default(cuid())
+  userId       String
+  label        String
+  kind         SavedHardwareKind
+  laptopModel  String?
+  cpuName      String?
+  gpuName      String?
+  ram          Int?
+  isDefault    Boolean           @default(false)
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  user         User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model GameReaction {
+  id        String        @id @default(cuid())
+  userId    String
+  gameSlug   String
+  reaction  ReactionKind
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, gameSlug])
+  @@index([gameSlug])
+}
+
+model CommentReaction {
+  id         String        @id @default(cuid())
+  userId     String
+  commentId  String
+  reaction   ReactionKind
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+  user       User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  comment    Comment       @relation(fields: [commentId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, commentId])
+}
+
+model GameView {
+  id         String    @id @default(cuid())
+  userId     String?
+  sessionId  String?
+  gameSlug   String
+  createdAt  DateTime  @default(now())
+  user       User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([gameSlug, createdAt])
+}
+
+model TelemetryEvent {
+  id         String   @id @default(cuid())
+  category   String
+  action     String
+  label      String?
+  path       String?
+  sessionId  String?
+  meta       Json?
+  userId     String?
+  createdAt  DateTime @default(now())
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([category, action, createdAt])
+}
+
+model RecommendationSnapshot {
+  id              String                  @id @default(cuid())
+  userId          String?
+  sessionId       String?
+  gameSlug        String
+  decision        RecommendationDecision
+  confidence      Float
+  summary         String
+  reasons         Json
+  alternativeSlug String?
+  createdAt       DateTime                @default(now())
+  user            User?                   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([gameSlug, createdAt])
+}
+
+model PriceHistoryEntry {
+  id            String   @id @default(cuid())
+  gameSlug      String
+  store         String?
+  amount        Float
+  regularAmount Float?
+  cut           Int?
+  currency      String?
+  recordedAt    DateTime
+  source        String   @default("IsThereAnyDeal API")
+  createdAt     DateTime @default(now())
+
+  @@index([gameSlug, recordedAt])
+}
+
+model PriceTimingSnapshot {
+  id                String              @id @default(cuid())
+  gameSlug          String              @unique
+  decision          PriceTimingDecision
+  confidence        Float
+  dropProbability   Float
+  expectedWindowDays Int?
+  currentAmount     Float?
+  historicalLowAmount Float?
+  average30Amount   Float?
+  average90Amount   Float?
+  currency          String?
+  summary           String
+  reasons           Json
+  stats             Json?
+  generatedAt       DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+
+  @@index([decision, updatedAt])
+}

@@ -1,63 +1,82 @@
 require('dotenv').config()
 
 const express = require('express')
-const mongoose = require('mongoose')
 const helmet = require('helmet')
 const cors = require('cors')
 const fs = require('fs')
 const path = require('path')
+const rateLimit = require('express-rate-limit')
 
 const authRoutes = require('./routes/auth')
 const gameRoutes = require('./routes/games')
 const commentRoutes = require('./routes/comments')
 const contactRoutes = require('./routes/contact')
 const hardwareRoutes = require('./routes/hardware')
+const telemetryRoutes = require('./routes/telemetry')
+const userRoutes = require('./routes/users')
+const recommendationRoutes = require('./routes/recommendations')
+const assistantRoutes = require('./routes/assistant')
 
-const Game = require('./models/Game')
-const seedGames = require('./data/seedGames')
+const { env } = require('./lib/env')
+const { connectPrisma, isDatabaseReady } = require('./lib/prisma')
+const { httpLogger, logger } = require('./lib/logger')
+const { initSentry, isSentryEnabled } = require('./lib/sentry')
+const { errorHandler } = require('./middleware/errorHandler')
 const { startPriceRefreshLoop } = require('./utils/priceTracker')
 const { ensureHardwareSeeded } = require('./utils/hardware')
+const { ensureGamesSeeded } = require('./utils/gameCatalog')
 
 const app = express()
-const PORT = process.env.PORT || 4000
+const PORT = env.PORT
 const DIST_ROOT = path.resolve(__dirname, '..', 'dist')
 const HAS_FRONTEND_BUILD = fs.existsSync(path.join(DIST_ROOT, 'index.html'))
 const FRONTEND_ROOT = DIST_ROOT
 
+const apiLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 180,
+  standardHeaders: true,
+  legacyHeaders: false
+})
+
+initSentry()
+
 async function connectDatabase() {
   try {
-    if (!process.env.MONGO_URI) {
-      console.log('MONGO_URI not found, so running in demo mode.')
+    if (!process.env.DATABASE_URL) {
+      logger.info('DATABASE_URL not found, so running in demo mode.')
       return
     }
 
-    await mongoose.connect(process.env.MONGO_URI)
-    console.log('MongoDB connected successfully.')
-
-    const totalGames = await Game.countDocuments()
-    if (!totalGames) {
-      await Game.insertMany(seedGames)
-      console.log('Seeded game data.')
-    }
-
+    await connectPrisma()
+    await ensureGamesSeeded()
     await ensureHardwareSeeded()
-    console.log('Hardware data ready.')
-  } catch (err) {
-    console.error('Database connection failed. App will keep running in demo mode.', err.message)
+    logger.info('PostgreSQL connected successfully and seeds are ready.')
+  } catch (error) {
+    logger.error({ error }, 'Database connection failed. App will keep running in demo mode.')
   }
 }
 
 app.use(helmet({ contentSecurityPolicy: false }))
 app.use(cors({ origin: true, credentials: true }))
-app.use(express.json())
+app.use(apiLimiter)
+app.use(express.json({ limit: '1mb' }))
 app.use(express.urlencoded({ extended: true }))
+app.use(httpLogger)
 
 app.get('/api/health', (_req, res) => {
   res.json({
     ok: true,
-    databaseReady: mongoose.connection.readyState === 1,
+    databaseReady: isDatabaseReady(),
     frontendBuilt: HAS_FRONTEND_BUILD,
-    frontendRoot: FRONTEND_ROOT
+    frontendRoot: FRONTEND_ROOT,
+    stack: {
+      frontend: 'React + TypeScript + Tailwind foundation',
+      backend: 'Express + Prisma + PostgreSQL'
+    },
+    monitoring: {
+      sentry: isSentryEnabled()
+    }
   })
 })
 
@@ -66,6 +85,10 @@ app.use('/api/games', gameRoutes)
 app.use('/api/comments', commentRoutes)
 app.use('/api/contact', contactRoutes)
 app.use('/api/hardware', hardwareRoutes)
+app.use('/api/telemetry', telemetryRoutes)
+app.use('/api/users', userRoutes)
+app.use('/api/recommendations', recommendationRoutes)
+app.use('/api/assistant', assistantRoutes)
 
 if (HAS_FRONTEND_BUILD) {
   app.use(express.static(FRONTEND_ROOT))
@@ -78,9 +101,11 @@ if (HAS_FRONTEND_BUILD) {
   })
 }
 
+app.use(errorHandler)
+
 connectDatabase().finally(() => {
   startPriceRefreshLoop()
   app.listen(PORT, () => {
-    console.log(`PlayWise server running at http://localhost:${PORT}`)
+    logger.info(`PlayWise server running at http://localhost:${PORT}`)
   })
 })

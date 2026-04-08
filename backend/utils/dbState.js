@@ -1,7 +1,3 @@
-const mongoose = require('mongoose')
-
-function isDatabaseReady() {
-  return mongoose.connection.readyState === 1
-}
+const { isDatabaseReady } = require('../lib/prisma')
 
 module.exports = { isDatabaseReady }

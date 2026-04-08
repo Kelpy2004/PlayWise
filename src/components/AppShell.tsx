@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type ChangeEvent, type FormEvent } from 'react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
+import { motion, AnimatePresence } from 'framer-motion'
 
 import { useAuth } from '../context/AuthContext'
 import { getAllGames } from '../lib/catalog'
@@ -213,10 +214,14 @@ export default function AppShell() {
                 Games
                 <span className="material-symbols-outlined text-base">{isGamesMenuOpen ? 'keyboard_arrow_up' : 'keyboard_arrow_down'}</span>
               </button>
-              <div
-                className={`fixed left-1/2 top-20 z-50 w-[min(95vw,1040px)] -translate-x-1/2 rounded-[26px] border border-[#b1fa50]/18 bg-[#171717]/95 p-6 shadow-[0_28px_80px_rgba(0,0,0,0.45)] backdrop-blur-2xl transition-all duration-200 xl:absolute xl:left-0 xl:top-full xl:w-[1040px] xl:translate-x-0 ${
-                  isGamesMenuOpen ? 'pointer-events-auto translate-y-0 opacity-100' : 'pointer-events-none translate-y-3 opacity-0'
-                }`}
+              <AnimatePresence>
+              {isGamesMenuOpen && (
+              <motion.div
+                initial={{ opacity: 0, y: 12, scale: 0.97 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 8, scale: 0.98 }}
+                transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+                className="fixed left-1/2 top-20 z-50 w-[min(95vw,1040px)] -translate-x-1/2 rounded-[26px] border border-[#b1fa50]/18 bg-[#111111]/90 p-6 shadow-[0_28px_80px_rgba(0,0,0,0.55),0_0_60px_rgba(177,250,80,0.04)] backdrop-blur-2xl xl:absolute xl:left-0 xl:top-full xl:w-[1040px] xl:translate-x-0"
               >
                 <div className="grid grid-cols-1 gap-6 xl:grid-cols-[220px_240px_1fr]">
                   <div className="space-y-7">
@@ -303,7 +308,9 @@ export default function AppShell() {
                     </div>
                   </div>
                 </div>
-              </div>
+              </motion.div>
+              )}
+              </AnimatePresence>
             </div>
             <button type="button" className="text-sm font-medium text-white/58 transition-colors hover:text-white" onClick={() => handleSectionJump('tournaments')}>
               Tournaments

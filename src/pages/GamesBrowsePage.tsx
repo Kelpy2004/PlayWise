@@ -204,17 +204,29 @@ export default function GamesBrowsePage() {
         ) : null}
 
         {filteredGames.length ? (
-          <div className="storefront-shelf-grid">
+          <motion.div
+            initial="hidden"
+            animate="visible"
+            variants={{ hidden: {}, visible: { transition: { staggerChildren: 0.04 } } }}
+            className="storefront-shelf-grid"
+          >
             {filteredGames.map((game) => (
-              <StorefrontShelfCard
+              <motion.div
                 key={game.slug}
-                game={game}
-                isWishlisted={favoriteSlugSet.has(game.slug)}
-                wishlistBusy={busySlug === game.slug}
-                onToggleWishlist={toggleWishlist}
-              />
+                variants={{
+                  hidden: { opacity: 0, y: 20, scale: 0.97 },
+                  visible: { opacity: 1, y: 0, scale: 1, transition: { duration: 0.45, ease: [0.16, 1, 0.3, 1] } },
+                }}
+              >
+                <StorefrontShelfCard
+                  game={game}
+                  isWishlisted={favoriteSlugSet.has(game.slug)}
+                  wishlistBusy={busySlug === game.slug}
+                  onToggleWishlist={toggleWishlist}
+                />
+              </motion.div>
             ))}
-          </div>
+          </motion.div>
         ) : (
           <div className="rounded-2xl border border-white/10 bg-white/[0.02] px-6 py-12 text-center">
             <p className="text-lg font-semibold text-white">No games matched this filter.</p>

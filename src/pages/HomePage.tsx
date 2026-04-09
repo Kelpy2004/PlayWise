@@ -1,5 +1,6 @@
-﻿import { useDeferredValue, useEffect, useMemo, useState } from 'react'
+﻿import { lazy, Suspense, useDeferredValue, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { motion } from 'framer-motion'
 
 import { useAuth } from '../context/AuthContext'
 import { api } from '../lib/api'
@@ -7,6 +8,21 @@ import { getAllGames } from '../lib/catalog'
 import { trackEvent } from '../lib/telemetry'
 import type { GameRecord } from '../types/catalog'
 import Seo from '../components/Seo'
+import { TiltCard } from '../components/ui/TiltCard'
+import { GlitchText } from '../components/ui/GlitchText'
+import { ParticleBackground } from '../components/ui/ParticleBackground'
+
+const HeroCorePreview = lazy(() => import('../components/ui/HeroCorePreview'))
+
+const fadeUp = {
+  hidden: { opacity: 0, y: 32 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.7, ease: [0.16, 1, 0.3, 1] } },
+}
+
+const staggerContainer = {
+  hidden: {},
+  visible: { transition: { staggerChildren: 0.12 } },
+}
 
 function selectRandomGames(games: GameRecord[], count: number): GameRecord[] {
   const shuffled = [...games]

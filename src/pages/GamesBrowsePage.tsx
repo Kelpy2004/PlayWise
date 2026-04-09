@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
+import { motion } from 'framer-motion'
 
 import StorefrontShelfCard from '../components/StorefrontShelfCard'
 import Seo from '../components/Seo'
@@ -148,9 +149,14 @@ export default function GamesBrowsePage() {
       <Seo title={seoTitle} description={seoDescription} url={seoUrl} />
       <section className="min-h-screen bg-[#070a07] text-white">
         <div className="mx-auto w-full max-w-[1700px] px-4 py-10 sm:px-6 xl:px-8">
-        <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
+        <motion.div
+          initial={{ opacity: 0, y: 24 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+          className="mb-8 flex flex-wrap items-end justify-between gap-4"
+        >
           <div>
-            <p className="mb-2 text-[11px] font-black uppercase tracking-[0.24em] text-[#4d8ad4]">Signal Board // Live Catalog</p>
+            <p className="mb-2 text-[11px] font-black uppercase tracking-[0.24em] text-[#3ba7ff]">Signal Board // Live Catalog</p>
             <h1 className="text-3xl font-black uppercase tracking-tight text-white sm:text-4xl">
               {view === 'wishlist' ? 'Your Wishlist Stack' : 'Browse Games'}
             </h1>
@@ -160,10 +166,10 @@ export default function GamesBrowsePage() {
                 : 'Use the Games dropdown filters or navbar search to explore by title, category, platform, and popularity.'}
             </p>
           </div>
-          <div className="rounded-full border border-white/10 bg-white/[0.02] px-4 py-2 text-xs uppercase tracking-[0.16em] text-white/70">
+          <div className="rounded-full border border-white/10 bg-white/[0.02] px-4 py-2 text-xs uppercase tracking-[0.16em] text-white/70 backdrop-blur-sm">
             {filteredGames.length} games found
           </div>
-        </div>
+        </motion.div>
 
         {query ? (
           <div className="mb-6 inline-flex rounded-full border border-[#b1fa50]/30 bg-[#b1fa50]/10 px-4 py-1.5 text-[11px] font-bold uppercase tracking-[0.18em] text-[#b1fa50]">

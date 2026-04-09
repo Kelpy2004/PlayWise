@@ -128,7 +128,7 @@ function addDemoUser(user) {
 }
 
 function countDemoAdmins() {
-  return store.users.filter((user) => user.role === 'admin').length
+  return store.users.filter((user) => String(user.role || '').toLowerCase() === 'admin').length
 }
 
 function findDemoUserByUsernameOrEmail(usernameOrEmail) {

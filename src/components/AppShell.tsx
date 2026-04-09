@@ -221,10 +221,24 @@ export default function AppShell() {
                   </>
                 ) : (
                   <>
-                    <NavLink to="/login" className="btn btn-sm btn-outline-dark rounded-pill px-3">
+                    <NavLink
+                      to="/login"
+                      state={{
+                        backgroundLocation: location,
+                        from: `${location.pathname}${location.search}${location.hash}`
+                      }}
+                      className="btn btn-sm btn-outline-dark rounded-pill px-3"
+                    >
                       Login
                     </NavLink>
-                    <NavLink to="/register" className="btn btn-sm btn-brand rounded-pill px-3">
+                    <NavLink
+                      to="/register"
+                      state={{
+                        backgroundLocation: location,
+                        from: `${location.pathname}${location.search}${location.hash}`
+                      }}
+                      className="btn btn-sm btn-brand rounded-pill px-3"
+                    >
                       Register
                     </NavLink>
                   </>

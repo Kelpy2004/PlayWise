@@ -7,6 +7,14 @@ export interface SessionUser {
   role: 'user' | 'admin'
 }
 
+export interface AuthProviderOption {
+  key: 'password' | 'google' | 'microsoft' | 'apple'
+  label: string
+  type: 'password' | 'oauth'
+  available: boolean
+  hint?: string
+}
+
 export interface AuthResponse {
   message?: string
   token: string
@@ -15,6 +23,20 @@ export interface AuthResponse {
 
 export interface SessionResponse {
   user: SessionUser
+}
+
+export interface AuthProvidersResponse {
+  providers: AuthProviderOption[]
+}
+
+export interface AuthAvailabilityEntry {
+  available: boolean
+  message: string
+}
+
+export interface AuthAvailabilityResponse {
+  username?: AuthAvailabilityEntry
+  email?: AuthAvailabilityEntry
 }
 
 export interface ContactResponse {

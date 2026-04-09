@@ -2,7 +2,7 @@ const express = require('express')
 const { z } = require('zod')
 
 const { env } = require('../lib/env')
-const { ApiError, asyncHandler } = require('../lib/http')
+const { asyncHandler } = require('../lib/http')
 const { optionalAuth } = require('../middleware/auth')
 const { validateBody } = require('../middleware/validate')
 const { loadGames } = require('../utils/gameCatalog')
@@ -23,22 +23,12 @@ const assistantSchema = z.object({
   gameSlug: z.string().trim().max(200).optional()
 })
 
-function extractOutputText(payload) {
-  if (typeof payload?.output_text === 'string' && payload.output_text.trim()) {
-    return payload.output_text.trim()
-  }
+function extractGeminiText(payload) {
+  if (!Array.isArray(payload?.candidates)) return ''
 
-  if (!Array.isArray(payload?.output)) return ''
-
-  return payload.output
-    .flatMap((item) => Array.isArray(item?.content) ? item.content : [])
-    .map((content) => {
-      if (content?.type === 'output_text' && typeof content.text === 'string') {
-        return content.text
-      }
-
-      return ''
-    })
+  return payload.candidates
+    .flatMap((candidate) => Array.isArray(candidate?.content?.parts) ? candidate.content.parts : [])
+    .map((part) => (typeof part?.text === 'string' ? part.text : ''))
     .join('\n')
     .trim()
 }
@@ -106,30 +96,37 @@ function buildFallbackReply({ latestMessage, context, reason }) {
   return `The live AI response is temporarily unavailable, so PlayWise is answering with its built-in fallback assistant instead. You can still ask about site features, pricing, compatibility, comments, and recommendations.${reason ? ` ${reason}` : ''}`
 }
 
-async function callOpenAI({ messages, context }) {
-  const response = await fetch('https://api.openai.com/v1/responses', {
+async function callGemini({ messages, context }) {
+  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(env.GEMINI_MODEL)}:generateContent`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${env.OPENAI_API_KEY}`
+      'x-goog-api-key': env.GEMINI_API_KEY
     },
     body: JSON.stringify({
-      model: env.OPENAI_MODEL,
-      max_output_tokens: 450,
-      instructions: [
-        'You are the PlayWise assistant inside a gaming decision platform.',
-        'Answer site questions, price questions, recommendation questions, and game detail questions using the provided live context first.',
-        'If the user asks something broader, you may answer briefly, but keep it useful and avoid pretending to know live PlayWise data that is not in context.',
-        'Do not invent prices, discounts, hardware results, or site features.',
-        'When price timing data exists, explain the verdict in plain language.',
-        'Keep answers concise, clear, and helpful.',
-        `Live context: ${JSON.stringify(context)}`
-      ].join(' '),
-      input: messages.map((message) => ({
-        role: message.role,
-        content: [
+      system_instruction: {
+        parts: [
           {
-            type: 'input_text',
+            text: [
+              'You are the PlayWise assistant inside a gaming decision platform.',
+              'Answer site questions, price questions, recommendation questions, and game detail questions using the provided live context first.',
+              'If the user asks something broader, you may answer briefly, but keep it useful and avoid pretending to know live PlayWise data that is not in context.',
+              'Do not invent prices, discounts, hardware results, or site features.',
+              'When price timing data exists, explain the verdict in plain language.',
+              'Keep answers concise, clear, and helpful.',
+              `Live context: ${JSON.stringify(context)}`
+            ].join(' ')
+          }
+        ]
+      },
+      generationConfig: {
+        temperature: 0.4,
+        maxOutputTokens: 450
+      },
+      contents: messages.map((message) => ({
+        role: message.role === 'assistant' ? 'model' : 'user',
+        parts: [
+          {
             text: message.content
           }
         ]
@@ -139,11 +136,11 @@ async function callOpenAI({ messages, context }) {
 
   if (!response.ok) {
     const message = await response.text().catch(() => response.statusText)
-    throw new Error(message || `OpenAI request failed with status ${response.status}`)
+    throw new Error(message || `Gemini request failed with status ${response.status}`)
   }
 
   const payload = await response.json()
-  const reply = extractOutputText(payload)
+  const reply = extractGeminiText(payload)
 
   if (!reply) {
     throw new Error('The assistant did not return any text.')
@@ -151,7 +148,7 @@ async function callOpenAI({ messages, context }) {
 
   return {
     reply,
-    model: payload.model || env.OPENAI_MODEL
+    model: env.GEMINI_MODEL
   }
 }
 
@@ -160,10 +157,6 @@ router.post(
   optionalAuth,
   validateBody(assistantSchema),
   asyncHandler(async (req, res) => {
-    if (!env.OPENAI_API_KEY) {
-      throw new ApiError(503, 'The PlayWise assistant is offline until OPENAI_API_KEY is configured.')
-    }
-
     const games = await loadGames()
     const identity = req.validatedBody.gameSlug
       ? await resolveGameIdentity(req.validatedBody.gameSlug)
@@ -203,10 +196,21 @@ router.post(
       recommendation
     }
 
+    if (!env.GEMINI_API_KEY) {
+      return res.json({
+        reply: buildFallbackReply({
+          latestMessage: req.validatedBody.messages[req.validatedBody.messages.length - 1]?.content,
+          context,
+          reason: 'Gemini API is not configured yet, so PlayWise is using the built-in assistant.'
+        }),
+        model: 'playwise-fallback'
+      })
+    }
+
     let result
 
     try {
-      result = await callOpenAI({
+      result = await callGemini({
         messages: req.validatedBody.messages,
         context
       })
@@ -214,12 +218,17 @@ router.post(
       const message = error instanceof Error ? error.message : 'The AI response failed.'
       const lowered = message.toLowerCase()
 
-      if (lowered.includes('insufficient_quota') || lowered.includes('"code":"insufficient_quota"') || lowered.includes('quota')) {
+      if (
+        lowered.includes('insufficient_quota') ||
+        lowered.includes('"code":"insufficient_quota"') ||
+        lowered.includes('resource_exhausted') ||
+        lowered.includes('quota')
+      ) {
         return res.json({
           reply: buildFallbackReply({
             latestMessage: req.validatedBody.messages[req.validatedBody.messages.length - 1]?.content,
             context,
-            reason: 'The connected OpenAI project has no remaining API quota at the moment.'
+            reason: 'The connected Gemini project has no remaining API quota at the moment.'
           }),
           model: 'playwise-fallback'
         })
@@ -236,7 +245,15 @@ router.post(
         })
       }
 
-      throw error
+      console.error('PlayWise assistant Gemini error:', message)
+      return res.json({
+        reply: buildFallbackReply({
+          latestMessage: req.validatedBody.messages[req.validatedBody.messages.length - 1]?.content,
+          context,
+          reason: 'The live AI reply failed for this request, so PlayWise switched to the built-in assistant.'
+        }),
+        model: 'playwise-fallback'
+      })
     }
 
     res.json({

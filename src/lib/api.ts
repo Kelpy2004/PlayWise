@@ -1,6 +1,8 @@
 import type {
   AssistantChatMessage,
   AssistantReply,
+  AuthAvailabilityResponse,
+  AuthProvidersResponse,
   AuthResponse,
   CommentRecord,
   CompatibilityResult,
@@ -80,6 +82,21 @@ export const api = {
   fetchGames: () => request<GameRecord[]>('/games'),
   fetchGameDetails: (slug: string) => request<GameRecord>(`/games/${slug}`),
   getSession: (token: string) => request<SessionResponse>('/auth/session', { token }),
+  fetchAuthProviders: () => request<AuthProvidersResponse>('/auth/providers'),
+  checkAuthAvailability: (params: { username?: string; email?: string }) =>
+    request<AuthAvailabilityResponse>(
+      `/auth/availability?${new URLSearchParams(
+        Object.entries(params).reduce(
+          (entries, [key, value]) => {
+            if (value) {
+              entries[key] = value
+            }
+            return entries
+          },
+          {} as Record<string, string>
+        )
+      ).toString()}`
+    ),
   login: (body: { usernameOrEmail: string; password: string }) =>
     request<AuthResponse>('/auth/login', { method: 'POST', body }),
   register: (body: { username: string; email: string; password: string; adminSetupCode?: string }) =>
@@ -142,4 +159,9 @@ export const api = {
     body: { messages: AssistantChatMessage[]; pagePath?: string; gameSlug?: string },
     token?: string | null
   ) => request<AssistantReply>('/assistant/chat', { method: 'POST', body, token })
+}
+
+export function getOAuthStartUrl(provider: 'google' | 'microsoft' | 'apple', returnTo = '/'): string {
+  const params = new URLSearchParams({ returnTo })
+  return `${API_BASE}/auth/oauth/${provider}/start?${params.toString()}`
 }

@@ -11,6 +11,7 @@ interface AuthContextValue {
   isLoading: boolean
   login: (payload: { usernameOrEmail: string; password: string }) => Promise<SessionUser>
   register: (payload: { username: string; email: string; password: string; adminSetupCode?: string }) => Promise<SessionUser>
+  acceptExternalToken: (token: string) => Promise<SessionUser>
   logout: () => void
 }
 
@@ -71,6 +72,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return response.user
   }
 
+  async function acceptExternalToken(nextToken: string): Promise<SessionUser> {
+    window.localStorage.setItem(TOKEN_KEY, nextToken)
+    setToken(nextToken)
+    const response = await api.getSession(nextToken)
+    setUser(response.user)
+    return response.user
+  }
+
   const value = useMemo<AuthContextValue>(
     () => ({
       token,
@@ -78,6 +87,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isLoading,
       login: (payload) => handleAuthResponse(api.login(payload)),
       register: (payload) => handleAuthResponse(api.register(payload)),
+      acceptExternalToken,
       logout: () => {
         window.localStorage.removeItem(TOKEN_KEY)
         setToken(null)

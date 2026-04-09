@@ -19,6 +19,7 @@ const assistantRoutes = require('./routes/assistant')
 
 const { env } = require('./lib/env')
 const { connectPrisma, isDatabaseReady } = require('./lib/prisma')
+const { hasPostgresUrl, pingPostgres } = require('./lib/postgres')
 const { httpLogger, logger } = require('./lib/logger')
 const { initSentry, isSentryEnabled } = require('./lib/sentry')
 const { errorHandler } = require('./middleware/errorHandler')
@@ -64,10 +65,22 @@ app.use(express.json({ limit: '1mb' }))
 app.use(express.urlencoded({ extended: true }))
 app.use(httpLogger)
 
-app.get('/api/health', (_req, res) => {
+app.get('/api/health', async (_req, res) => {
+  let authDatabaseReady = false
+
+  if (hasPostgresUrl()) {
+    try {
+      await pingPostgres()
+      authDatabaseReady = true
+    } catch {
+      authDatabaseReady = false
+    }
+  }
+
   res.json({
     ok: true,
     databaseReady: isDatabaseReady(),
+    authDatabaseReady,
     frontendBuilt: HAS_FRONTEND_BUILD,
     frontendRoot: FRONTEND_ROOT,
     stack: {
@@ -103,9 +116,10 @@ if (HAS_FRONTEND_BUILD) {
 
 app.use(errorHandler)
 
-connectDatabase().finally(() => {
-  startPriceRefreshLoop()
-  app.listen(PORT, () => {
-    logger.info(`PlayWise server running at http://localhost:${PORT}`)
-  })
+startPriceRefreshLoop()
+
+app.listen(PORT, () => {
+  logger.info(`PlayWise server running at http://localhost:${PORT}`)
 })
+
+void connectDatabase()

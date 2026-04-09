@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { Navigate, Route, Routes, useLocation, useSearchParams } from 'react-router-dom'
+import { Navigate, Route, Routes, useLocation, useSearchParams, type Location } from 'react-router-dom'
 
 import AppShell from './components/AppShell'
 import ProtectedRoute from './components/ProtectedRoute'
@@ -24,9 +24,7 @@ function LegacySimpleRedirect({ to }: { to: string }) {
   return <Navigate replace to={to} />
 }
 
-function ScrollToTop() {
-  const location = useLocation()
-
+function ScrollToTop({ location }: { location: Location }) {
   useEffect(() => {
     if (typeof window !== 'undefined') {
       window.scrollTo({ top: 0, behavior: location.hash ? 'smooth' : 'auto' })
@@ -37,10 +35,15 @@ function ScrollToTop() {
 }
 
 export default function App() {
+  const location = useLocation()
+  const locationState = location.state as { backgroundLocation?: Location } | null
+  const backgroundLocation = locationState?.backgroundLocation
+  const routeLocation = backgroundLocation || location
+
   return (
     <>
-      <ScrollToTop />
-      <Routes>
+      <ScrollToTop location={routeLocation} />
+      <Routes location={routeLocation}>
         <Route element={<AppShell />}>
           <Route index element={<HomePage />} />
           <Route path="/index.html" element={<LegacySimpleRedirect to="/" />} />
@@ -69,6 +72,15 @@ export default function App() {
           <Route path="*" element={<NotFoundPage />} />
         </Route>
       </Routes>
+
+      {backgroundLocation ? (
+        <Routes>
+          <Route path="/login" element={<AuthPage mode="login" />} />
+          <Route path="/register" element={<AuthPage mode="register" />} />
+          <Route path="/login.html" element={<Navigate replace to="/login" />} />
+          <Route path="/registration.html" element={<Navigate replace to="/register" />} />
+        </Routes>
+      ) : null}
     </>
   )
 }

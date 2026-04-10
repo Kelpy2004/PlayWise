@@ -34,6 +34,7 @@ export default function TournamentsPage() {
   const selectedGameSlug = searchParams.get('game')?.trim() || ''
   const [events, setEvents] = useState<TournamentRecord[]>([])
   const [status, setStatus] = useState({ loading: true, message: '' })
+  const [activeFilter, setActiveFilter] = useState<'all' | 'live' | 'upcoming' | 'ended'>('all')
   const origin = typeof window !== 'undefined' ? window.location.origin : ''
   const seoTitle = selectedGameSlug
     ? `Tournaments for ${selectedGameSlug} | PlayWise`
@@ -72,6 +73,16 @@ export default function TournamentsPage() {
       ignore = true
     }
   }, [selectedGameSlug])
+
+  const filteredEvents = events.filter((entry) => {
+    if (activeFilter === 'all') return true
+    if (activeFilter === 'live') return entry.status === 'LIVE_NOW'
+    if (activeFilter === 'upcoming') return entry.status === 'UPCOMING'
+    return entry.status === 'ENDED'
+  })
+
+  const liveCount = events.filter((e) => e.status === 'LIVE_NOW').length
+  const upcomingCount = events.filter((e) => e.status === 'UPCOMING').length
 
   return (
     <>

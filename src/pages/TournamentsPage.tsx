@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
+import { motion } from 'framer-motion'
 
 import { api } from '../lib/api'
 import type { TournamentRecord } from '../types/api'
@@ -18,9 +19,14 @@ function formatDateTime(value: string) {
 }
 
 function statusBadgeClass(status: TournamentRecord['status']) {
-  if (status === 'LIVE_NOW') return 'bg-red-500/20 text-red-300 border border-red-400/30'
-  if (status === 'UPCOMING') return 'bg-[#b1fa50]/20 text-[#b1fa50] border border-[#b1fa50]/30'
-  return 'bg-white/10 text-white/60 border border-white/10'
+  if (status === 'LIVE_NOW') return 'bg-[#ff7351]/15 text-[#ff7351] border border-[#ff7351]/30 shadow-[0_0_12px_rgba(255,115,81,0.15)]'
+  if (status === 'UPCOMING') return 'bg-[#b1fa50]/15 text-[#b1fa50] border border-[#b1fa50]/30'
+  return 'bg-white/8 text-white/60 border border-white/10'
+}
+
+const fadeUp = {
+  hidden: { opacity: 0, y: 24 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.5, ease: [0.16, 1, 0.3, 1] } },
 }
 
 export default function TournamentsPage() {

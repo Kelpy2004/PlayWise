@@ -1,4 +1,9 @@
-import { useEffect, useMemo, useState, type FormEvent, type PointerEvent as ReactPointerEvent } from 'react'
+import {
+  useEffect, useMemo, useRef, useState,
+  type CSSProperties, type FormEvent,
+  type MouseEvent as ReactMouseEvent,
+  type PointerEvent as ReactPointerEvent,
+} from 'react'
 import { Link, useParams } from 'react-router-dom'
 
 import { useAuth } from '../context/AuthContext'
@@ -18,7 +23,7 @@ import type {
   ReactionKind,
   ReactionSummary,
   RecommendationPreview,
-  TournamentRecord
+  TournamentRecord,
 } from '../types/api'
 import type { GameRecord } from '../types/catalog'
 

@@ -42,25 +42,16 @@ function nextReaction(current: ReactionKind | null | undefined, target: Reaction
 
 function buildHardwarePayload(
   hardwareForm: { laptop: string; cpu: string; gpu: string; ram: string },
-  inputMode: 'laptop' | 'manual'
+  inputMode: 'laptop' | 'manual',
 ): Record<string, unknown> | undefined {
   if (inputMode === 'laptop') {
     return hardwareForm.laptop.trim() ? { laptop: hardwareForm.laptop.trim() } : undefined
   }
-
   const cpu = hardwareForm.cpu.trim()
   const gpu = hardwareForm.gpu.trim()
   const ram = Number.parseInt(String(hardwareForm.ram || '').trim(), 10)
-
-  if (!cpu || !gpu) {
-    return undefined
-  }
-
-  return {
-    cpu,
-    gpu,
-    ...(Number.isFinite(ram) && ram > 0 ? { ram } : {})
-  }
+  if (!cpu || !gpu) return undefined
+  return { cpu, gpu, ...(Number.isFinite(ram) && ram > 0 ? { ram } : {}) }
 }
 
 function formatDate(value?: string | null): string {
@@ -72,13 +63,8 @@ function formatDate(value?: string | null): string {
 
 function formatCurrencyValue(amount?: number | null, currency?: string | null): string {
   if (amount == null || Number.isNaN(amount)) return 'Unknown'
-
   try {
-    return new Intl.NumberFormat('en-IN', {
-      style: 'currency',
-      currency: currency || 'USD',
-      maximumFractionDigits: 2
-    }).format(amount)
+    return new Intl.NumberFormat('en-IN', { style: 'currency', currency: currency || 'USD', maximumFractionDigits: 2 }).format(amount)
   } catch {
     return `${currency || 'USD'} ${amount.toFixed(2)}`
   }

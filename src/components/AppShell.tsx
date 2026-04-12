@@ -52,8 +52,7 @@ export default function AppShell() {
   const location = useLocation()
   const navigate = useNavigate()
   
-  // Conditionally hide footer for game pages
-  const isGamePage = location.pathname.startsWith('/games/');
+  const isGamePage = location.pathname.startsWith('/games/')
   
   const searchWords = useMemo(() => ['Games', 'Library', 'Tournaments', 'Prices'], [])
   const [catalogGames, setCatalogGames] = useState<GameRecord[]>(() => getCachedCatalogSnapshot() || getAllGames())

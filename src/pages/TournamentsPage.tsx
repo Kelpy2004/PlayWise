@@ -89,14 +89,30 @@ export default function TournamentsPage() {
       <Seo title={seoTitle} description={seoDescription} url={seoUrl} />
       <section className="mx-auto w-full max-w-[1320px] px-4 py-12 text-white">
         <div className="mb-8 rounded-2xl border border-white/10 bg-[#111]/80 p-6">
-        <p className="mb-2 text-[10px] font-black uppercase tracking-[0.2em] text-[#b1fa50]">Tournament Center</p>
-        <h1 className="text-3xl font-black">All PlayWise Events</h1>
-        <p className="mt-2 text-sm text-white/70">
-          {selectedGameSlug
-            ? `Showing tournaments for ${selectedGameSlug}.`
-            : 'Browse all scheduled and live tournaments.'}
-        </p>
-      </div>
+          <p className="mb-2 text-[10px] font-black uppercase tracking-[0.2em] text-[#b1fa50]">Tournament Center</p>
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <h1 className="text-3xl font-black">All PlayWise Events</h1>
+              <p className="mt-2 text-sm text-white/70">
+                {selectedGameSlug
+                  ? `Showing tournaments for ${selectedGameSlug}.`
+                  : 'Browse all scheduled and live tournaments.'}
+              </p>
+            </div>
+            <div className="flex gap-2">
+              {liveCount > 0 && (
+                <span className="rounded-full bg-[#ff7351]/15 px-3 py-1 text-xs font-bold text-[#ff7351] border border-[#ff7351]/30">
+                  {liveCount} Live
+                </span>
+              )}
+              {upcomingCount > 0 && (
+                <span className="rounded-full bg-[#b1fa50]/15 px-3 py-1 text-xs font-bold text-[#b1fa50] border border-[#b1fa50]/30">
+                  {upcomingCount} Upcoming
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
 
       {status.message ? (
         <div className="mb-6 rounded-xl border border-red-300/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">

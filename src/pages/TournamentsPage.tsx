@@ -114,6 +114,23 @@ export default function TournamentsPage() {
           </div>
         </div>
 
+      <div className="mb-6 flex gap-2">
+        {(['all', 'live', 'upcoming', 'ended'] as const).map((f) => (
+          <button
+            key={f}
+            type="button"
+            onClick={() => setActiveFilter(f)}
+            className={`rounded-full px-4 py-1.5 text-xs font-bold uppercase tracking-[0.14em] transition-all ${
+              activeFilter === f
+                ? 'bg-[#b1fa50] text-[#0e0e0e]'
+                : 'border border-white/10 bg-white/[0.04] text-white/60 hover:text-white'
+            }`}
+          >
+            {f}
+          </button>
+        ))}
+      </div>
+
       {status.message ? (
         <div className="mb-6 rounded-xl border border-red-300/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">
           {status.message}
@@ -129,7 +146,7 @@ export default function TournamentsPage() {
       ) : null}
 
         <div className="grid gap-4 md:grid-cols-2">
-          {events.map((entry) => (
+          {filteredEvents.map((entry) => (
             <article key={entry.id || entry.slug} className="rounded-xl border border-white/10 bg-[#121212] p-5">
             <div className="mb-3 flex items-center justify-between gap-3">
               <h2 className="text-lg font-bold">{entry.title}</h2>

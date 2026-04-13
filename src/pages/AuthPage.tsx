@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext'
 import { getOAuthStartUrl, api } from '../lib/api'
 import { trackEvent } from '../lib/telemetry'
 import type { AuthAvailabilityEntry, AuthProviderOption } from '../types/api'
+import Seo from '../components/Seo'
 
 const PASSWORD_HELP_TEXT =
   'Use at least 6 characters with 1 uppercase letter, 1 lowercase letter, and 1 special character like ! @ # $ % ^ & * ( ) - _ + = ? / \\ . ,'
@@ -52,7 +53,7 @@ function AvailabilityText({ entry }: { entry?: AuthAvailabilityEntry | null }) {
     return null
   }
 
-  return <div className="form-text text-danger">{entry.message}</div>
+  return <div className="auth-field-note auth-field-note-danger">{entry.message}</div>
 }
 
 export default function AuthPage({ mode }: { mode: 'login' | 'register' }) {
@@ -87,7 +88,11 @@ export default function AuthPage({ mode }: { mode: 'login' | 'register' }) {
   const returnTo = locationState?.from || '/'
   const passwordState = passwordChecks(form.password)
   const oauthProviders = useMemo(
-    () => providers.filter((provider) => provider.type === 'oauth' && provider.key === 'google'),
+    () =>
+      providers.filter(
+        (provider): provider is AuthProviderOption & { type: 'oauth'; key: 'google' } =>
+          provider.type === 'oauth' && provider.key === 'google'
+      ),
     [providers]
   )
 
@@ -312,7 +317,7 @@ export default function AuthPage({ mode }: { mode: 'login' | 'register' }) {
     }
   }
 
-  function handleSocialStart(provider: AuthProviderOption) {
+  function handleSocialStart(provider: AuthProviderOption & { type: 'oauth'; key: 'google' }) {
     if (!provider.available || provider.type !== 'oauth') {
       setFeedback({
         tone: 'warning',
@@ -342,8 +347,10 @@ export default function AuthPage({ mode }: { mode: 'login' | 'register' }) {
         : 'Log in'
 
   return (
-    <section className="auth-shell" onClick={() => navigate(returnTo, { replace: true })}>
-      <div className="auth-modal-wrap">
+    <>
+      <Seo title={seoTitle} description={seoDescription} url={seoUrl} noIndex />
+      <section className="auth-shell" onClick={() => navigate(returnTo, { replace: true })}>
+        <div className="auth-modal-wrap">
         <div className="auth-modal-card" onClick={(event) => event.stopPropagation()}>
           <button
             type="button"
@@ -351,11 +358,27 @@ export default function AuthPage({ mode }: { mode: 'login' | 'register' }) {
             aria-label="Close"
             onClick={() => navigate(returnTo, { replace: true })}
           >
-            X
+            <span className="material-symbols-outlined">close</span>
           </button>
 
           <div className="auth-modal-header">
-            <h1>Join PlayWise today</h1>
+            <div className="auth-modal-brand">
+              <span className="auth-modal-mark">
+                <span className="material-symbols-outlined">bolt</span>
+              </span>
+              <div>
+                <p className="auth-modal-kicker">PlayWise</p>
+                <h1>{isRegister ? 'Join PlayWise today' : 'Welcome back to PlayWise'}</h1>
+              </div>
+            </div>
+            <div className="auth-mode-switch">
+              <Link to="/login" state={locationState || undefined} className={`auth-mode-pill ${!isRegister ? 'is-active' : ''}`}>
+                Log in
+              </Link>
+              <Link to="/register" state={locationState || undefined} className={`auth-mode-pill ${isRegister ? 'is-active' : ''}`}>
+                Sign up
+              </Link>
+            </div>
           </div>
 
           {feedback.message ? (
@@ -487,13 +510,20 @@ export default function AuthPage({ mode }: { mode: 'login' | 'register' }) {
           <div className="auth-modal-footer">
             <p>
               {isRegister ? 'Have an account already?' : 'Need an account?'}{' '}
-              <Link to={isRegister ? '/login' : '/register'} state={locationState || undefined}>
+              <Link to={isRegister ? '/login' : '/register'} state={locationState || undefined} className="auth-footer-link">
                 {isRegister ? 'Log in' : 'Sign up'}
               </Link>
             </p>
           </div>
         </div>
-      </div>
-    </section>
+        </div>
+      </section>
+    </>
   )
 }
+  const origin = typeof window !== 'undefined' ? window.location.origin : ''
+  const seoTitle = isRegister ? 'Create account | PlayWise' : 'Login | PlayWise'
+  const seoDescription = isRegister
+    ? 'Join PlayWise to save your wishlist, hardware profiles, and alerts.'
+    : 'Sign in to access your PlayWise wishlist, saved specs, and alerts.'
+  const seoUrl = origin ? `${origin}/${isRegister ? 'register' : 'login'}` : undefined

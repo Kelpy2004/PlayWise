@@ -62,6 +62,9 @@ export interface TrailerInfo {
 export interface GameRecord {
   slug: string
   catalogSource?: 'local' | 'igdb' | string
+  catalogBuckets?: string[]
+  popularityScore?: number | null
+  releaseTimestamp?: string | null
   externalRatingCount?: number
   shortCode?: string
   title: string

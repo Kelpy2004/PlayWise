@@ -1,14 +1,17 @@
-import { useEffect } from 'react'
+import { Suspense, lazy, useEffect } from 'react'
 import { Navigate, Route, Routes, useLocation, useSearchParams, type Location } from 'react-router-dom'
 
 import AppShell from './components/AppShell'
 import ProtectedRoute from './components/ProtectedRoute'
-import AdminPage from './pages/AdminPage'
-import AuthPage from './pages/AuthPage'
-import GamePage from './pages/GamePage'
-import HomePage from './pages/HomePage'
-import NotFoundPage from './pages/NotFoundPage'
-import OpenSourcePage from './pages/OpenSourcePage'
+
+const AdminPage = lazy(() => import('./pages/AdminPage'))
+const AuthPage = lazy(() => import('./pages/AuthPage'))
+const GamePage = lazy(() => import('./pages/GamePage'))
+const GamesBrowsePage = lazy(() => import('./pages/GamesBrowsePage'))
+const HomePage = lazy(() => import('./pages/HomePage'))
+const NotFoundPage = lazy(() => import('./pages/NotFoundPage'))
+const OpenSourcePage = lazy(() => import('./pages/OpenSourcePage'))
+const TournamentsPage = lazy(() => import('./pages/TournamentsPage'))
 
 function LegacyGameRedirect() {
   const [searchParams] = useSearchParams()
@@ -39,48 +42,59 @@ export default function App() {
   const locationState = location.state as { backgroundLocation?: Location } | null
   const backgroundLocation = locationState?.backgroundLocation
   const routeLocation = backgroundLocation || location
+  const routeLoadingFallback = (
+    <div className="min-h-[40vh] w-full flex items-center justify-center text-white/80">
+      <div className="text-center">
+        <p className="text-sm uppercase tracking-[0.18em] text-[#b1fa50] font-bold mb-2">PlayWise</p>
+        <p className="text-sm">Loading page…</p>
+      </div>
+    </div>
+  )
 
   return (
     <>
       <ScrollToTop location={routeLocation} />
-      <Routes location={routeLocation}>
-        <Route element={<AppShell />}>
-          <Route index element={<HomePage />} />
-          <Route path="/index.html" element={<LegacySimpleRedirect to="/" />} />
-          <Route path="/games/:slug" element={<GamePage />} />
-          <Route path="/game.html" element={<LegacyGameRedirect />} />
-          <Route path="/ac.html" element={<LegacySlugRedirect slug="assassins-creed" />} />
-          <Route path="/dishonored.html" element={<LegacySlugRedirect slug="dishonored" />} />
-          <Route path="/watchdogs2.html" element={<LegacySlugRedirect slug="watch-dogs-2" />} />
-          <Route path="/darksiders2.html" element={<LegacySlugRedirect slug="darksiders-2" />} />
-          <Route path="/cod.html" element={<LegacySlugRedirect slug="call-of-duty-modern-warfare" />} />
-          <Route path="/open-source" element={<OpenSourcePage />} />
-          <Route path="/open-source.html" element={<LegacySimpleRedirect to="/open-source" />} />
-          <Route path="/login" element={<AuthPage mode="login" />} />
-          <Route path="/login.html" element={<LegacySimpleRedirect to="/login" />} />
-          <Route path="/register" element={<AuthPage mode="register" />} />
-          <Route path="/registration.html" element={<LegacySimpleRedirect to="/register" />} />
-          <Route
-            path="/admin/hardware"
-            element={
-              <ProtectedRoute adminOnly>
-                <AdminPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route path="/hardware-admin.html" element={<LegacySimpleRedirect to="/admin/hardware" />} />
-          <Route path="*" element={<NotFoundPage />} />
-        </Route>
-      </Routes>
-
-      {backgroundLocation ? (
-        <Routes>
-          <Route path="/login" element={<AuthPage mode="login" />} />
-          <Route path="/register" element={<AuthPage mode="register" />} />
-          <Route path="/login.html" element={<Navigate replace to="/login" />} />
-          <Route path="/registration.html" element={<Navigate replace to="/register" />} />
+      <Suspense fallback={routeLoadingFallback}>
+        <Routes location={routeLocation}>
+          <Route element={<AppShell />}>
+            <Route index element={<HomePage />} />
+            <Route path="/games" element={<GamesBrowsePage />} />
+            <Route path="/index.html" element={<LegacySimpleRedirect to="/" />} />
+            <Route path="/games/:slug" element={<GamePage />} />
+            <Route path="/game.html" element={<LegacyGameRedirect />} />
+            <Route path="/ac.html" element={<LegacySlugRedirect slug="assassins-creed" />} />
+            <Route path="/dishonored.html" element={<LegacySlugRedirect slug="dishonored" />} />
+            <Route path="/watchdogs2.html" element={<LegacySlugRedirect slug="watch-dogs-2" />} />
+            <Route path="/darksiders2.html" element={<LegacySlugRedirect slug="darksiders-2" />} />
+            <Route path="/cod.html" element={<LegacySlugRedirect slug="call-of-duty-modern-warfare" />} />
+            <Route path="/open-source" element={<OpenSourcePage />} />
+            <Route path="/tournaments" element={<TournamentsPage />} />
+            <Route path="/open-source.html" element={<LegacySimpleRedirect to="/open-source" />} />
+            <Route path="/login" element={<AuthPage mode="login" />} />
+            <Route path="/login.html" element={<LegacySimpleRedirect to="/login" />} />
+            <Route path="/register" element={<AuthPage mode="register" />} />
+            <Route path="/registration.html" element={<LegacySimpleRedirect to="/register" />} />
+            <Route
+              path="/admin/hardware"
+              element={
+                <ProtectedRoute adminOnly>
+                  <AdminPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route path="/hardware-admin.html" element={<LegacySimpleRedirect to="/admin/hardware" />} />
+            <Route path="*" element={<NotFoundPage />} />
+          </Route>
         </Routes>
-      ) : null}
+        {backgroundLocation ? (
+          <Routes>
+            <Route path="/login" element={<AuthPage mode="login" />} />
+            <Route path="/register" element={<AuthPage mode="register" />} />
+            <Route path="/login.html" element={<Navigate replace to="/login" />} />
+            <Route path="/registration.html" element={<Navigate replace to="/register" />} />
+          </Routes>
+        ) : null}
+      </Suspense>
     </>
   )
 }

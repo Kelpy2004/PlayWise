@@ -3,7 +3,14 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { api } from '../lib/api'
 import { trackEvent } from '../lib/telemetry'
-import type { HardwareCatalog } from '../types/api'
+import type {
+  HardwareCatalog,
+  NewsletterSubscriberRecord,
+  NotificationAdminOverview,
+  NotificationDeliveryRecord,
+  PriceAlertRecord,
+  TournamentSubscriptionRecord
+} from '../types/api'
 
 const INITIAL_CPU = { name: '', score: '', family: '', platform: 'windows', notes: '' }
 const INITIAL_GPU = { name: '', score: '', family: '', platform: 'windows', notes: '' }
@@ -12,6 +19,11 @@ const INITIAL_LAPTOP = { model: '', brand: '', cpu: '', gpu: '', ram: '', platfo
 export default function AdminPage() {
   const { token } = useAuth()
   const [catalog, setCatalog] = useState<HardwareCatalog>({ cpus: [], gpus: [], laptops: [], ramOptions: [] })
+  const [notificationOverview, setNotificationOverview] = useState<NotificationAdminOverview | null>(null)
+  const [adminPriceAlerts, setAdminPriceAlerts] = useState<PriceAlertRecord[]>([])
+  const [adminNewsletterSubscribers, setAdminNewsletterSubscribers] = useState<NewsletterSubscriberRecord[]>([])
+  const [adminTournamentSubscribers, setAdminTournamentSubscribers] = useState<TournamentSubscriptionRecord[]>([])
+  const [adminDeliveries, setAdminDeliveries] = useState<NotificationDeliveryRecord[]>([])
   const [cpuForm, setCpuForm] = useState(INITIAL_CPU)
   const [gpuForm, setGpuForm] = useState(INITIAL_GPU)
   const [laptopForm, setLaptopForm] = useState(INITIAL_LAPTOP)
@@ -19,6 +31,7 @@ export default function AdminPage() {
 
   useEffect(() => {
     void loadCatalog()
+    void loadNotificationData()
   }, [])
 
   async function loadCatalog() {
@@ -29,6 +42,30 @@ export default function AdminPage() {
       setFeedback({
         tone: 'danger',
         message: error instanceof Error ? error.message : 'Could not load hardware catalog.'
+      })
+    }
+  }
+
+  async function loadNotificationData() {
+    if (!token) return
+    try {
+      const [overview, alerts, subscribers, tournamentSubs, deliveries] = await Promise.all([
+        api.fetchAdminNotificationOverview(token),
+        api.fetchAdminPriceAlerts(token),
+        api.fetchAdminNewsletterSubscribers(token),
+        api.fetchAdminTournamentSubscribers(token),
+        api.fetchAdminNotificationDeliveries(token)
+      ])
+
+      setNotificationOverview(overview)
+      setAdminPriceAlerts(alerts || [])
+      setAdminNewsletterSubscribers(subscribers || [])
+      setAdminTournamentSubscribers(tournamentSubs || [])
+      setAdminDeliveries(deliveries || [])
+    } catch (error) {
+      setFeedback({
+        tone: 'danger',
+        message: error instanceof Error ? error.message : 'Could not load notification admin data.'
       })
     }
   }
@@ -153,6 +190,102 @@ export default function AdminPage() {
                   </li>
                 ))}
               </ul>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-5">
+          <div className="section-banner mb-4">
+            <div>
+              <p className="eyebrow text-uppercase mb-2">Notification admin</p>
+              <h2 className="h4 mb-1">Subscriptions and deliveries</h2>
+              <p className="text-secondary-emphasis mb-0">Visibility into alerts, subscribers, and recent notification sends.</p>
+            </div>
+          </div>
+
+          <div className="row g-3 mb-4">
+            <div className="col-md-3">
+              <div className="feature-card h-100">
+                <small className="text-secondary-emphasis">Active price alerts</small>
+                <h3 className="h2 mb-0">{notificationOverview?.activePriceAlerts ?? 0}</h3>
+              </div>
+            </div>
+            <div className="col-md-3">
+              <div className="feature-card h-100">
+                <small className="text-secondary-emphasis">Newsletter subscribers</small>
+                <h3 className="h2 mb-0">{notificationOverview?.subscribedNewsletters ?? 0}</h3>
+              </div>
+            </div>
+            <div className="col-md-3">
+              <div className="feature-card h-100">
+                <small className="text-secondary-emphasis">Tournament subs</small>
+                <h3 className="h2 mb-0">{notificationOverview?.activeTournamentSubs ?? 0}</h3>
+              </div>
+            </div>
+            <div className="col-md-3">
+              <div className="feature-card h-100">
+                <small className="text-secondary-emphasis">Recent sends (24h)</small>
+                <h3 className="h2 mb-0">{notificationOverview?.recentDeliveries ?? 0}</h3>
+              </div>
+            </div>
+          </div>
+
+          <div className="row g-4">
+            <div className="col-xl-6">
+              <div className="feature-card h-100">
+                <h3 className="h5 mb-3">Recent price alerts</h3>
+                <ul className="catalog-list">
+                  {adminPriceAlerts.slice(0, 12).map((entry) => (
+                    <li key={entry.id}>
+                      <strong>{entry.gameSlug}</strong>
+                      <span>{entry.email} / {entry.isActive ? 'active' : 'off'}</span>
+                    </li>
+                  ))}
+                  {!adminPriceAlerts.length ? <li><span>No alerts yet.</span></li> : null}
+                </ul>
+              </div>
+            </div>
+            <div className="col-xl-6">
+              <div className="feature-card h-100">
+                <h3 className="h5 mb-3">Newsletter subscribers</h3>
+                <ul className="catalog-list">
+                  {adminNewsletterSubscribers.slice(0, 12).map((entry) => (
+                    <li key={entry.id || entry.email}>
+                      <strong>{entry.email}</strong>
+                      <span>{entry.isSubscribed ? 'subscribed' : 'unsubscribed'}</span>
+                    </li>
+                  ))}
+                  {!adminNewsletterSubscribers.length ? <li><span>No subscribers yet.</span></li> : null}
+                </ul>
+              </div>
+            </div>
+            <div className="col-xl-6">
+              <div className="feature-card h-100">
+                <h3 className="h5 mb-3">Tournament subscriptions</h3>
+                <ul className="catalog-list">
+                  {adminTournamentSubscribers.slice(0, 12).map((entry) => (
+                    <li key={entry.id}>
+                      <strong>{entry.email}</strong>
+                      <span>{entry.scope}{entry.gameSlug ? ` / ${entry.gameSlug}` : ''}</span>
+                    </li>
+                  ))}
+                  {!adminTournamentSubscribers.length ? <li><span>No tournament subscriptions yet.</span></li> : null}
+                </ul>
+              </div>
+            </div>
+            <div className="col-xl-6">
+              <div className="feature-card h-100">
+                <h3 className="h5 mb-3">Recent deliveries</h3>
+                <ul className="catalog-list">
+                  {adminDeliveries.slice(0, 12).map((entry) => (
+                    <li key={entry.id}>
+                      <strong>{entry.type}</strong>
+                      <span>{entry.recipientEmail} / {entry.status}</span>
+                    </li>
+                  ))}
+                  {!adminDeliveries.length ? <li><span>No deliveries logged yet.</span></li> : null}
+                </ul>
+              </div>
             </div>
           </div>
         </div>

@@ -16,6 +16,9 @@ const telemetryRoutes = require('./routes/telemetry')
 const userRoutes = require('./routes/users')
 const recommendationRoutes = require('./routes/recommendations')
 const assistantRoutes = require('./routes/assistant')
+const tournamentRoutes = require('./routes/tournaments')
+const newsletterRoutes = require('./routes/newsletter')
+const adminNotificationRoutes = require('./routes/adminNotifications')
 
 const { env } = require('./lib/env')
 const { connectPrisma, isDatabaseReady } = require('./lib/prisma')
@@ -25,7 +28,10 @@ const { initSentry, isSentryEnabled } = require('./lib/sentry')
 const { errorHandler } = require('./middleware/errorHandler')
 const { startPriceRefreshLoop } = require('./utils/priceTracker')
 const { ensureHardwareSeeded } = require('./utils/hardware')
-const { ensureGamesSeeded } = require('./utils/gameCatalog')
+const { ensureGamesSeeded, syncExpandedCatalogToDatabase } = require('./utils/gameCatalog')
+const { ensureTournamentsSeeded } = require('./utils/tournamentCatalog')
+const { startNotificationJobs } = require('./utils/notificationScheduler')
+const { buildSitemapXml, buildRobotsTxt } = require('./utils/seo')
 
 const app = express()
 const PORT = env.PORT
@@ -51,7 +57,9 @@ async function connectDatabase() {
 
     await connectPrisma()
     await ensureGamesSeeded()
+    await syncExpandedCatalogToDatabase(env.IGDB_TOP_GAMES_LIMIT)
     await ensureHardwareSeeded()
+    await ensureTournamentsSeeded()
     logger.info('PostgreSQL connected successfully and seeds are ready.')
   } catch (error) {
     logger.error({ error }, 'Database connection failed. App will keep running in demo mode.')
@@ -93,6 +101,15 @@ app.get('/api/health', async (_req, res) => {
   })
 })
 
+app.get('/sitemap.xml', async (req, res) => {
+  const xml = await buildSitemapXml(req)
+  res.type('application/xml').send(xml)
+})
+
+app.get('/robots.txt', (req, res) => {
+  res.type('text/plain').send(buildRobotsTxt(req))
+})
+
 app.use('/api/auth', authRoutes)
 app.use('/api/games', gameRoutes)
 app.use('/api/comments', commentRoutes)
@@ -102,6 +119,9 @@ app.use('/api/telemetry', telemetryRoutes)
 app.use('/api/users', userRoutes)
 app.use('/api/recommendations', recommendationRoutes)
 app.use('/api/assistant', assistantRoutes)
+app.use('/api/tournaments', tournamentRoutes)
+app.use('/api/newsletter', newsletterRoutes)
+app.use('/api/admin/notifications', adminNotificationRoutes)
 
 if (HAS_FRONTEND_BUILD) {
   app.use(express.static(FRONTEND_ROOT))
@@ -117,6 +137,7 @@ if (HAS_FRONTEND_BUILD) {
 app.use(errorHandler)
 
 startPriceRefreshLoop()
+startNotificationJobs()
 
 app.listen(PORT, () => {
   logger.info(`PlayWise server running at http://localhost:${PORT}`)

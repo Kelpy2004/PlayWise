@@ -11,6 +11,11 @@ const store = {
   contacts: [],
   favorites: new Map(),
   savedHardwareProfiles: new Map(),
+  priceAlerts: new Map(),
+  newsletterSubscribers: [],
+  tournamentSubscriptions: new Map(),
+  notificationDeliveries: [],
+  tournaments: [],
   telemetryEvents: [],
   recommendationSnapshots: [],
   runtimeErrors: []
@@ -77,6 +82,11 @@ function saveRuntimeStore() {
           contacts: store.contacts,
           favorites: serializeMapOfArrays(store.favorites),
           savedHardwareProfiles: serializeMapOfArrays(store.savedHardwareProfiles),
+          priceAlerts: serializeMapOfArrays(store.priceAlerts),
+          newsletterSubscribers: store.newsletterSubscribers,
+          tournamentSubscriptions: serializeMapOfArrays(store.tournamentSubscriptions),
+          notificationDeliveries: store.notificationDeliveries,
+          tournaments: store.tournaments,
           telemetryEvents: store.telemetryEvents,
           recommendationSnapshots: store.recommendationSnapshots,
           runtimeErrors: store.runtimeErrors
@@ -102,6 +112,11 @@ function loadRuntimeStore() {
     store.contacts = Array.isArray(payload.contacts) ? payload.contacts : []
     store.favorites = deserializeMapOfArrays(payload.favorites)
     store.savedHardwareProfiles = deserializeMapOfArrays(payload.savedHardwareProfiles)
+    store.priceAlerts = deserializeMapOfArrays(payload.priceAlerts)
+    store.newsletterSubscribers = Array.isArray(payload.newsletterSubscribers) ? payload.newsletterSubscribers : []
+    store.tournamentSubscriptions = deserializeMapOfArrays(payload.tournamentSubscriptions)
+    store.notificationDeliveries = Array.isArray(payload.notificationDeliveries) ? payload.notificationDeliveries : []
+    store.tournaments = Array.isArray(payload.tournaments) ? payload.tournaments : []
     store.telemetryEvents = Array.isArray(payload.telemetryEvents) ? payload.telemetryEvents : []
     store.recommendationSnapshots = Array.isArray(payload.recommendationSnapshots) ? payload.recommendationSnapshots : []
     store.runtimeErrors = Array.isArray(payload.runtimeErrors) ? payload.runtimeErrors : []
@@ -332,6 +347,127 @@ function recordRuntimeError(entry) {
   saveRuntimeStore()
 }
 
+function getRuntimePriceAlerts(userId) {
+  return store.priceAlerts.get(userId) || []
+}
+
+function getAllRuntimePriceAlerts() {
+  return Array.from(store.priceAlerts.values()).flat()
+}
+
+function upsertRuntimePriceAlert(userId, alert) {
+  const current = getRuntimePriceAlerts(userId)
+  const existingIndex = current.findIndex((entry) => entry.id === alert.id)
+  const next = {
+    id: alert.id || `price-alert-${userId}-${Date.now()}`,
+    ...alert
+  }
+
+  if (existingIndex >= 0) {
+    current[existingIndex] = { ...current[existingIndex], ...next }
+  } else {
+    current.unshift(next)
+  }
+
+  store.priceAlerts.set(userId, current.slice(0, 200))
+  saveRuntimeStore()
+  return next
+}
+
+function removeRuntimePriceAlert(userId, alertId) {
+  const next = getRuntimePriceAlerts(userId).filter((entry) => entry.id !== alertId)
+  store.priceAlerts.set(userId, next)
+  saveRuntimeStore()
+}
+
+function getRuntimeTournamentSubscriptions(userId) {
+  return store.tournamentSubscriptions.get(userId) || []
+}
+
+function getAllRuntimeTournamentSubscriptions() {
+  return Array.from(store.tournamentSubscriptions.values()).flat()
+}
+
+function upsertRuntimeTournamentSubscription(userId, subscription) {
+  const current = getRuntimeTournamentSubscriptions(userId)
+  const existingIndex = current.findIndex((entry) => entry.id === subscription.id)
+  const next = {
+    id: subscription.id || `tournament-sub-${userId}-${Date.now()}`,
+    ...subscription
+  }
+
+  if (existingIndex >= 0) {
+    current[existingIndex] = { ...current[existingIndex], ...next }
+  } else {
+    current.unshift(next)
+  }
+
+  store.tournamentSubscriptions.set(userId, current.slice(0, 200))
+  saveRuntimeStore()
+  return next
+}
+
+function removeRuntimeTournamentSubscription(userId, subscriptionId) {
+  const next = getRuntimeTournamentSubscriptions(userId).filter((entry) => entry.id !== subscriptionId)
+  store.tournamentSubscriptions.set(userId, next)
+  saveRuntimeStore()
+}
+
+function upsertRuntimeNewsletterSubscriber(subscriber) {
+  const normalizedEmail = String(subscriber.email || '').trim().toLowerCase()
+  if (!normalizedEmail) return null
+
+  const index = store.newsletterSubscribers.findIndex((entry) => String(entry.email || '').toLowerCase() === normalizedEmail)
+  const next = {
+    id: subscriber.id || `newsletter-${Date.now()}`,
+    ...subscriber,
+    email: normalizedEmail
+  }
+
+  if (index >= 0) {
+    store.newsletterSubscribers[index] = { ...store.newsletterSubscribers[index], ...next }
+  } else {
+    store.newsletterSubscribers.unshift(next)
+  }
+
+  store.newsletterSubscribers = store.newsletterSubscribers.slice(0, 2000)
+  saveRuntimeStore()
+  return next
+}
+
+function findRuntimeNewsletterSubscriberByEmail(email) {
+  const normalizedEmail = String(email || '').trim().toLowerCase()
+  return store.newsletterSubscribers.find((entry) => String(entry.email || '').toLowerCase() === normalizedEmail) || null
+}
+
+function getRuntimeNewsletterSubscribers() {
+  return store.newsletterSubscribers
+}
+
+function addRuntimeNotificationDelivery(delivery) {
+  store.notificationDeliveries.unshift({
+    id: delivery.id || `notification-${Date.now()}`,
+    createdAt: new Date().toISOString(),
+    ...delivery
+  })
+  store.notificationDeliveries = store.notificationDeliveries.slice(0, 2000)
+  saveRuntimeStore()
+  return store.notificationDeliveries[0]
+}
+
+function getRuntimeNotificationDeliveries() {
+  return store.notificationDeliveries
+}
+
+function getRuntimeTournaments() {
+  return store.tournaments
+}
+
+function setRuntimeTournaments(tournaments) {
+  store.tournaments = Array.isArray(tournaments) ? tournaments : []
+  saveRuntimeStore()
+}
+
 module.exports = {
   addDemoUser,
   addRuntimeComment,
@@ -347,9 +483,24 @@ module.exports = {
   getRuntimeGameReactionSummary,
   getRuntimeFavorites,
   getRuntimeHardwareProfiles,
+  getRuntimeNotificationDeliveries,
+  getRuntimeNewsletterSubscribers,
+  getRuntimePriceAlerts,
+  getAllRuntimePriceAlerts,
+  getAllRuntimeTournamentSubscriptions,
+  getRuntimeTournamentSubscriptions,
+  getRuntimeTournaments,
+  findRuntimeNewsletterSubscriberByEmail,
   nextDemoUserId,
+  addRuntimeNotificationDelivery,
   recordRuntimeError,
   removeRuntimeFavorite,
+  removeRuntimePriceAlert,
+  removeRuntimeTournamentSubscription,
+  setRuntimeTournaments,
   setRuntimeCommentReaction,
-  setRuntimeGameReaction
+  setRuntimeGameReaction,
+  upsertRuntimeNewsletterSubscriber,
+  upsertRuntimePriceAlert,
+  upsertRuntimeTournamentSubscription
 }

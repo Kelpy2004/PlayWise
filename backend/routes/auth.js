@@ -994,14 +994,16 @@ router.all(
       throw new ApiError(404, 'Unsupported login provider.')
     }
 
-    const state = req.query.state || req.body.state
-    const error = req.query.error || req.body.error
-    const errorDescription = req.query.error_description || req.body.error_description
+    const body = req.body || {}
+    const state = req.query.state || body.state
+    const error = req.query.error || body.error
+    const errorDescription = req.query.error_description || body.error_description
 
     if (error) {
       res.redirect(
         buildFrontendAuthRedirect(req, {
-          oauthError: errorDescription || `${getProviderLabel(provider)} sign-in was cancelled.`
+          oauthError: errorDescription || `${getProviderLabel(provider)} sign-in was cancelled.`,
+          returnTo: sanitizeReturnTo(req.query.returnTo || body.returnTo)
         })
       )
       return

@@ -10,17 +10,97 @@ import type {
   FavoriteGame,
   HardwareCatalog,
   HardwareSearchSuggestion,
+  NewsletterSubscriberRecord,
+  NotificationAdminOverview,
+  NotificationDeliveryRecord,
+  PriceAlertRecord,
   PriceSnapshot,
   ReactionKind,
   ReactionSummary,
   RecommendationPreview,
   SavedHardwareProfile,
   SessionResponse,
+  TournamentRecord,
+  TournamentSubscriptionRecord,
   TelemetryEventPayload
 } from '../types/api'
 import type { CpuRecord, GameRecord, GpuRecord, LaptopRecord } from '../types/catalog'
 
-const API_BASE = import.meta.env.VITE_API_BASE || '/api'
+const LIVE_API_BASE = 'https://playwise-cda1.onrender.com/api'
+
+function normalizeApiBase(base: string): string {
+  return base.endsWith('/') ? base.slice(0, -1) : base
+}
+
+function resolveApiBase(): string {
+  const configured = import.meta.env.VITE_API_BASE?.trim()
+  if (configured) {
+    return normalizeApiBase(configured)
+  }
+
+  if (typeof window === 'undefined') {
+    return '/api'
+  }
+
+  const host = window.location.hostname.toLowerCase()
+  const isLocalHost =
+    host === 'localhost' ||
+    host === '127.0.0.1' ||
+    host === '0.0.0.0'
+
+  if (isLocalHost) {
+    return '/api'
+  }
+
+  if (host.endsWith('.vercel.app')) {
+    return '/api'
+  }
+
+  return LIVE_API_BASE
+}
+
+const API_BASE = resolveApiBase()
+const CATALOG_SNAPSHOT_KEY = 'playwise.catalog.snapshot.v1'
+const CATALOG_CACHE_TTL_MS = 10 * 60 * 1000
+const catalogMemoryCache = new Map<string, { timestamp: number; data: GameRecord[] }>()
+
+function getCatalogCacheKey(params?: { q?: string; section?: string; platform?: string }) {
+  const search = new URLSearchParams()
+  if (params?.q?.trim()) search.set('q', params.q.trim())
+  if (params?.section?.trim()) search.set('section', params.section.trim())
+  if (params?.platform?.trim()) search.set('platform', params.platform.trim())
+  return search.toString() || '__all__'
+}
+
+function readCatalogSnapshot(maxAgeMs = CATALOG_CACHE_TTL_MS): GameRecord[] | null {
+  if (typeof window === 'undefined') return null
+  try {
+    const raw = window.localStorage.getItem(CATALOG_SNAPSHOT_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as { timestamp?: number; data?: GameRecord[] }
+    if (!parsed?.timestamp || !Array.isArray(parsed.data)) return null
+    if (Date.now() - parsed.timestamp > maxAgeMs) return null
+    return parsed.data
+  } catch {
+    return null
+  }
+}
+
+function writeCatalogSnapshot(data: GameRecord[]) {
+  if (typeof window === 'undefined') return
+  try {
+    window.localStorage.setItem(
+      CATALOG_SNAPSHOT_KEY,
+      JSON.stringify({ timestamp: Date.now(), data })
+    )
+  } catch {
+    // ignore localStorage write failures
+  }
+}
+
+export function getCachedCatalogSnapshot(maxAgeMs = CATALOG_CACHE_TTL_MS): GameRecord[] | null {
+  return readCatalogSnapshot(maxAgeMs)
+}
 
 function normalizeErrorMessage(path: string, payload: unknown): string {
   if (typeof payload !== 'string') {
@@ -79,7 +159,34 @@ async function request<T>(
 }
 
 export const api = {
-  fetchGames: () => request<GameRecord[]>('/games'),
+  fetchGames: (params?: { q?: string; section?: string; platform?: string }) => {
+    const cacheKey = getCatalogCacheKey(params)
+    const memoryCached = catalogMemoryCache.get(cacheKey)
+    if (memoryCached && Date.now() - memoryCached.timestamp < CATALOG_CACHE_TTL_MS) {
+      return Promise.resolve(memoryCached.data)
+    }
+
+    if (cacheKey === '__all__') {
+      const snapshot = readCatalogSnapshot()
+      if (snapshot?.length) {
+        catalogMemoryCache.set(cacheKey, { timestamp: Date.now(), data: snapshot })
+        return Promise.resolve(snapshot)
+      }
+    }
+
+    const search = new URLSearchParams()
+    if (params?.q?.trim()) search.set('q', params.q.trim())
+    if (params?.section?.trim()) search.set('section', params.section.trim())
+    if (params?.platform?.trim()) search.set('platform', params.platform.trim())
+    const suffix = search.toString() ? `?${search.toString()}` : ''
+    return request<GameRecord[]>(`/games${suffix}`).then((data) => {
+      catalogMemoryCache.set(cacheKey, { timestamp: Date.now(), data })
+      if (cacheKey === '__all__' && Array.isArray(data) && data.length) {
+        writeCatalogSnapshot(data)
+      }
+      return data
+    })
+  },
   fetchGameDetails: (slug: string) => request<GameRecord>(`/games/${slug}`),
   getSession: (token: string) => request<SessionResponse>('/auth/session', { token }),
   fetchAuthProviders: () => request<AuthProvidersResponse>('/auth/providers'),
@@ -158,7 +265,70 @@ export const api = {
   askAssistant: (
     body: { messages: AssistantChatMessage[]; pagePath?: string; gameSlug?: string },
     token?: string | null
-  ) => request<AssistantReply>('/assistant/chat', { method: 'POST', body, token })
+  ) => request<AssistantReply>('/assistant/chat', { method: 'POST', body, token }),
+  fetchPriceAlerts: (token: string) => request<PriceAlertRecord[]>('/users/me/price-alerts', { token }),
+  createPriceAlert: (
+    body: { gameSlug: string; email?: string; targetPrice?: number | null; isActive?: boolean },
+    token: string
+  ) => request<PriceAlertRecord>('/users/me/price-alerts', { method: 'POST', body, token }),
+  updatePriceAlert: (
+    id: string,
+    body: { targetPrice?: number | null; isActive?: boolean },
+    token: string
+  ) => request<PriceAlertRecord>(`/users/me/price-alerts/${id}`, { method: 'PATCH', body, token }),
+  deletePriceAlert: (id: string, token: string) =>
+    request<{ ok: true }>(`/users/me/price-alerts/${id}`, { method: 'DELETE', token }),
+  fetchMyNewsletterStatus: (token: string) =>
+    request<NewsletterSubscriberRecord>('/users/me/newsletter', { token }),
+  subscribeMyNewsletter: (body: { email?: string }, token: string) =>
+    request<NewsletterSubscriberRecord>('/users/me/newsletter/subscribe', { method: 'POST', body, token }),
+  unsubscribeMyNewsletter: (body: { email?: string }, token: string) =>
+    request<NewsletterSubscriberRecord>('/users/me/newsletter/unsubscribe', { method: 'POST', body, token }),
+  subscribeNewsletter: (body: { email: string }, token?: string | null) =>
+    request<NewsletterSubscriberRecord>('/newsletter/subscribe', { method: 'POST', body, token }),
+  unsubscribeNewsletter: (body: { email: string }, token?: string | null) =>
+    request<NewsletterSubscriberRecord>('/newsletter/unsubscribe', { method: 'POST', body, token }),
+  fetchTournaments: (params?: { game?: string; limit?: number }) => {
+    const search = new URLSearchParams()
+    if (params?.game?.trim()) search.set('game', params.game.trim())
+    if (typeof params?.limit === 'number' && Number.isFinite(params.limit) && params.limit > 0) {
+      search.set('limit', String(Math.floor(params.limit)))
+    }
+    const suffix = search.toString() ? `?${search.toString()}` : ''
+    return request<TournamentRecord[]>(`/tournaments${suffix}`)
+  },
+  upsertTournament: (
+    body: {
+      slug: string
+      title: string
+      gameSlug?: string | null
+      startsAt: string
+      endsAt?: string | null
+      status?: 'UPCOMING' | 'LIVE_NOW' | 'ENDED'
+      metadata?: Record<string, unknown> | null
+    },
+    token: string
+  ) => request<TournamentRecord>('/tournaments', { method: 'POST', body, token }),
+  fetchTournamentSubscriptions: (token: string) =>
+    request<TournamentSubscriptionRecord[]>('/users/me/tournament-subscriptions', { token }),
+  createTournamentSubscription: (
+    body: { scope: 'ALL' | 'GAME'; gameSlug?: string | null; email?: string; isActive?: boolean },
+    token: string
+  ) => request<TournamentSubscriptionRecord>('/users/me/tournament-subscriptions', { method: 'POST', body, token }),
+  updateTournamentSubscription: (id: string, body: { isActive?: boolean }, token: string) =>
+    request<TournamentSubscriptionRecord>(`/users/me/tournament-subscriptions/${id}`, { method: 'PATCH', body, token }),
+  deleteTournamentSubscription: (id: string, token: string) =>
+    request<{ ok: true }>(`/users/me/tournament-subscriptions/${id}`, { method: 'DELETE', token }),
+  fetchAdminNotificationOverview: (token: string) =>
+    request<NotificationAdminOverview>('/admin/notifications/overview', { token }),
+  fetchAdminPriceAlerts: (token: string) =>
+    request<PriceAlertRecord[]>('/admin/notifications/price-alerts', { token }),
+  fetchAdminNewsletterSubscribers: (token: string) =>
+    request<NewsletterSubscriberRecord[]>('/admin/notifications/newsletter-subscribers', { token }),
+  fetchAdminTournamentSubscribers: (token: string) =>
+    request<TournamentSubscriptionRecord[]>('/admin/notifications/tournament-subscribers', { token }),
+  fetchAdminNotificationDeliveries: (token: string) =>
+    request<NotificationDeliveryRecord[]>('/admin/notifications/deliveries', { token })
 }
 
 export function getOAuthStartUrl(provider: 'google' | 'microsoft' | 'apple', returnTo = '/'): string {

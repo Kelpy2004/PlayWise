@@ -3,6 +3,8 @@ const { env } = require('../lib/env')
 const TWITCH_TOKEN_URL = 'https://id.twitch.tv/oauth2/token'
 const IGDB_BASE_URL = 'https://api.igdb.com/v4'
 const IMAGE_CDN = 'https://images.igdb.com/igdb/image/upload'
+const MIN_EXPANDED_CATALOG_SIZE = 500
+const IGDB_BATCH_SIZE = 50
 
 let accessTokenCache = null
 let topGamesCache = { expiresAt: 0, games: [] }
@@ -21,7 +23,7 @@ function trimText(value) {
 function truncate(value, maxLength) {
   const text = trimText(value)
   if (!text || text.length <= maxLength) return text
-  return `${text.slice(0, maxLength - 1).trim()}…`
+  return `${text.slice(0, maxLength - 3).trim()}...`
 }
 
 function firstSentence(value, fallbackLength = 150) {
@@ -34,6 +36,13 @@ function firstSentence(value, fallbackLength = 150) {
 function buildImageUrl(imageId, size = 'cover_big') {
   if (!imageId) return null
   return `${IMAGE_CDN}/t_${size}/${imageId}.jpg`
+}
+
+function sanitizeSlug(slug) {
+  return String(slug || '')
+    .replace(/\\/g, '\\\\')
+    .replace(/"/g, '\\"')
+    .trim()
 }
 
 function normalizeSlug(slug) {
@@ -95,24 +104,52 @@ function toAverageRating(game) {
   return Number((raw / 10).toFixed(1))
 }
 
-function transformIgdbGame(game) {
+function ensureArray(values) {
+  return Array.isArray(values) ? values : []
+}
+
+function mergeCatalogBuckets(...bucketLists) {
+  return Array.from(new Set(bucketLists.flat().filter(Boolean)))
+}
+
+function formatReleaseTimestamp(unixSeconds) {
+  if (!unixSeconds) return null
+  const releaseDate = new Date(unixSeconds * 1000)
+  if (Number.isNaN(releaseDate.getTime())) return null
+  return releaseDate.toISOString()
+}
+
+function getBucketLabel(catalogBuckets = []) {
+  if (catalogBuckets.includes('popular')) return 'Popular now'
+  if (catalogBuckets.includes('top-rated')) return 'Top rated'
+  if (catalogBuckets.includes('mid-popular')) return 'Mid-popular'
+  if (catalogBuckets.includes('new-release')) return 'New release'
+  return 'IGDB profile'
+}
+
+function transformIgdbGame(game, options = {}) {
   const normalizedSlug = normalizeSlug(game.slug)
-  const genres = Array.isArray(game.genres)
-    ? game.genres.map((genre) => trimText(genre?.name)).filter(Boolean)
-    : []
-  const platforms = Array.isArray(game.platforms)
-    ? game.platforms.map((platform) => trimText(platform?.name)).filter(Boolean)
-    : []
-  const screenshots = Array.isArray(game.screenshots) ? game.screenshots : []
+  const genres = ensureArray(game.genres)
+    .map((genre) => trimText(genre?.name))
+    .filter(Boolean)
+  const platforms = ensureArray(game.platforms)
+    .map((platform) => trimText(platform?.name))
+    .filter(Boolean)
+  const screenshots = ensureArray(game.screenshots)
   const averageRating = toAverageRating(game)
   const summary = trimText(game.summary)
   const storyline = trimText(game.storyline)
+  const storeLinks = buildStoreLinks(game.websites)
+  const hasEpicLink = storeLinks.some((entry) => entry.label === 'Epic Games')
+  const catalogBuckets = mergeCatalogBuckets(options.catalogBuckets, hasEpicLink ? ['epic-store'] : [])
+  const popularityScore = typeof options.popularityScore === 'number' ? options.popularityScore : null
 
   return {
     slug: normalizedSlug,
     originalSlug: sanitizeSlug(game.slug),
     title: trimText(game.name) || 'Unknown title',
     year: game.first_release_date ? new Date(game.first_release_date * 1000).getFullYear() : undefined,
+    releaseTimestamp: formatReleaseTimestamp(game.first_release_date),
     genre: genres.length ? genres : ['Action'],
     genres: genres.length ? genres : ['Action'],
     platform: platforms,
@@ -123,9 +160,9 @@ function transformIgdbGame(game) {
     description: summary || storyline || 'Live game profile powered by IGDB.',
     story: storyline || summary || 'PlayWise is showing the richer catalog summary available from IGDB for this title.',
     bugStatus: {
-      label: 'IGDB profile',
+      label: getBucketLabel(catalogBuckets),
       note: 'This expanded catalog card is powered by live IGDB metadata.',
-      tone: 'info'
+      tone: catalogBuckets.includes('top-rated') ? 'good' : catalogBuckets.includes('mid-popular') ? 'info' : 'blue'
     },
     valueRating: averageRating
       ? {
@@ -136,18 +173,48 @@ function transformIgdbGame(game) {
               : 'Solid critical reception in the live catalog feed.'
         }
       : undefined,
-    storeLinks: buildStoreLinks(game.websites),
+    storeLinks,
     officialSite: pickOfficialSite(game.websites),
     trailer: buildTrailer(game.videos),
-    similarGames: Array.isArray(game.similar_games)
-      ? game.similar_games.map((entry) => trimText(entry?.slug)).filter(Boolean)
-      : [],
-    demandLevel: 'IGDB top rated',
-    demandTone: 'blue',
+    similarGames: ensureArray(game.similar_games).map((entry) => trimText(entry?.slug)).filter(Boolean),
+    demandLevel: getBucketLabel(catalogBuckets),
+    demandTone: catalogBuckets.includes('top-rated') ? 'good' : catalogBuckets.includes('mid-popular') ? 'info' : 'blue',
     averageRating,
     catalogSource: 'igdb',
+    catalogBuckets,
+    popularityScore,
     externalRatingCount: typeof game.total_rating_count === 'number' ? game.total_rating_count : game.rating_count || 0
   }
+}
+
+function mergeCatalogEntries(primary, secondary) {
+  if (!primary) return secondary
+  if (!secondary) return primary
+
+  return {
+    ...secondary,
+    ...primary,
+    genre: primary.genre?.length ? primary.genre : secondary.genre,
+    genres: primary.genres?.length ? primary.genres : secondary.genres,
+    platform: primary.platform?.length ? primary.platform : secondary.platform,
+    supportedPlatforms: primary.supportedPlatforms?.length ? primary.supportedPlatforms : secondary.supportedPlatforms,
+    storeLinks: primary.storeLinks?.length ? primary.storeLinks : secondary.storeLinks,
+    similarGames: primary.similarGames?.length ? primary.similarGames : secondary.similarGames,
+    catalogBuckets: mergeCatalogBuckets(primary.catalogBuckets, secondary.catalogBuckets),
+    popularityScore: Math.max(primary.popularityScore || 0, secondary.popularityScore || 0) || null,
+    averageRating: primary.averageRating ?? secondary.averageRating
+  }
+}
+
+function normalizeCatalogList(games = []) {
+  const mergedBySlug = new Map()
+
+  for (const game of games) {
+    if (!game?.slug) continue
+    mergedBySlug.set(game.slug, mergeCatalogEntries(mergedBySlug.get(game.slug), game))
+  }
+
+  return Array.from(mergedBySlug.values())
 }
 
 async function fetchJson(url, options = {}) {
@@ -204,15 +271,9 @@ async function queryIgdb(endpoint, body) {
   })
 }
 
-function sanitizeSlug(slug) {
-  return String(slug || '')
-    .replace(/\\/g, '\\\\')
-    .replace(/"/g, '\\"')
-    .trim()
-}
-
 function buildGameFields() {
   return [
+    'id',
     'name',
     'slug',
     'summary',
@@ -233,31 +294,176 @@ function buildGameFields() {
   ].join(',')
 }
 
-function buildTopRatedQuery(limit) {
+function buildBaseGameWhereClause() {
   return `
-    fields ${buildGameFields()};
-    where total_rating != null
-      & total_rating_count > 80
-      & first_release_date != null
+    first_release_date != null
       & first_release_date < ${Math.floor(Date.now() / 1000)}
       & version_parent = null
-      & platforms = (6);
-    sort total_rating desc;
-    limit ${Math.min(Math.max(limit, 1), 50)};
+      & cover != null
+      & platforms.name = "PC (Microsoft Windows)"
   `
 }
 
-async function getTopRatedGames(limit = env.IGDB_TOP_GAMES_LIMIT) {
-  if (!isIgdbEnabled()) return []
+function chunkValues(values, size) {
+  const chunks = []
 
-  if (topGamesCache.expiresAt > Date.now() && topGamesCache.games.length) {
-    return topGamesCache.games.slice(0, limit)
+  for (let index = 0; index < values.length; index += size) {
+    chunks.push(values.slice(index, index + size))
   }
 
-  const response = await queryIgdb('games', buildTopRatedQuery(limit))
-  const games = Array.isArray(response)
-    ? response.map(transformIgdbGame).filter((game) => game.slug && game.title)
+  return chunks
+}
+
+function buildRecentQuery(limit, offset = 0) {
+  return `
+    fields ${buildGameFields()};
+    where ${buildBaseGameWhereClause()}
+      & total_rating != null
+      & total_rating_count > 10;
+    sort first_release_date desc;
+    limit ${limit};
+    offset ${offset};
+  `
+}
+
+function buildTopRatedQuery(limit, offset = 0) {
+  return `
+    fields ${buildGameFields()};
+    where ${buildBaseGameWhereClause()}
+      & total_rating != null
+      & total_rating_count > 50;
+    sort total_rating desc;
+    limit ${limit};
+    offset ${offset};
+  `
+}
+
+function buildPopularityPrimitiveQuery(limit, offset = 0) {
+  return `
+    fields game_id,popularity_type,value,external_popularity_source;
+    where game_id != null;
+    sort value desc;
+    limit ${limit};
+    offset ${offset};
+  `
+}
+
+function buildGamesByIdsQuery(ids) {
+  return `
+    fields ${buildGameFields()};
+    where id = (${ids.join(',')})
+      & ${buildBaseGameWhereClause()};
+    limit ${ids.length};
+  `
+}
+
+function scorePopularityEntry(entry) {
+  const baseValue = Number(entry?.value) || 0
+  const sourceWeight = entry?.external_popularity_source === 1 ? 2 : 1
+  const typeWeight = entry?.popularity_type >= 30 ? 1.15 : 1
+  return baseValue * sourceWeight * typeWeight
+}
+
+function aggregatePopularityEntries(entries = []) {
+  const gameMap = new Map()
+
+  for (const entry of entries) {
+    const gameId = Number(entry?.game_id)
+    if (!gameId) continue
+
+    const current = gameMap.get(gameId) || { gameId, score: 0, hits: 0 }
+    current.score += scorePopularityEntry(entry)
+    current.hits += 1
+    gameMap.set(gameId, current)
+  }
+
+  return Array.from(gameMap.values()).sort((left, right) => {
+    if (right.score !== left.score) return right.score - left.score
+    return right.hits - left.hits
+  })
+}
+
+async function fetchGamesFromQuery(query, catalogBuckets) {
+  const response = await queryIgdb('games', query)
+  return Array.isArray(response)
+    ? response
+        .map((game) => transformIgdbGame(game, { catalogBuckets }))
+        .filter((game) => game.slug && game.title)
     : []
+}
+
+async function fetchGamesByIds(ids, catalogBuckets, popularityScores) {
+  if (!ids.length) return []
+
+  const chunks = chunkValues(ids, IGDB_BATCH_SIZE)
+  const byId = new Map()
+
+  for (const chunk of chunks) {
+    const response = await queryIgdb('games', buildGamesByIdsQuery(chunk))
+    for (const game of Array.isArray(response) ? response : []) {
+      byId.set(game.id, game)
+    }
+  }
+
+  return ids
+    .map((id) => {
+      const game = byId.get(id)
+      if (!game) return null
+      return transformIgdbGame(game, {
+        catalogBuckets,
+        popularityScore: popularityScores.get(id) || null
+      })
+    })
+    .filter(Boolean)
+}
+
+async function getPopularGamesByTier(targetCount) {
+  const primitivePages = []
+
+  for (const offset of [0, 250, 500, 750, 1000, 1250]) {
+    primitivePages.push(await queryIgdb('popularity_primitives', buildPopularityPrimitiveQuery(250, offset)))
+  }
+
+  const popularityRankings = aggregatePopularityEntries(primitivePages.flat())
+  const popularityScores = new Map(popularityRankings.map((entry) => [entry.gameId, entry.score]))
+
+  const popularIds = popularityRankings.slice(0, Math.max(targetCount, 100)).map((entry) => entry.gameId)
+  const midPopularIds = popularityRankings
+    .slice(Math.max(targetCount, 100), Math.max(targetCount, 100) + Math.max(targetCount, 100))
+    .map((entry) => entry.gameId)
+
+  const popularGames = await fetchGamesByIds(popularIds, ['popular'], popularityScores)
+  const midPopularGames = await fetchGamesByIds(midPopularIds, ['mid-popular'], popularityScores)
+
+  return { popularGames, midPopularGames }
+}
+
+async function getExpandedCatalog(limit = env.IGDB_TOP_GAMES_LIMIT) {
+  if (!isIgdbEnabled()) return []
+
+  const targetCount = Math.max(Number(limit) || 0, MIN_EXPANDED_CATALOG_SIZE)
+
+  if (topGamesCache.expiresAt > Date.now() && topGamesCache.games.length >= targetCount) {
+    return topGamesCache.games.slice(0, targetCount)
+  }
+
+  const recentGames = []
+  const topRatedGames = []
+  const recentBatchSize = 100
+  const topRatedBatchSize = 100
+  const pages = Math.max(2, Math.ceil(targetCount / 100))
+
+  for (let page = 0; page < pages; page += 1) {
+    const recentChunk = await fetchGamesFromQuery(buildRecentQuery(recentBatchSize, page * recentBatchSize), ['new-release'])
+    const topRatedChunk = await fetchGamesFromQuery(buildTopRatedQuery(topRatedBatchSize, page * topRatedBatchSize), ['top-rated'])
+    recentGames.push(...recentChunk)
+    topRatedGames.push(...topRatedChunk)
+  }
+  const { popularGames, midPopularGames } = await getPopularGamesByTier(
+    Math.min(Math.max(Math.floor(targetCount / 2), 80), 120)
+  )
+
+  const games = normalizeCatalogList([...topRatedGames, ...popularGames, ...midPopularGames, ...recentGames]).slice(0, targetCount)
 
   topGamesCache = {
     expiresAt: Date.now() + env.IGDB_CACHE_MS,
@@ -274,6 +480,10 @@ async function getTopRatedGames(limit = env.IGDB_TOP_GAMES_LIMIT) {
   return games
 }
 
+async function getTopRatedGames(limit = env.IGDB_TOP_GAMES_LIMIT) {
+  return getExpandedCatalog(limit)
+}
+
 async function getTopRatedGameBySlug(slug) {
   const requestedSlug = sanitizeSlug(slug)
   const normalizedSlug = normalizeSlug(slug)
@@ -282,7 +492,7 @@ async function getTopRatedGameBySlug(slug) {
   const cached = slugCache.get(requestedSlug) || slugCache.get(normalizedSlug)
   if (cached) return cached
 
-  const topGames = await getTopRatedGames()
+  const topGames = await getExpandedCatalog()
   const fromTopList = topGames.find((game) => game.slug === normalizedSlug)
   if (fromTopList) return fromTopList
 
@@ -293,7 +503,9 @@ async function getTopRatedGameBySlug(slug) {
   `
 
   const response = await queryIgdb('games', body)
-  const game = Array.isArray(response) && response[0] ? transformIgdbGame(response[0]) : null
+  const game = Array.isArray(response) && response[0]
+    ? transformIgdbGame(response[0], { catalogBuckets: ['igdb-search-result'] })
+    : null
 
   if (game?.slug) {
     slugCache.set(game.slug, game)

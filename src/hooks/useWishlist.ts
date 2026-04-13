@@ -32,11 +32,13 @@ export function useWishlist(catalogGames: GameRecord[] = []) {
       return undefined
     }
 
+    const authToken: string = token
+
     let ignore = false
 
     async function loadFavorites() {
       try {
-        const favorites = await api.fetchFavorites(token)
+        const favorites = await api.fetchFavorites(authToken)
         if (!ignore) {
           setFavoriteGames(favorites)
         }

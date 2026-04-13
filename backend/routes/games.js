@@ -29,6 +29,34 @@ function buildSearchText(game) {
   return [game.title, ...genres, game.heroTag || '', game.description || ''].join(' ').toLowerCase()
 }
 
+function normalizeText(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\s+/g, ' ')
+}
+
+function matchesSection(game, section) {
+  const normalizedSection = normalizeText(section)
+  if (!normalizedSection) return true
+  const buckets = Array.isArray(game.catalogBuckets) ? game.catalogBuckets : []
+
+  if (normalizedSection === 'new' || normalizedSection.includes('new')) return buckets.includes('new-release')
+  if (normalizedSection === 'top' || normalizedSection.includes('top')) return buckets.includes('top-rated')
+  if (normalizedSection === 'popular') return buckets.includes('popular') || buckets.includes('mid-popular')
+  if (normalizedSection.includes('epic')) return buckets.includes('epic-store')
+
+  return true
+}
+
+function matchesPlatform(game, platform) {
+  const normalizedPlatform = normalizeText(platform)
+  if (!normalizedPlatform) return true
+  const platforms = [...(game.platform || []), ...(game.supportedPlatforms || [])].map(normalizeText)
+  return platforms.some((entry) => entry.includes(normalizedPlatform))
+}
+
 function getRuntimeReactionSummaryForAliases(aliases, userId) {
   const uniqueAliases = Array.from(new Set(aliases.filter(Boolean)))
   let likeCount = 0
@@ -120,8 +148,16 @@ router.get(
   '/',
   asyncHandler(async (req, res) => {
     const query = String(req.query.q || '').trim().toLowerCase()
+    const section = String(req.query.section || '').trim()
+    const platform = String(req.query.platform || '').trim()
     const games = await loadGames()
-    const filtered = !query ? games : games.filter((game) => buildSearchText(game).includes(query))
+    const filtered = games.filter((game) => {
+      if (query && !buildSearchText(game).includes(query)) return false
+      if (!matchesSection(game, section)) return false
+      if (!matchesPlatform(game, platform)) return false
+      return true
+    })
+    res.set('Cache-Control', 'public, max-age=60, stale-while-revalidate=300')
     res.json(filtered)
   })
 )

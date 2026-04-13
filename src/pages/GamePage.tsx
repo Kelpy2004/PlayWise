@@ -27,14 +27,9 @@ import type {
 } from '../types/api'
 import type { GameRecord } from '../types/catalog'
 
-function reactionButtonClass(active: boolean): string {
-  return [
-    'inline-flex items-center justify-center rounded-lg px-5 py-2.5 text-[0.6875rem] font-bold uppercase tracking-[0.16em] transition-all font-["Inter"] backdrop-blur-md cursor-pointer',
-    active
-      ? 'bg-[#b1fa50]/10 text-[#b1fa50] shadow-[0_0_30px_rgba(177,250,80,0.15)] border border-[#b1fa50]/20'
-      : 'bg-white/[0.03] text-white/70 hover:bg-white/[0.06] hover:text-white border border-white/15'
-  ].join(' ')
-}
+/* ═══════════════════════════════════════════════════════════════════════════ */
+/*  PURE HELPERS — logic only, no UI                                         */
+/* ═══════════════════════════════════════════════════════════════════════════ */
 
 function nextReaction(current: ReactionKind | null | undefined, target: ReactionKind): ReactionKind | null {
   return current === target ? null : target

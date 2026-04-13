@@ -345,6 +345,12 @@ export default function AuthPage({ mode }: { mode: 'login' | 'register' }) {
       : isRegister
         ? 'Continue'
         : 'Log in'
+  const origin = typeof window !== 'undefined' ? window.location.origin : ''
+  const seoTitle = isRegister ? 'Create account | PlayWise' : 'Login | PlayWise'
+  const seoDescription = isRegister
+    ? 'Join PlayWise to save your wishlist, hardware profiles, and alerts.'
+    : 'Sign in to access your PlayWise wishlist, saved specs, and alerts.'
+  const seoUrl = origin ? `${origin}/${isRegister ? 'register' : 'login'}` : undefined
 
   return (
     <>
@@ -430,7 +436,8 @@ export default function AuthPage({ mode }: { mode: 'login' | 'register' }) {
                   required
                 />
               </div>
-            )}
+            )
+}
 
             <div className="auth-form-group">
               <label>Password</label>
@@ -521,9 +528,3 @@ export default function AuthPage({ mode }: { mode: 'login' | 'register' }) {
     </>
   )
 }
-  const origin = typeof window !== 'undefined' ? window.location.origin : ''
-  const seoTitle = isRegister ? 'Create account | PlayWise' : 'Login | PlayWise'
-  const seoDescription = isRegister
-    ? 'Join PlayWise to save your wishlist, hardware profiles, and alerts.'
-    : 'Sign in to access your PlayWise wishlist, saved specs, and alerts.'
-  const seoUrl = origin ? `${origin}/${isRegister ? 'register' : 'login'}` : undefined

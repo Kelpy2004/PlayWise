@@ -4,6 +4,10 @@ const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().default(4000),
   DATABASE_URL: z.string().optional(),
+  DB_CONNECTION_LIMIT: z.coerce.number().default(5),
+  PG_POOL_MAX: z.coerce.number().default(3),
+  PG_IDLE_TIMEOUT_MS: z.coerce.number().default(10_000),
+  PG_CONNECTION_TIMEOUT_MS: z.coerce.number().default(30_000),
   APP_ORIGIN: z.string().optional(),
   JWT_SECRET: z.string().default('playwise-secret'),
   JWT_EXPIRES: z.string().default('7d'),
@@ -43,7 +47,8 @@ const envSchema = z.object({
   NOTIFICATION_BATCH_LIMIT: z.coerce.number().default(200),
   SENTRY_DSN: z.string().optional(),
   SENTRY_ENVIRONMENT: z.string().optional(),
-  SENTRY_TRACES_SAMPLE_RATE: z.coerce.number().default(0.15)
+  SENTRY_TRACES_SAMPLE_RATE: z.coerce.number().default(0.15),
+  API_RATE_LIMIT_MAX: z.coerce.number().default(180)
 })
 
 const env = envSchema.parse(process.env)

@@ -32,6 +32,7 @@ const { ensureGamesSeeded, syncExpandedCatalogToDatabase } = require('./utils/ga
 const { ensureTournamentsSeeded } = require('./utils/tournamentCatalog')
 const { startNotificationJobs } = require('./utils/notificationScheduler')
 const { buildSitemapXml, buildRobotsTxt } = require('./utils/seo')
+const { getIntegrationStatus } = require('./utils/integrationStatus')
 
 const app = express()
 const PORT = env.PORT
@@ -41,7 +42,7 @@ const FRONTEND_ROOT = DIST_ROOT
 
 const apiLimiter = rateLimit({
   windowMs: 60 * 1000,
-  max: 180,
+  max: Math.max(60, Number(env.API_RATE_LIMIT_MAX) || 180),
   standardHeaders: true,
   legacyHeaders: false
 })
@@ -97,7 +98,15 @@ app.get('/api/health', async (_req, res) => {
     },
     monitoring: {
       sentry: isSentryEnabled()
-    }
+    },
+    integrations: getIntegrationStatus()
+  })
+})
+
+app.get('/api/health/integrations', (_req, res) => {
+  res.json({
+    ok: true,
+    integrations: getIntegrationStatus()
   })
 })
 

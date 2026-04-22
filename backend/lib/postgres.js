@@ -1,4 +1,6 @@
 const { Pool } = require('pg')
+const { env } = require('./env')
+const { normalizeRuntimeDatabaseUrl } = require('./databaseUrl')
 
 let pool = null
 let activeConnectionString = null
@@ -11,7 +13,7 @@ function sanitizeConnectionString(rawUrl) {
   if (!rawUrl) return null
 
   try {
-    const parsed = new URL(rawUrl)
+    const parsed = new URL(normalizeRuntimeDatabaseUrl(rawUrl))
 
     parsed.searchParams.delete('sslmode')
 
@@ -26,7 +28,9 @@ function createPool() {
     return null
   }
 
-  const connectionString = sanitizeConnectionString(process.env.DATABASE_URL)
+  const runtimeUrl = normalizeRuntimeDatabaseUrl(process.env.DATABASE_URL)
+  const connectionString = sanitizeConnectionString(runtimeUrl)
+  const isSupabasePooler = Boolean(runtimeUrl && runtimeUrl.includes('pooler.supabase.com'))
 
   activeConnectionString = connectionString
 
@@ -35,9 +39,9 @@ function createPool() {
     ssl: {
       rejectUnauthorized: false
     },
-    max: 5,
-    idleTimeoutMillis: 10_000,
-    connectionTimeoutMillis: 30_000
+    max: Math.max(1, Math.min(isSupabasePooler ? 6 : 20, Number(env.PG_POOL_MAX) || (isSupabasePooler ? 3 : 5))),
+    idleTimeoutMillis: Math.max(1_000, Number(env.PG_IDLE_TIMEOUT_MS) || 10_000),
+    connectionTimeoutMillis: Math.max(5_000, Number(env.PG_CONNECTION_TIMEOUT_MS) || 30_000)
   })
 }
 

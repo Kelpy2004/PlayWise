@@ -1,4 +1,5 @@
 const { PrismaClient } = require('@prisma/client')
+const { normalizeRuntimeDatabaseUrl } = require('./databaseUrl')
 
 let prisma = null
 let activeDatabaseUrl = null
@@ -6,37 +7,6 @@ let databaseReady = false
 
 function hasDatabaseUrl() {
   return Boolean(process.env.DATABASE_URL)
-}
-
-function buildSupabaseRuntimeFallbackUrl(rawUrl) {
-  if (!rawUrl) return null
-
-  try {
-    const parsed = new URL(rawUrl)
-    const isSupabasePooler = parsed.hostname.includes('pooler.supabase.com')
-    const isSessionPort = !parsed.port || parsed.port === '5432'
-    const alreadyPgbouncer = parsed.searchParams.get('pgbouncer') === 'true'
-
-    if (!isSupabasePooler || !isSessionPort || alreadyPgbouncer) {
-      return null
-    }
-
-    parsed.port = '6543'
-    parsed.searchParams.set('pgbouncer', 'true')
-    parsed.searchParams.set('connection_limit', '1')
-
-    if (!parsed.searchParams.get('sslmode')) {
-      parsed.searchParams.set('sslmode', 'require')
-    }
-
-    if (!parsed.searchParams.get('connect_timeout')) {
-      parsed.searchParams.set('connect_timeout', '30')
-    }
-
-    return parsed.toString()
-  } catch {
-    return null
-  }
 }
 
 function createClient(databaseUrl) {
@@ -55,7 +25,7 @@ function getPrisma() {
   }
 
   if (!prisma) {
-    activeDatabaseUrl = process.env.DATABASE_URL
+    activeDatabaseUrl = normalizeRuntimeDatabaseUrl(process.env.DATABASE_URL)
     prisma = createClient(activeDatabaseUrl)
   }
 
@@ -69,8 +39,8 @@ async function connectPrisma() {
   }
 
   const primaryUrl = process.env.DATABASE_URL
-  const fallbackUrl = buildSupabaseRuntimeFallbackUrl(primaryUrl)
-  const candidateUrls = fallbackUrl ? [primaryUrl, fallbackUrl] : [primaryUrl]
+  const normalizedUrl = normalizeRuntimeDatabaseUrl(primaryUrl)
+  const candidateUrls = normalizedUrl && normalizedUrl !== primaryUrl ? [normalizedUrl, primaryUrl] : [primaryUrl]
   let lastError = null
 
   for (const databaseUrl of candidateUrls) {

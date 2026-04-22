@@ -495,14 +495,15 @@ async function createDatabaseUser(user, client = null) {
   return mapUserRow(result.rows[0])
 }
 
-async function usernameExists(username) {
+async function usernameExists(username, client = null) {
   const normalized = sanitizeUsernameCandidate(username)
 
   if (!authUsesDatabase()) {
     return getDemoUsers().some((user) => String(user.username || '').toLowerCase() === normalized.toLowerCase())
   }
 
-  const existing = await query(
+  const existing = await runDatabaseQuery(
+    client,
     `
       select id
       from "User"
@@ -515,12 +516,12 @@ async function usernameExists(username) {
   return existing.rowCount > 0
 }
 
-async function buildUniqueUsername(base) {
+async function buildUniqueUsername(base, client = null) {
   const seed = sanitizeUsernameCandidate(base)
   let candidate = seed
   let counter = 1
 
-  while (await usernameExists(candidate)) {
+  while (await usernameExists(candidate, client)) {
     counter += 1
     const suffix = `.${counter}`
     const truncatedBase = seed.slice(0, Math.max(3, 24 - suffix.length))
@@ -774,7 +775,7 @@ async function resolveOAuthUser(profile) {
 
         while (attempts < 5) {
           attempts += 1
-          const username = await buildUniqueUsername(profile.usernameHint || profile.name || profile.provider)
+          const username = await buildUniqueUsername(profile.usernameHint || profile.name || profile.provider, client)
 
           try {
             return await createDatabaseUser(

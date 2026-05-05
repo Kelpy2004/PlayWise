@@ -25,7 +25,7 @@ TOURNAMENT_JOB_INTERVAL_MS=60000
 TOURNAMENT_SOON_WINDOW_MINUTES=30
 NOTIFICATION_BATCH_LIMIT=200
 STARTGG_API_TOKEN=
-STARTGG_TOURNAMENT_LIMIT=30
+STARTGG_TOURNAMENT_LIMIT=80
 ```
 
 Required DB var:
@@ -58,6 +58,7 @@ This creates/updates:
 - `Tournament`
 - `TournamentSubscription`
 - `NotificationDelivery`
+- `EmailVerificationToken`
 
 ## 4. Runtime Behavior
 
@@ -73,6 +74,7 @@ This creates/updates:
   - `TournamentSubscription.lastSoonNotifiedAt`
   - `TournamentSubscription.lastLiveNotifiedAt`
 - All sends are logged in `NotificationDelivery`.
+- Account verification links are stored as hashed tokens in `EmailVerificationToken`.
 
 ## 5. Verification Checklist
 

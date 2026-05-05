@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 
 import { api } from '../lib/api'
-import type { SessionUser } from '../types/api'
+import type { AuthResponse, SessionUser } from '../types/api'
 
 const TOKEN_KEY = 'playwise-token'
 
@@ -10,7 +10,7 @@ interface AuthContextValue {
   user: SessionUser | null
   isLoading: boolean
   login: (payload: { usernameOrEmail: string; password: string }) => Promise<SessionUser>
-  register: (payload: { username: string; email: string; password: string; adminSetupCode?: string }) => Promise<SessionUser>
+  register: (payload: { username: string; email: string; password: string; adminSetupCode?: string }) => Promise<AuthResponse>
   acceptExternalToken: (token: string) => Promise<SessionUser>
   logout: () => void
 }
@@ -63,9 +63,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [token])
 
   async function handleAuthResponse(
-    responsePromise: Promise<{ token: string; user: SessionUser }>
+    responsePromise: Promise<AuthResponse>
   ): Promise<SessionUser> {
     const response = await responsePromise
+    if (!response.token || !response.user) {
+      throw new Error(response.message || 'Authentication could not be completed.')
+    }
     window.localStorage.setItem(TOKEN_KEY, response.token)
     setToken(response.token)
     setUser(response.user)
@@ -86,7 +89,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user,
       isLoading,
       login: (payload) => handleAuthResponse(api.login(payload)),
-      register: (payload) => handleAuthResponse(api.register(payload)),
+      register: (payload) => api.register(payload),
       acceptExternalToken,
       logout: () => {
         window.localStorage.removeItem(TOKEN_KEY)

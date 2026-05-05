@@ -17,8 +17,10 @@ export interface AuthProviderOption {
 
 export interface AuthResponse {
   message?: string
-  token: string
-  user: SessionUser
+  token?: string
+  user?: SessionUser
+  requiresVerification?: boolean
+  email?: string
 }
 
 export interface SessionResponse {

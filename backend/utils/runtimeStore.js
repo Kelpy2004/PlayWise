@@ -12,6 +12,7 @@ const store = {
   favorites: new Map(),
   savedHardwareProfiles: new Map(),
   priceAlerts: new Map(),
+  emailVerificationTokens: [],
   newsletterSubscribers: [],
   tournamentSubscriptions: new Map(),
   notificationDeliveries: [],
@@ -83,6 +84,7 @@ function saveRuntimeStore() {
           favorites: serializeMapOfArrays(store.favorites),
           savedHardwareProfiles: serializeMapOfArrays(store.savedHardwareProfiles),
           priceAlerts: serializeMapOfArrays(store.priceAlerts),
+          emailVerificationTokens: store.emailVerificationTokens,
           newsletterSubscribers: store.newsletterSubscribers,
           tournamentSubscriptions: serializeMapOfArrays(store.tournamentSubscriptions),
           notificationDeliveries: store.notificationDeliveries,
@@ -113,6 +115,7 @@ function loadRuntimeStore() {
     store.favorites = deserializeMapOfArrays(payload.favorites)
     store.savedHardwareProfiles = deserializeMapOfArrays(payload.savedHardwareProfiles)
     store.priceAlerts = deserializeMapOfArrays(payload.priceAlerts)
+    store.emailVerificationTokens = Array.isArray(payload.emailVerificationTokens) ? payload.emailVerificationTokens : []
     store.newsletterSubscribers = Array.isArray(payload.newsletterSubscribers) ? payload.newsletterSubscribers : []
     store.tournamentSubscriptions = deserializeMapOfArrays(payload.tournamentSubscriptions)
     store.notificationDeliveries = Array.isArray(payload.notificationDeliveries) ? payload.notificationDeliveries : []
@@ -140,6 +143,14 @@ function addDemoUser(user) {
   store.users.push(user)
   saveRuntimeStore()
   return user
+}
+
+function updateDemoUser(userId, updates) {
+  const index = store.users.findIndex((user) => String(user.id) === String(userId))
+  if (index < 0) return null
+  store.users[index] = { ...store.users[index], ...updates }
+  saveRuntimeStore()
+  return store.users[index]
 }
 
 function countDemoAdmins() {
@@ -444,6 +455,41 @@ function getRuntimeNewsletterSubscribers() {
   return store.newsletterSubscribers
 }
 
+function upsertRuntimeEmailVerificationToken(tokenRecord) {
+  store.emailVerificationTokens = store.emailVerificationTokens.filter(
+    (entry) =>
+      String(entry.userId || '') !== String(tokenRecord.userId || '') &&
+      String(entry.email || '').toLowerCase() !== String(tokenRecord.email || '').toLowerCase()
+  )
+
+  const next = {
+    id: tokenRecord.id || `verify-${Date.now()}`,
+    createdAt: tokenRecord.createdAt || new Date().toISOString(),
+    usedAt: tokenRecord.usedAt || null,
+    ...tokenRecord
+  }
+
+  store.emailVerificationTokens.unshift(next)
+  store.emailVerificationTokens = store.emailVerificationTokens.slice(0, 2000)
+  saveRuntimeStore()
+  return next
+}
+
+function findRuntimeEmailVerificationTokenByHash(tokenHash) {
+  return store.emailVerificationTokens.find((entry) => String(entry.tokenHash || '') === String(tokenHash || '')) || null
+}
+
+function markRuntimeEmailVerificationTokenUsed(tokenHash) {
+  const index = store.emailVerificationTokens.findIndex((entry) => String(entry.tokenHash || '') === String(tokenHash || ''))
+  if (index < 0) return null
+  store.emailVerificationTokens[index] = {
+    ...store.emailVerificationTokens[index],
+    usedAt: new Date().toISOString()
+  }
+  saveRuntimeStore()
+  return store.emailVerificationTokens[index]
+}
+
 function addRuntimeNotificationDelivery(delivery) {
   store.notificationDeliveries.unshift({
     id: delivery.id || `notification-${Date.now()}`,
@@ -478,6 +524,7 @@ module.exports = {
   addRecommendationSnapshot,
   countDemoAdmins,
   findDemoUserByUsernameOrEmail,
+  findRuntimeEmailVerificationTokenByHash,
   getDemoUsers,
   getRuntimeComments,
   getRuntimeGameReactionSummary,
@@ -493,6 +540,7 @@ module.exports = {
   findRuntimeNewsletterSubscriberByEmail,
   nextDemoUserId,
   addRuntimeNotificationDelivery,
+  markRuntimeEmailVerificationTokenUsed,
   recordRuntimeError,
   removeRuntimeFavorite,
   removeRuntimePriceAlert,
@@ -500,6 +548,8 @@ module.exports = {
   setRuntimeTournaments,
   setRuntimeCommentReaction,
   setRuntimeGameReaction,
+  updateDemoUser,
+  upsertRuntimeEmailVerificationToken,
   upsertRuntimeNewsletterSubscriber,
   upsertRuntimePriceAlert,
   upsertRuntimeTournamentSubscription

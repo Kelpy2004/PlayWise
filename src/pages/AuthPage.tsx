@@ -135,10 +135,21 @@ export default function AuthPage({ mode }: { mode: 'login' | 'register' }) {
     }
 
     const params = new URLSearchParams(hash)
+    const message = params.get('message')
+    const tone = params.get('tone')
     const oauthError = params.get('oauthError')
     const oauthToken = params.get('token')
     const oauthReturnTo = params.get('returnTo') || returnTo
     const provider = params.get('provider') || 'oauth'
+
+    if (message && !oauthError && !oauthToken) {
+      setFeedback({
+        tone: tone === 'success' || tone === 'warning' ? tone : 'danger',
+        message
+      })
+      navigate(location.pathname, { replace: true, state: location.state })
+      return
+    }
 
     if (oauthError) {
       setFeedback({ tone: 'danger', message: oauthError })
@@ -276,17 +287,41 @@ export default function AuthPage({ mode }: { mode: 'login' | 'register' }) {
     }
 
     try {
-      const user = isRegister
-        ? await register({
-            username,
-            email,
-            password,
-            adminSetupCode
-          })
-        : await login({
-            usernameOrEmail,
-            password
-          })
+      if (isRegister) {
+        const response = await register({
+          username,
+          email,
+          password,
+          adminSetupCode
+        })
+
+        setFieldErrors({})
+        setForm((current) => ({
+          ...current,
+          password: '',
+          usernameOrEmail: current.email
+        }))
+        navigate(
+          {
+            pathname: '/login',
+            hash: `#message=${encodeURIComponent(
+              response.message || 'Account created. Check your email to verify your account before logging in.'
+            )}&tone=success`
+          },
+          {
+            replace: true,
+            state: {
+              from: returnTo
+            }
+          }
+        )
+        return
+      }
+
+      const user = await login({
+        usernameOrEmail,
+        password
+      })
 
       await trackEvent(
         {

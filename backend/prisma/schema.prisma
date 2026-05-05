@@ -99,10 +99,26 @@ model User {
   recommendationRuns  RecommendationSnapshot[]
   telemetryEvents     TelemetryEvent[]
   providerAccounts    ProviderAccount[]
+  emailVerificationTokens EmailVerificationToken[]
   priceAlerts         PriceAlert[]
   newsletterRecords   NewsletterSubscriber[]
   tournamentSubscriptions TournamentSubscription[]
   notificationDeliveries NotificationDelivery[]
+}
+
+model EmailVerificationToken {
+  id        String   @id @default(cuid())
+  userId     String
+  email      String
+  tokenHash  String   @unique
+  expiresAt  DateTime
+  usedAt     DateTime?
+  createdAt  DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([email])
+  @@index([expiresAt])
 }
 
 model ProviderAccount {

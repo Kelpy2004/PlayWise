@@ -434,11 +434,12 @@ export default function GamePage() {
     }
 
     let ignore = false
+    const activeGame = game
     async function loadTournaments() {
       setTournamentsLoading(true)
       try {
         const response = await api.fetchTournaments({
-          game: game.title,
+          game: activeGame.title,
           limit: 80
         })
         if (!ignore) {
@@ -465,11 +466,12 @@ export default function GamePage() {
     }
 
     let ignore = false
+    const activeToken = token
     async function loadNotificationSubscriptions() {
       try {
         const [alerts, subscriptions] = await Promise.all([
-          api.fetchPriceAlerts(token),
-          api.fetchTournamentSubscriptions(token)
+          api.fetchPriceAlerts(activeToken),
+          api.fetchTournamentSubscriptions(activeToken)
         ])
 
         if (ignore) return

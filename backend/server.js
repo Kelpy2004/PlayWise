@@ -31,6 +31,7 @@ const { ensureHardwareSeeded } = require('./utils/hardware')
 const { ensureGamesSeeded, syncExpandedCatalogToDatabase } = require('./utils/gameCatalog')
 const { ensureTournamentsSeeded } = require('./utils/tournamentCatalog')
 const { startNotificationJobs } = require('./utils/notificationScheduler')
+const { ensureAuthInfrastructure } = require('./utils/authInfrastructure')
 const { buildSitemapXml, buildRobotsTxt } = require('./utils/seo')
 const { getIntegrationStatus } = require('./utils/integrationStatus')
 
@@ -57,6 +58,7 @@ async function connectDatabase() {
     }
 
     await connectPrisma()
+    await ensureAuthInfrastructure()
     await ensureGamesSeeded()
     await syncExpandedCatalogToDatabase(env.IGDB_TOP_GAMES_LIMIT)
     await ensureHardwareSeeded()

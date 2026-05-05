@@ -41,6 +41,7 @@ const envSchema = z.object({
   SMTP_SECURE: z.coerce.boolean().default(false),
   SMTP_USER: z.string().optional(),
   SMTP_PASS: z.string().optional(),
+  EMAIL_VERIFICATION_HOURS: z.coerce.number().default(24),
   PRICE_ALERT_JOB_INTERVAL_MS: z.coerce.number().default(5 * 60 * 1000),
   TOURNAMENT_JOB_INTERVAL_MS: z.coerce.number().default(60 * 1000),
   TOURNAMENT_SOON_WINDOW_MINUTES: z.coerce.number().default(30),

@@ -1,7 +1,7 @@
 const express = require('express')
 const bcrypt = require('bcryptjs')
 const jwt = require('jsonwebtoken')
-const { randomBytes, randomUUID } = require('crypto')
+const { createHash, randomBytes, randomUUID } = require('crypto')
 const { z } = require('zod')
 
 const { env } = require('../lib/env')
@@ -13,9 +13,14 @@ const {
   addDemoUser,
   countDemoAdmins,
   findDemoUserByUsernameOrEmail,
+  findRuntimeEmailVerificationTokenByHash,
   getDemoUsers,
-  nextDemoUserId
+  markRuntimeEmailVerificationTokenUsed,
+  nextDemoUserId,
+  updateDemoUser,
+  upsertRuntimeEmailVerificationToken
 } = require('../utils/runtimeStore')
+const { sendSignInNoticeEmail, sendVerificationEmail, sendWelcomeEmail } = require('../utils/authEmailService')
 
 const router = express.Router()
 
@@ -181,6 +186,18 @@ function buildFrontendAuthRedirect(req, params) {
     }, {})
   ).toString()
   return target.toString()
+}
+
+function hashVerificationToken(token) {
+  return createHash('sha256').update(String(token || '')).digest('hex')
+}
+
+function createEmailVerificationToken() {
+  const token = randomBytes(32).toString('hex')
+  return {
+    token,
+    tokenHash: hashVerificationToken(token)
+  }
 }
 
 function createOAuthState(provider, returnTo) {
@@ -535,6 +552,149 @@ async function createRandomPasswordHash() {
   return bcrypt.hash(randomBytes(24).toString('hex'), 10)
 }
 
+function getVerificationExpiryDate() {
+  const hours = Math.max(1, Number(env.EMAIL_VERIFICATION_HOURS) || 24)
+  return new Date(Date.now() + (hours * 60 * 60 * 1000))
+}
+
+function hasDeliverableEmail(user) {
+  return Boolean(user?.email && !String(user.email).endsWith('@oauth.playwise.local'))
+}
+
+async function createVerificationRecord(user, client = null) {
+  const { token, tokenHash } = createEmailVerificationToken()
+  const id = randomUUID()
+  const expiresAt = getVerificationExpiryDate()
+
+  if (!authUsesDatabase()) {
+    upsertRuntimeEmailVerificationToken({
+      id,
+      userId: user.id,
+      email: user.email,
+      tokenHash,
+      expiresAt: expiresAt.toISOString()
+    })
+    return { token, expiresAt }
+  }
+
+  await runDatabaseQuery(
+    client,
+    `
+      delete from "EmailVerificationToken"
+      where "userId" = $1
+         or lower(email) = lower($2)
+    `,
+    [user.id, user.email]
+  )
+
+  await runDatabaseQuery(
+    client,
+    `
+      insert into "EmailVerificationToken" (
+        id,
+        "userId",
+        email,
+        "tokenHash",
+        "expiresAt",
+        "createdAt"
+      )
+      values ($1, $2, $3, $4, $5, now())
+    `,
+    [id, user.id, user.email, tokenHash, expiresAt]
+  )
+
+  return { token, expiresAt }
+}
+
+async function sendVerificationForUser(req, user, client = null) {
+  if (!hasDeliverableEmail(user)) {
+    return {
+      ok: false,
+      status: 'SKIPPED',
+      error: 'No deliverable email is available for verification.'
+    }
+  }
+
+  const { token } = await createVerificationRecord(user, client)
+  return sendVerificationEmail({
+    req,
+    email: user.email,
+    username: user.username,
+    token
+  })
+}
+
+async function markUserVerified(userId, client = null) {
+  if (!authUsesDatabase()) {
+    const user = updateDemoUser(userId, { verified: true })
+    return user ? { ...user, verified: Boolean(user.verified) } : null
+  }
+
+  const result = await runDatabaseQuery(
+    client,
+    `
+      update "User"
+      set verified = true,
+          "updatedAt" = now()
+      where id = $1
+      returning
+        id,
+        username,
+        email,
+        "passwordHash" as "passwordHash",
+        role,
+        verified,
+        "avatarUrl" as "avatarUrl"
+    `,
+    [userId]
+  )
+
+  return mapUserRow(result.rows[0])
+}
+
+async function findVerificationRecord(token) {
+  const tokenHash = hashVerificationToken(token)
+
+  if (!authUsesDatabase()) {
+    return findRuntimeEmailVerificationTokenByHash(tokenHash)
+  }
+
+  const result = await query(
+    `
+      select
+        id,
+        "userId",
+        email,
+        "tokenHash",
+        "expiresAt",
+        "usedAt",
+        "createdAt"
+      from "EmailVerificationToken"
+      where "tokenHash" = $1
+      limit 1
+    `,
+    [tokenHash]
+  )
+
+  return result.rows[0] || null
+}
+
+async function markVerificationRecordUsed(tokenHash, client = null) {
+  if (!authUsesDatabase()) {
+    return markRuntimeEmailVerificationTokenUsed(tokenHash)
+  }
+
+  await runDatabaseQuery(
+    client,
+    `
+      update "EmailVerificationToken"
+      set "usedAt" = now()
+      where "tokenHash" = $1
+    `,
+    [tokenHash]
+  )
+}
+
 async function findUserByUsername(username) {
   const needle = normalizeUsername(username)
 
@@ -723,9 +883,10 @@ async function upsertProviderAccount(userId, profile) {
 }
 
 async function resolveOAuthUser(profile) {
+  let created = false
   const providerAccountUser = await findUserByProviderAccount(profile.provider, profile.providerAccountId)
   if (providerAccountUser) {
-    return providerAccountUser
+    return { user: providerAccountUser, created }
   }
 
   let user = profile.email ? await findUserByEmail(profile.email) : null
@@ -745,7 +906,9 @@ async function resolveOAuthUser(profile) {
         verified: Boolean(profile.emailVerified),
         avatarUrl: profile.avatarUrl || ''
       })
+      created = true
     } else {
+      let createdInTransaction = false
       user = await withTransaction(async (client) => {
         const existingByEmail = profile.email
           ? await runDatabaseQuery(
@@ -778,7 +941,7 @@ async function resolveOAuthUser(profile) {
           const username = await buildUniqueUsername(profile.usernameHint || profile.name || profile.provider, client)
 
           try {
-            return await createDatabaseUser(
+            const createdUser = await createDatabaseUser(
               {
                 username,
                 email,
@@ -789,6 +952,8 @@ async function resolveOAuthUser(profile) {
               },
               client
             )
+            createdInTransaction = true
+            return createdUser
           } catch (error) {
             if (!isDatabaseConflictError(error)) {
               throw error
@@ -821,6 +986,7 @@ async function resolveOAuthUser(profile) {
 
         throw new ApiError(500, 'The social account could not be reserved right now.')
       })
+      created = createdInTransaction
     }
   }
 
@@ -829,6 +995,30 @@ async function resolveOAuthUser(profile) {
   }
 
   await upsertProviderAccount(user.id, profile)
+
+  if (authUsesDatabase() && profile.emailVerified && !user.verified) {
+    const result = await query(
+      `
+        update "User"
+        set verified = true,
+            "updatedAt" = now()
+        where id = $1
+        returning
+          id,
+          username,
+          email,
+          "passwordHash" as "passwordHash",
+          role,
+          verified,
+          "avatarUrl" as "avatarUrl"
+      `,
+      [user.id]
+    )
+
+    user = mapUserRow(result.rows[0]) || user
+  } else if (!authUsesDatabase() && profile.emailVerified && !user.verified) {
+    user = updateDemoUser(user.id, { verified: true }) || user
+  }
 
   if (authUsesDatabase() && profile.avatarUrl && !user.avatarUrl) {
     const result = await query(
@@ -852,7 +1042,7 @@ async function resolveOAuthUser(profile) {
     user = mapUserRow(result.rows[0]) || user
   }
 
-  return user
+  return { user, created }
 }
 
 router.get(
@@ -914,7 +1104,8 @@ router.post(
         username: normalizedUsername,
         email: normalizedEmail,
         passwordHash,
-        role
+        role,
+        verified: false
       })
     } else {
       try {
@@ -922,7 +1113,8 @@ router.post(
           username: normalizedUsername,
           email: normalizedEmail,
           passwordHash,
-          role
+          role,
+          verified: false
         })
       } catch (error) {
         if (isDatabaseConflictError(error)) {
@@ -933,12 +1125,15 @@ router.post(
       }
     }
 
-    const token = signToken(user)
+    const emailResult = await sendVerificationForUser(req, user)
+    const message = emailResult.ok
+      ? 'Account created. Check your email to verify your account before logging in.'
+      : 'Account created, but the verification email could not be sent right now. Try logging in again later to resend it.'
 
     res.status(201).json({
-      message: 'Account created successfully.',
-      token,
-      user: serializeUser(user)
+      message,
+      requiresVerification: true,
+      email: user.email
     })
   })
 )
@@ -957,6 +1152,14 @@ router.post(
     const isMatch = await bcrypt.compare(password, user.passwordHash)
     if (!isMatch) {
       throw new ApiError(401, 'Invalid credentials.')
+    }
+
+    if (!user.verified) {
+      const emailResult = await sendVerificationForUser(req, user)
+      const message = emailResult.ok
+        ? 'Please verify your email before logging in. A fresh verification link has been sent.'
+        : 'Please verify your email before logging in. The verification email could not be sent right now.'
+      throw new ApiError(403, message)
     }
 
     const token = signToken(user)
@@ -1025,14 +1228,85 @@ router.all(
 
     const tokenPayload = await exchangeCodeForTokens(provider, req, code)
     const profile = await fetchOAuthProfile(provider, req, tokenPayload)
-    const user = await resolveOAuthUser(profile)
+    const { user } = await resolveOAuthUser(profile)
     const token = signToken(user)
+
+    if (hasDeliverableEmail(user)) {
+      await sendSignInNoticeEmail({
+        req,
+        email: user.email,
+        username: user.username,
+        providerLabel: getProviderLabel(provider)
+      })
+    }
 
     res.redirect(
       buildFrontendAuthRedirect(req, {
         token,
         provider,
         returnTo: statePayload.returnTo
+      })
+    )
+  })
+)
+
+router.get(
+  '/verify-email',
+  asyncHandler(async (req, res) => {
+    const token = String(req.query.token || '').trim()
+    if (!token) {
+      res.redirect(buildFrontendAuthRedirect(req, { message: 'That verification link is invalid.', tone: 'danger' }))
+      return
+    }
+
+    const record = await findVerificationRecord(token)
+    const tokenHash = hashVerificationToken(token)
+
+    if (!record) {
+      res.redirect(buildFrontendAuthRedirect(req, { message: 'That verification link is invalid or has already been used.', tone: 'danger' }))
+      return
+    }
+
+    if (record.usedAt) {
+      res.redirect(buildFrontendAuthRedirect(req, { message: 'That verification link has already been used. You can sign in now.', tone: 'success' }))
+      return
+    }
+
+    if (new Date(record.expiresAt).getTime() < Date.now()) {
+      res.redirect(buildFrontendAuthRedirect(req, { message: 'That verification link has expired. Try logging in again to receive a fresh one.', tone: 'danger' }))
+      return
+    }
+
+    let user
+
+    if (!authUsesDatabase()) {
+      user = await markUserVerified(record.userId)
+      await markVerificationRecordUsed(tokenHash)
+    } else {
+      user = await withTransaction(async (client) => {
+        const verifiedUser = await markUserVerified(record.userId, client)
+        await markVerificationRecordUsed(tokenHash, client)
+        return verifiedUser
+      })
+    }
+
+    if (!user) {
+      res.redirect(buildFrontendAuthRedirect(req, { message: 'That account could not be verified right now.', tone: 'danger' }))
+      return
+    }
+
+    if (hasDeliverableEmail(user)) {
+      await sendWelcomeEmail({
+        req,
+        email: user.email,
+        username: user.username
+      })
+    }
+
+    res.redirect(
+      buildFrontendAuthRedirect(req, {
+        message: 'Email verified. You can now log in to PlayWise.',
+        tone: 'success'
       })
     )
   })

@@ -6,6 +6,7 @@ npm-debug.log*
 *.log
 .env
 backend/.env
+backend/data/runtime-store.json
 
 .vercel
 .env*.local

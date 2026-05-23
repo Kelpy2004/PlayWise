@@ -296,3 +296,40 @@ export interface TelemetryEventPayload {
   label?: string
   meta?: Record<string, unknown>
 }
+
+export type DealType = 'FREE_GAME' | 'DISCOUNT' | 'MISSION_FREE'
+
+export interface DealRecord {
+  id: string
+  externalId: string
+  type: DealType
+  title: string
+  gameSlug?: string | null
+  store: string
+  originalPrice?: number | null
+  dealPrice?: number | null
+  discountPct?: number | null
+  currency: string
+  url: string
+  imageUrl?: string | null
+  startsAt?: string | null
+  endsAt?: string | null
+  source: string
+  metadata?: Record<string, unknown> | null
+  isActive: boolean
+  createdAt?: string
+  updatedAt?: string
+}
+
+export interface DealSubscriptionRecord {
+  id: string
+  userId?: string | null
+  email: string
+  minDiscountPct: number
+  notifyFreeGames: boolean
+  notifyDiscounts: boolean
+  isActive: boolean
+  lastNotifiedAt?: string | null
+  createdAt?: string
+  updatedAt?: string
+}

@@ -903,8 +903,9 @@ export default function GamePage() {
               { id: 'community', label: 'Community', icon: 'forum' },
             ].map(n => (
               <a key={n.id} href={`#${n.id}`}
+                onClick={(e) => { e.preventDefault(); const el = document.getElementById(n.id); if (el) { const y = el.getBoundingClientRect().top + window.scrollY - 70; window.scrollTo({ top: y, behavior: 'smooth' }); } setActiveNav(n.id); }}
                 style={{
-                  display: 'flex', alignItems: 'center', gap: 5, padding: '8px 14px', borderRadius: 12, fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', textDecoration: 'none', transition: 'all 0.25s',
+                  display: 'flex', alignItems: 'center', gap: 5, padding: '8px 14px', borderRadius: 12, fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', textDecoration: 'none', transition: 'all 0.25s', cursor: 'pointer',
                   ...(activeNav === n.id ? { background: 'var(--cyan)', color: '#fff', boxShadow: '0 0 16px rgba(0,212,255,0.3)' } : { color: 'var(--muted-solid)' }),
                 }}>
                 <Icon name={n.icon} size={14} /> {n.label}

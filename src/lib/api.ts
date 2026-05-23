@@ -7,6 +7,8 @@ import type {
   CommentRecord,
   CompatibilityResult,
   ContactResponse,
+  DealRecord,
+  DealSubscriptionRecord,
   FavoriteGame,
   HardwareCatalog,
   HardwareSearchSuggestion,
@@ -26,7 +28,7 @@ import type {
 } from '../types/api'
 import type { CpuRecord, GameRecord, GpuRecord, LaptopRecord } from '../types/catalog'
 
-const LIVE_API_BASE = 'https://playwise-cda1.onrender.com/api'
+const LIVE_API_BASE = 'https://playwise-cda1.onrender.com/api' // live backend
 
 function normalizeApiBase(base: string): string {
   return base.endsWith('/') ? base.slice(0, -1) : base
@@ -49,7 +51,9 @@ function resolveApiBase(): string {
     host === '0.0.0.0'
 
   if (isLocalHost) {
-    return '/api'
+    const port = window.location.port
+    if (port === '4000') return '/api'
+    return LIVE_API_BASE
   }
 
   if (host.endsWith('.vercel.app')) {
@@ -328,7 +332,25 @@ export const api = {
   fetchAdminTournamentSubscribers: (token: string) =>
     request<TournamentSubscriptionRecord[]>('/admin/notifications/tournament-subscribers', { token }),
   fetchAdminNotificationDeliveries: (token: string) =>
-    request<NotificationDeliveryRecord[]>('/admin/notifications/deliveries', { token })
+    request<NotificationDeliveryRecord[]>('/admin/notifications/deliveries', { token }),
+  fetchDeals: (params?: { type?: string; store?: string; freeOnly?: boolean }) => {
+    const search = new URLSearchParams()
+    if (params?.type) search.set('type', params.type)
+    if (params?.store) search.set('store', params.store)
+    if (params?.freeOnly) search.set('freeOnly', '1')
+    const suffix = search.toString() ? `?${search}` : ''
+    return request<{ ok: boolean; count: number; deals: DealRecord[] }>(`/deals${suffix}`).then((r) => r.deals)
+  },
+  fetchFreeDeals: () =>
+    request<{ ok: boolean; count: number; deals: DealRecord[] }>('/deals/free').then((r) => r.deals),
+  fetchDealSubscriptions: (token: string) =>
+    request<{ ok: boolean; subscriptions: DealSubscriptionRecord[] }>('/deals/subscribe', { token }).then((r) => r.subscriptions),
+  subscribeToDealAlerts: (
+    body: { email?: string; minDiscountPct?: number; notifyFreeGames?: boolean; notifyDiscounts?: boolean },
+    token?: string | null
+  ) => request<{ ok: boolean; subscription: DealSubscriptionRecord }>('/deals/subscribe', { method: 'POST', body, token }),
+  unsubscribeFromDealAlerts: (body: { email?: string }, token?: string | null) =>
+    request<{ ok: boolean; unsubscribed: number }>('/deals/subscribe', { method: 'DELETE', body, token })
 }
 
 export function getOAuthStartUrl(provider: 'google' | 'microsoft' | 'apple', returnTo = '/'): string {

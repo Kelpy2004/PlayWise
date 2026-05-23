@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ChangeEvent, type FormEvent } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from 'react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 
@@ -57,6 +57,17 @@ export default function AppShell() {
   const navigate = useNavigate()
   
   const isGamePage = location.pathname.startsWith('/games/')
+  const gamesMenuTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const openGamesMenu = useCallback(() => {
+    if (gamesMenuTimer.current) { clearTimeout(gamesMenuTimer.current); gamesMenuTimer.current = null }
+    setIsGamesMenuOpen(true)
+  }, [])
+
+  const scheduleCloseGamesMenu = useCallback(() => {
+    if (gamesMenuTimer.current) clearTimeout(gamesMenuTimer.current)
+    gamesMenuTimer.current = setTimeout(() => setIsGamesMenuOpen(false), 180)
+  }, [])
   
   const searchWords = useMemo(() => ['Games', 'Library', 'Tournaments', 'Prices'], [])
   const [catalogGames, setCatalogGames] = useState<GameRecord[]>(() => getCachedCatalogSnapshot() || getAllGames())
@@ -216,7 +227,7 @@ export default function AppShell() {
           </NavLink>
 
           <nav className="hidden min-w-0 flex-1 items-center gap-5 pl-6 xl:gap-7 lg:flex">
-            <div className="relative flex h-20 items-center">
+            <div className="relative flex h-20 items-center" onMouseEnter={openGamesMenu} onMouseLeave={scheduleCloseGamesMenu}>
               <button
                 type="button"
                 className="flex items-center gap-1 border-b-2 border-cyan pb-1 text-sm font-semibold text-cyan"
@@ -232,6 +243,8 @@ export default function AppShell() {
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: 8, scale: 0.98 }}
                 transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+                onMouseEnter={openGamesMenu}
+                onMouseLeave={scheduleCloseGamesMenu}
                 className="fixed left-1/2 top-20 z-50 w-[min(95vw,1040px)] -translate-x-1/2 rounded-[26px] border border-cyan/18 p-6 backdrop-blur-2xl xl:absolute xl:left-0 xl:top-full xl:w-[1040px] xl:translate-x-0"
                 style={{
                   background: theme === 'dark' ? 'rgba(17,17,17,0.9)' : 'rgba(250,247,242,0.95)',
@@ -331,6 +344,9 @@ export default function AppShell() {
             </div>
             <button type="button" className="text-sm font-medium text-[var(--muted)] transition-colors hover:text-[var(--text)]" onClick={() => handleSectionJump('tournaments')}>
               Tournaments
+            </button>
+            <button type="button" className="text-sm font-medium text-[var(--muted)] transition-colors hover:text-[var(--text)]" onClick={() => navigate('/deals')}>
+              Deals
             </button>
             <button type="button" className="text-sm font-medium text-[var(--muted)] transition-colors hover:text-[var(--text)]" onClick={() => navigate('/games')}>
               Store

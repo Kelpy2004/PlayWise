@@ -105,7 +105,7 @@ export default function TrendingSection() {
             Trending Now
           </div>
           <h2 className="text-[clamp(2rem,4vw,3.2rem)] font-extrabold tracking-tight leading-tight mb-4">Hot this week</h2>
-          <p className="text-muted text-[1.05rem] max-w-[520px]">Live deals from Steam, Epic, GOG, and more — updated every 5 minutes.</p>
+          <p className="text-muted text-[1.05rem] max-w-[520px]">Live deals from Steam, Epic Games, Ubisoft, Xbox, and more — updated every 5 minutes.</p>
         </div>
         <button
           onClick={() => navigate('/deals')}
@@ -134,17 +134,18 @@ export default function TrendingSection() {
               href={deal.url}
               target="_blank"
               rel="noreferrer"
-              className="flex-shrink-0 w-[220px] snap-start rounded-[var(--radius)] overflow-hidden bg-card border border-border cursor-pointer transition-all duration-400 hover:border-cyan/20 hover:shadow-[0_20px_50px_rgba(0,0,0,0.3)] no-underline text-inherit"
+              className="flex-shrink-0 w-[260px] snap-start rounded-[var(--radius)] overflow-hidden bg-card border border-border cursor-pointer transition-all duration-400 hover:border-cyan/20 hover:shadow-[0_20px_50px_rgba(0,0,0,0.3)] no-underline text-inherit"
               onMouseMove={handleCardMouseMove}
               onMouseLeave={handleCardMouseLeave}
             >
-              <div className="aspect-[3/4] relative overflow-hidden">
+              <div className="aspect-[16/10] relative overflow-hidden bg-black">
                 {deal.imageUrl ? (
                   <img
                     src={deal.imageUrl}
                     alt={deal.title}
                     className="absolute inset-0 w-full h-full object-cover"
                     loading="lazy"
+                    style={{ imageRendering: 'auto' }}
                   />
                 ) : (
                   <div className="absolute inset-0 bg-gradient-to-br from-[#1e0a30] to-[#0a1e30]" />

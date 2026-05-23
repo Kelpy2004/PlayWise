@@ -12,7 +12,9 @@ type DealFilter = 'all' | 'free' | 'discount'
 const STORE_COLORS: Record<string, string> = {
   'Epic Games Store': '#0078f2',
   Steam: '#1b2838',
-  'GOG.com': '#86328a',
+  'Ubisoft Store': '#0070ff',
+  Xbox: '#107c10',
+  NVIDIA: '#76b900',
 }
 
 function formatExpiry(value?: string | null) {
@@ -40,7 +42,7 @@ function providerLabel(source: string) {
   const labels: Record<string, string> = {
     epic: 'Epic Games',
     steam: 'Steam',
-    gog: 'GOG',
+    nvidia: 'NVIDIA',
     cheapshark: 'CheapShark',
     itad: 'IsThereAnyDeal',
   }
@@ -216,7 +218,7 @@ export default function DealsPage() {
     <>
       <Seo
         title="Deals & Free Games | PlayWise"
-        description="Free games across Epic, Steam, GOG and more. Deep discounts detected in real time."
+        description="Free games across Epic, Steam, Ubisoft, Xbox and more. Deep discounts detected in real time."
       />
       <section className="mx-auto w-full max-w-[1320px] px-4 py-12 text-white">
         {/* Header */}
@@ -226,7 +228,7 @@ export default function DealsPage() {
             <div>
               <h1 className="text-3xl font-black">Free Games & Deals</h1>
               <p className="mt-2 text-sm text-white/70">
-                Live free game giveaways and deep discounts across Epic, Steam, GOG, and 40+ stores.
+                Live free game giveaways and deep discounts across Epic Games, Steam, Ubisoft, and Xbox.
                 Updated every 5 minutes.
               </p>
             </div>
@@ -343,7 +345,7 @@ export default function DealsPage() {
         {/* Source footer */}
         {!loading && deals.length > 0 && (
           <p className="mt-8 text-center text-[11px] text-white/30">
-            Data from Epic Games, Steam, GOG, IsThereAnyDeal, and CheapShark. Prices may vary by region.
+            Data from Epic Games, Steam, Ubisoft, Xbox, and NVIDIA. Prices may vary by region.
           </p>
         )}
       </section>

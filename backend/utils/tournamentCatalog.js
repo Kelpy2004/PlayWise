@@ -1,6 +1,9 @@
 const seedTournaments = require('../data/seedTournaments')
 const { getPrisma, isDatabaseReady } = require('../lib/prisma')
+const { logger } = require('../lib/logger')
 const { loadProviderTournaments } = require('./tournamentProvider')
+const { loadFaceitTournaments } = require('./faceitProvider')
+const { loadBattlefyTournaments } = require('./battlefyProvider')
 
 function inferTournamentStatus(tournament, now = new Date()) {
   const start = new Date(tournament.startsAt)
@@ -64,10 +67,39 @@ async function syncProviderTournaments(prisma, providerTournaments) {
   )
 }
 
+async function loadAllProviderTournaments(options = {}) {
+  const providerOpts = { gameQuery: options.gameQuery || null, limit: options.limit }
+
+  const [startgg, faceit, battlefy] = await Promise.allSettled([
+    loadProviderTournaments(providerOpts),
+    loadFaceitTournaments(providerOpts),
+    loadBattlefyTournaments(providerOpts)
+  ])
+
+  const all = []
+  if (startgg.status === 'fulfilled') all.push(...startgg.value)
+  else logger.debug({ error: startgg.reason }, 'start.gg provider failed')
+
+  if (faceit.status === 'fulfilled') all.push(...faceit.value)
+  else logger.debug({ error: faceit.reason }, 'FACEIT provider failed')
+
+  if (battlefy.status === 'fulfilled') all.push(...battlefy.value)
+  else logger.debug({ error: battlefy.reason }, 'Battlefy provider failed')
+
+  // Deduplicate by slug
+  const seen = new Set()
+  return all.filter((t) => {
+    const key = t.slug
+    if (!key || seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+}
+
 async function loadTournaments(options = {}) {
   const queryText = String(options.gameQuery || '').trim()
   const normalizedQuery = normalizeQuery(queryText)
-  const providerTournaments = await loadProviderTournaments({
+  const providerTournaments = await loadAllProviderTournaments({
     gameQuery: queryText || null,
     limit: options.limit
   })

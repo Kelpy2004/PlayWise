@@ -23,7 +23,19 @@ function getIntegrationStatus() {
     },
     tournaments: {
       startgg: isConfigured(env.STARTGG_API_TOKEN),
+      faceit: isConfigured(env.FACEIT_API_KEY),
+      battlefy: true,
       limit: env.STARTGG_TOURNAMENT_LIMIT
+    },
+    deals: {
+      itad: isConfigured(env.ITAD_API_KEY),
+      epicFreeGames: true,
+      cheapShark: true,
+      gogFree: true,
+      steamFree: true,
+      minDiscountPct: env.DEALS_MIN_DISCOUNT_PCT,
+      cacheMs: env.DEALS_CACHE_MS,
+      jobIntervalMs: env.DEALS_JOB_INTERVAL_MS
     },
     pricing: {
       itad: isConfigured(env.ITAD_API_KEY),

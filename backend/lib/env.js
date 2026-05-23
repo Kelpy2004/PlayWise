@@ -49,7 +49,11 @@ const envSchema = z.object({
   SENTRY_DSN: z.string().optional(),
   SENTRY_ENVIRONMENT: z.string().optional(),
   SENTRY_TRACES_SAMPLE_RATE: z.coerce.number().default(0.15),
-  API_RATE_LIMIT_MAX: z.coerce.number().default(180)
+  API_RATE_LIMIT_MAX: z.coerce.number().default(180),
+  DEALS_CACHE_MS: z.coerce.number().default(1000 * 60 * 30),
+  DEALS_JOB_INTERVAL_MS: z.coerce.number().default(5 * 60 * 1000),
+  DEALS_MIN_DISCOUNT_PCT: z.coerce.number().default(75),
+  FACEIT_API_KEY: z.string().optional()
 })
 
 const env = envSchema.parse(process.env)

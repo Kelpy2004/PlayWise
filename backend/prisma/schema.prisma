@@ -60,6 +60,13 @@ enum NotificationType {
   TOURNAMENT_SOON
   TOURNAMENT_LIVE
   NEWSLETTER
+  DEAL_ALERT
+}
+
+enum DealType {
+  FREE_GAME
+  DISCOUNT
+  MISSION_FREE
 }
 
 enum DeliveryStatus {
@@ -104,6 +111,7 @@ model User {
   newsletterRecords   NewsletterSubscriber[]
   tournamentSubscriptions TournamentSubscription[]
   notificationDeliveries NotificationDelivery[]
+  dealSubscriptions      DealSubscription[]
 }
 
 model EmailVerificationToken {
@@ -456,4 +464,48 @@ model NotificationDelivery {
   @@index([type, createdAt])
   @@index([status, createdAt])
   @@index([recipientEmail, createdAt])
+}
+
+model Deal {
+  id            String    @id @default(cuid())
+  externalId    String    @unique
+  type          DealType
+  title         String
+  gameSlug      String?
+  store         String
+  originalPrice Float?
+  dealPrice     Float?
+  discountPct   Int?
+  currency      String    @default("USD")
+  url           String
+  imageUrl      String?
+  startsAt      DateTime?
+  endsAt        DateTime?
+  source        String
+  metadata      Json?
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([type, isActive])
+  @@index([store, isActive])
+  @@index([gameSlug, isActive])
+  @@index([endsAt])
+}
+
+model DealSubscription {
+  id              String    @id @default(cuid())
+  userId          String?
+  email           String
+  minDiscountPct  Int       @default(75)
+  notifyFreeGames Boolean   @default(true)
+  notifyDiscounts Boolean   @default(true)
+  isActive        Boolean   @default(true)
+  lastNotifiedAt  DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  user            User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([isActive, email])
+  @@index([userId, isActive])
 }

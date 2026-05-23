@@ -6,6 +6,32 @@ const { getRuntimeDeals, upsertRuntimeDeal } = require('./runtimeStore')
 let dealsCache = { data: [], updatedAt: 0 }
 let refreshTimer = null
 
+// Only show deals from stores people actually care about
+const CHEAPSHARK_STORE_MAP = {
+  '1': 'Steam',
+  '3': 'Green Man Gaming',
+  '7': 'GOG',
+  '8': 'EA App',
+  '11': 'Humble Store',
+  '13': 'Ubisoft Store',
+  '25': 'Epic Games Store',
+  '31': 'Blizzard',
+}
+
+const MAJOR_STORE_IDS = new Set(Object.keys(CHEAPSHARK_STORE_MAP))
+const MIN_STEAM_RATING = 70
+const MIN_METACRITIC = 60
+
+function resolveCheapSharkStore(storeID) {
+  return CHEAPSHARK_STORE_MAP[String(storeID)] || null
+}
+
+function isQualityGame(item) {
+  const rating = parseInt(item?.steamRatingPercent || '0', 10)
+  const metacritic = parseInt(item?.metacriticScore || '0', 10)
+  return rating >= MIN_STEAM_RATING || metacritic >= MIN_METACRITIC
+}
+
 // ──────────────────────────── EPIC GAMES FREE ────────────────────────────
 async function fetchEpicFreeGames() {
   try {
@@ -83,28 +109,30 @@ async function fetchCheapSharkFreeGames() {
     const items = await response.json()
     if (!Array.isArray(items)) return []
 
-    return items.map((item) => ({
-      externalId: `cheapshark-free-${item?.dealID || ''}`,
-      type: 'FREE_GAME',
-      title: String(item?.title || '').trim(),
-      gameSlug: String(item?.title || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-') || null,
-      store: item?.storeID ? `Store #${item.storeID}` : 'Unknown Store',
-      originalPrice: parseFloat(item?.normalPrice) || null,
-      dealPrice: 0,
-      discountPct: 100,
-      currency: 'USD',
-      url: `https://www.cheapshark.com/redirect?dealID=${item?.dealID || ''}`,
-      imageUrl: item?.thumb || null,
-      startsAt: null,
-      endsAt: null,
-      source: 'cheapshark',
-      metadata: {
-        steamRating: item?.steamRatingPercent || null,
-        metacritic: item?.metacriticScore || null,
-        steamAppId: item?.steamAppID || null
-      },
-      isActive: true
-    }))
+    return items
+      .filter((item) => MAJOR_STORE_IDS.has(String(item?.storeID)))
+      .map((item) => ({
+        externalId: `cheapshark-free-${item?.dealID || ''}`,
+        type: 'FREE_GAME',
+        title: String(item?.title || '').trim(),
+        gameSlug: String(item?.title || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-') || null,
+        store: resolveCheapSharkStore(item?.storeID),
+        originalPrice: parseFloat(item?.normalPrice) || null,
+        dealPrice: 0,
+        discountPct: 100,
+        currency: 'USD',
+        url: `https://www.cheapshark.com/redirect?dealID=${item?.dealID || ''}`,
+        imageUrl: item?.thumb || null,
+        startsAt: null,
+        endsAt: null,
+        source: 'cheapshark',
+        metadata: {
+          steamRating: item?.steamRatingPercent || null,
+          metacritic: item?.metacriticScore || null,
+          steamAppId: item?.steamAppID || null
+        },
+        isActive: true
+      }))
   } catch (error) {
     logger.warn({ error }, 'Failed to fetch CheapShark free games')
     return []
@@ -114,8 +142,9 @@ async function fetchCheapSharkFreeGames() {
 // ──────────────────────────── CHEAPSHARK DISCOUNTS ────────────────────────────
 async function fetchCheapSharkDiscounts(minDiscountPct) {
   try {
+    const storeFilter = Array.from(MAJOR_STORE_IDS).join(',')
     const response = await fetch(
-      `https://www.cheapshark.com/api/1.0/deals?pageSize=40&sortBy=savings&desc=1`,
+      `https://www.cheapshark.com/api/1.0/deals?pageSize=60&sortBy=metacritic&desc=1&storeID=${storeFilter}&steamRating=${MIN_STEAM_RATING}`,
       { headers: { 'User-Agent': 'PlayWise/1.0' } }
     )
     if (!response.ok) throw new Error(`CheapShark deals API ${response.status}`)
@@ -124,13 +153,13 @@ async function fetchCheapSharkDiscounts(minDiscountPct) {
     if (!Array.isArray(items)) return []
 
     return items
-      .filter((item) => parseFloat(item?.savings || '0') >= minDiscountPct)
+      .filter((item) => parseFloat(item?.savings || '0') >= minDiscountPct && isQualityGame(item))
       .map((item) => ({
         externalId: `cheapshark-deal-${item?.dealID || ''}`,
         type: 'DISCOUNT',
         title: String(item?.title || '').trim(),
         gameSlug: String(item?.title || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-') || null,
-        store: item?.storeID ? `Store #${item.storeID}` : 'Unknown Store',
+        store: resolveCheapSharkStore(item?.storeID),
         originalPrice: parseFloat(item?.normalPrice) || null,
         dealPrice: parseFloat(item?.salePrice) || 0,
         discountPct: Math.round(parseFloat(item?.savings || '0')),
@@ -154,12 +183,24 @@ async function fetchCheapSharkDiscounts(minDiscountPct) {
 }
 
 // ──────────────────────────── ITAD DEALS ────────────────────────────
+const ITAD_MAJOR_SHOPS = new Set([
+  'steam', 'epic', 'gog', 'humblestore', 'ea', 'ubisoft',
+  'microsoft', 'xbox', 'playstation', 'nintendo', 'blizzard',
+  'greenmanngaming', 'fanatical'
+])
+
+function isItadMajorShop(shopId) {
+  if (!shopId) return false
+  const id = String(shopId).toLowerCase()
+  return Array.from(ITAD_MAJOR_SHOPS).some((s) => id.includes(s))
+}
+
 async function fetchItadDeals(minDiscountPct) {
   if (!env.ITAD_API_KEY) return []
 
   try {
     const response = await fetch(
-      `https://api.isthereanydeal.com/deals/v2?key=${env.ITAD_API_KEY}&country=${env.ITAD_COUNTRY}&sort=cut:desc&limit=40&filter=cut:${minDiscountPct}`,
+      `https://api.isthereanydeal.com/deals/v2?key=${env.ITAD_API_KEY}&country=${env.ITAD_COUNTRY}&sort=cut:desc&limit=60&filter=cut:${minDiscountPct}`,
       { headers: { Accept: 'application/json' } }
     )
     if (!response.ok) throw new Error(`ITAD deals API ${response.status}`)
@@ -167,7 +208,9 @@ async function fetchItadDeals(minDiscountPct) {
     const json = await response.json()
     const items = Array.isArray(json?.list) ? json.list : []
 
-    return items.map((item) => ({
+    return items
+      .filter((item) => isItadMajorShop(item?.deal?.shop?.id || item?.deal?.shop?.name))
+      .map((item) => ({
       externalId: `itad-deal-${item?.id || item?.slug || ''}`,
       type: item?.deal?.price?.amount === 0 ? 'FREE_GAME' : 'DISCOUNT',
       title: String(item?.title || '').trim(),
@@ -274,13 +317,27 @@ async function fetchSteamFreeGames() {
 }
 
 // ──────────────────────────── AGGREGATE ────────────────────────────
+function dealQualityScore(deal) {
+  let score = 0
+  if (deal.type === 'FREE_GAME') score += 50
+  const rating = parseInt(deal.metadata?.steamRating || '0', 10)
+  const metacritic = parseInt(deal.metadata?.metacritic || '0', 10)
+  score += Math.max(rating, metacritic)
+  if (deal.discountPct) score += deal.discountPct / 2
+  const majorStores = ['Steam', 'Epic Games Store', 'GOG', 'GOG.com', 'Ubisoft Store', 'EA App', 'Xbox', 'Humble Store']
+  if (majorStores.some((s) => deal.store?.includes(s))) score += 20
+  return score
+}
+
 function dedupeDeals(deals) {
   const seen = new Set()
-  return deals.filter((d) => {
-    if (!d.externalId || seen.has(d.externalId)) return false
-    seen.add(d.externalId)
-    return true
-  })
+  return deals
+    .filter((d) => {
+      if (!d.externalId || seen.has(d.externalId)) return false
+      seen.add(d.externalId)
+      return true
+    })
+    .sort((a, b) => dealQualityScore(b) - dealQualityScore(a))
 }
 
 async function refreshDeals() {

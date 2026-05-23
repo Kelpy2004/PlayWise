@@ -12,6 +12,7 @@ const HomePage = lazy(() => import('./pages/HomePage'))
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage'))
 const OpenSourcePage = lazy(() => import('./pages/OpenSourcePage'))
 const TournamentsPage = lazy(() => import('./pages/TournamentsPage'))
+const DealsPage = lazy(() => import('./pages/DealsPage'))
 
 function LegacyGameRedirect() {
   const [searchParams] = useSearchParams()
@@ -69,6 +70,7 @@ export default function App() {
             <Route path="/cod.html" element={<LegacySlugRedirect slug="call-of-duty-modern-warfare" />} />
             <Route path="/open-source" element={<OpenSourcePage />} />
             <Route path="/tournaments" element={<TournamentsPage />} />
+            <Route path="/deals" element={<DealsPage />} />
             <Route path="/open-source.html" element={<LegacySimpleRedirect to="/open-source" />} />
             <Route path="/login" element={<AuthPage mode="login" />} />
             <Route path="/login.html" element={<LegacySimpleRedirect to="/login" />} />

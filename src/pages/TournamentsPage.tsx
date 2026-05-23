@@ -154,7 +154,18 @@ export default function TournamentsPage() {
                 {entry.status.replace('_', ' ')}
               </span>
             </div>
-            <p className="mb-2 text-sm text-white/70">Game: {entry.gameSlug || 'General'}</p>
+            <div className="mb-2 flex items-center gap-2">
+              <p className="text-sm text-white/70">Game: {entry.gameSlug || 'General'}</p>
+              {typeof entry.metadata?.provider === 'string' && (
+                <span className={`rounded px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider ${
+                  entry.metadata.provider === 'faceit' ? 'bg-[#ff5500]/15 text-[#ff5500] border border-[#ff5500]/30'
+                  : entry.metadata.provider === 'battlefy' ? 'bg-[#00b4d8]/15 text-[#00b4d8] border border-[#00b4d8]/30'
+                  : 'bg-cyan/15 text-cyan border border-cyan/30'
+                }`}>
+                  {entry.metadata.provider === 'startgg' ? 'start.gg' : entry.metadata.provider}
+                </span>
+              )}
+            </div>
             <p className="text-xs text-white/60">Starts: {formatDateTime(entry.startsAt)}</p>
             {entry.endsAt ? <p className="text-xs text-white/60">Ends: {formatDateTime(entry.endsAt)}</p> : null}
             <div className="mt-4 flex flex-wrap gap-2">

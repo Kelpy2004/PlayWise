@@ -1,30 +1,69 @@
-import { useRef, useCallback } from 'react';
+import { useRef, useCallback, useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useScrollReveal } from '../hooks/useScrollReveal';
+import { api } from '../lib/api';
+import type { DealRecord } from '../types/api';
 
-const GAMES = [
-  { title: 'Cyberpunk 2077', badge: '-67%', badgeType: 'deal', price: '$19.99', platforms: 'PC, PS5', score: '9.2', scoreType: 'high', bg: 'linear-gradient(135deg,#1e0a30,#0a1e30)' },
-  { title: 'GTA VI', badge: 'New', badgeType: 'new', price: '$59.99', platforms: 'PS5, Xbox', score: 'N/A', scoreType: 'mid', bg: 'linear-gradient(135deg,#0a200a,#0a1020)' },
-  { title: 'Elden Ring', badge: 'Hot', badgeType: 'hot', price: '$39.99', platforms: 'PC, PS5, Xbox', score: '9.5', scoreType: 'high', bg: 'linear-gradient(135deg,#200a10,#100a20)' },
-  { title: "Baldur's Gate 3", badge: '-45%', badgeType: 'deal', price: '$24.99', platforms: 'PC, PS5', score: '9.7', scoreType: 'high', bg: 'linear-gradient(135deg,#0a0a25,#1a0a1e)' },
-  { title: 'Fortnite', badge: null, badgeType: null, price: 'Free', priceColor: 'var(--cyan)', platforms: 'All Platforms', score: '8.1', scoreType: 'mid', bg: 'linear-gradient(135deg,#1a1a00,#0a1020)' },
-  { title: 'Red Dead 2', badge: '-50%', badgeType: 'deal', price: '$29.99', platforms: 'PC, PS4, Xbox', score: '9.4', scoreType: 'high', bg: 'linear-gradient(135deg,#20100a,#0a0a20)' },
-  { title: 'Star Wars Outlaws', badge: 'New', badgeType: 'new', price: '$69.99', platforms: 'PC, PS5, Xbox', score: '7.8', scoreType: 'mid', bg: 'linear-gradient(135deg,#0a1520,#1a0a20)' },
-];
-
-const BADGE_CLASSES = {
+const BADGE_CLASSES: Record<string, string> = {
   deal: 'bg-green text-[#002200]',
-  new: 'bg-cyan text-white',
+  free: 'bg-cyan text-white',
   hot: 'bg-magenta text-white',
 };
 
+function badgeFor(deal: DealRecord): { text: string; type: string } | null {
+  if (deal.type === 'FREE_GAME' || deal.type === 'MISSION_FREE' || deal.dealPrice === 0) {
+    return { text: 'Free', type: 'free' };
+  }
+  if (deal.discountPct && deal.discountPct >= 75) {
+    return { text: `-${deal.discountPct}%`, type: 'deal' };
+  }
+  if (deal.discountPct && deal.discountPct >= 50) {
+    return { text: `-${deal.discountPct}%`, type: 'deal' };
+  }
+  return null;
+}
+
+function formatDealPrice(deal: DealRecord): string {
+  if (deal.dealPrice === 0 || deal.type === 'FREE_GAME') return 'Free';
+  const sym = deal.currency === 'INR' ? '₹' : deal.currency === 'EUR' ? '€' : deal.currency === 'GBP' ? '£' : '$';
+  return `${sym}${(deal.dealPrice ?? 0).toFixed(2)}`;
+}
+
+const REFRESH_INTERVAL = 5 * 60 * 1000;
+
 export default function TrendingSection() {
+  const navigate = useNavigate();
   const headerRef = useScrollReveal();
   const scrollRef = useScrollReveal();
-  const scrollContainerRef = useRef(null);
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const dragState = useRef({ isDown: false, startX: 0, scrollLeft: 0 });
+  const [deals, setDeals] = useState<DealRecord[]>([]);
 
-  const handleMouseDown = useCallback((e) => {
+  useEffect(() => {
+    let ignore = false;
+    async function load() {
+      try {
+        const data = await api.fetchDeals();
+        if (!ignore && Array.isArray(data)) {
+          // Top 8: free games first, then biggest discounts — only ones with images
+          const withImages = data.filter((d) => d.imageUrl && d.isActive !== false);
+          const free = withImages.filter((d) => d.type === 'FREE_GAME' || d.type === 'MISSION_FREE' || d.dealPrice === 0);
+          const discounted = withImages.filter((d) => d.type === 'DISCOUNT' && (d.dealPrice ?? 0) > 0);
+          discounted.sort((a, b) => (b.discountPct ?? 0) - (a.discountPct ?? 0));
+          setDeals([...free.slice(0, 4), ...discounted.slice(0, 4)].slice(0, 8));
+        }
+      } catch {
+        // silent — section just won't show deals
+      }
+    }
+    void load();
+    const timer = setInterval(() => { void load(); }, REFRESH_INTERVAL);
+    return () => { ignore = true; clearInterval(timer); };
+  }, []);
+
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
     const el = scrollContainerRef.current;
+    if (!el) return;
     dragState.current = { isDown: true, startX: e.pageX - el.offsetLeft, scrollLeft: el.scrollLeft };
     el.style.cursor = 'grabbing';
   }, []);
@@ -34,25 +73,28 @@ export default function TrendingSection() {
     if (scrollContainerRef.current) scrollContainerRef.current.style.cursor = 'grab';
   }, []);
 
-  const handleMouseMove = useCallback((e) => {
+  const handleMouseMove = useCallback((e: React.MouseEvent) => {
     if (!dragState.current.isDown) return;
     e.preventDefault();
     const el = scrollContainerRef.current;
+    if (!el) return;
     const x = e.pageX - el.offsetLeft;
     el.scrollLeft = dragState.current.scrollLeft - (x - dragState.current.startX) * 1.5;
   }, []);
 
-  const handleCardMouseMove = useCallback((e) => {
-    const card = e.currentTarget;
+  const handleCardMouseMove = useCallback((e: React.MouseEvent) => {
+    const card = e.currentTarget as HTMLElement;
     const r = card.getBoundingClientRect();
     const x = ((e.clientX - r.left) / r.width - 0.5) * 8;
     const y = -((e.clientY - r.top) / r.height - 0.5) * 8;
     card.style.transform = `translateY(-6px) scale(1.02) rotateY(${x}deg) rotateX(${y}deg)`;
   }, []);
 
-  const handleCardMouseLeave = useCallback((e) => {
-    e.currentTarget.style.transform = '';
+  const handleCardMouseLeave = useCallback((e: React.MouseEvent) => {
+    (e.currentTarget as HTMLElement).style.transform = '';
   }, []);
+
+  if (!deals.length) return null;
 
   return (
     <section id="trending" className="py-[100px] px-[clamp(1rem,5vw,6rem)] bg-surface border-t border-b border-border transition-[background] duration-[var(--transition-theme)]">
@@ -63,15 +105,18 @@ export default function TrendingSection() {
             Trending Now
           </div>
           <h2 className="text-[clamp(2rem,4vw,3.2rem)] font-extrabold tracking-tight leading-tight mb-4">Hot this week</h2>
-          <p className="text-muted text-[1.05rem] max-w-[520px]">Real-time rankings powered by price drops, player activity, and community buzz.</p>
+          <p className="text-muted text-[1.05rem] max-w-[520px]">Live deals from Steam, Epic, GOG, and more — updated every 5 minutes.</p>
         </div>
-        <button className="px-[22px] py-[10px] rounded-full bg-cyan text-white font-bold text-[0.85rem] border-none cursor-pointer whitespace-nowrap shadow-[0_0_24px_rgba(0,212,255,0.25)] hover:shadow-[0_0_40px_rgba(0,212,255,0.4)] hover:-translate-y-px transition-all duration-300">
-          View All Games
+        <button
+          onClick={() => navigate('/deals')}
+          className="px-[22px] py-[10px] rounded-full bg-cyan text-white font-bold text-[0.85rem] border-none cursor-pointer whitespace-nowrap shadow-[0_0_24px_rgba(0,212,255,0.25)] hover:shadow-[0_0_40px_rgba(0,212,255,0.4)] hover:-translate-y-px transition-all duration-300"
+        >
+          View All Deals
         </button>
       </div>
 
       <div
-        ref={(el) => { scrollContainerRef.current = el; if (scrollRef.current !== el) scrollRef.current = el; }}
+        ref={(el) => { scrollContainerRef.current = el; if (scrollRef.current !== el) (scrollRef as React.MutableRefObject<HTMLElement | null>).current = el; }}
         className="reveal flex gap-5 overflow-x-auto pb-5 snap-x snap-mandatory scrollbar-hide"
         style={{ cursor: 'grab', scrollbarWidth: 'none', transitionDelay: '0.15s' }}
         onMouseDown={handleMouseDown}
@@ -79,41 +124,59 @@ export default function TrendingSection() {
         onMouseLeave={handleMouseUp}
         onMouseMove={handleMouseMove}
       >
-        {GAMES.map((game, i) => (
-          <div
-            key={i}
-            className="flex-shrink-0 w-[220px] snap-start rounded-[var(--radius)] overflow-hidden bg-card border border-border cursor-pointer transition-all duration-400 hover:border-cyan/20 hover:shadow-[0_20px_50px_rgba(0,0,0,0.3)]"
-            onMouseMove={handleCardMouseMove}
-            onMouseLeave={handleCardMouseLeave}
-          >
-            <div className="aspect-[3/4] bg-cover bg-center relative" style={{ background: game.bg }}>
-              {game.badge && (
-                <span className={`absolute top-[10px] left-[10px] px-[10px] py-1 rounded-md text-[0.65rem] font-extrabold uppercase tracking-[0.08em] z-[2] ${BADGE_CLASSES[game.badgeType]}`}>
-                  {game.badge}
+        {deals.map((deal) => {
+          const badge = badgeFor(deal);
+          const isFree = deal.dealPrice === 0 || deal.type === 'FREE_GAME';
+
+          return (
+            <a
+              key={deal.externalId || deal.id}
+              href={deal.url}
+              target="_blank"
+              rel="noreferrer"
+              className="flex-shrink-0 w-[220px] snap-start rounded-[var(--radius)] overflow-hidden bg-card border border-border cursor-pointer transition-all duration-400 hover:border-cyan/20 hover:shadow-[0_20px_50px_rgba(0,0,0,0.3)] no-underline text-inherit"
+              onMouseMove={handleCardMouseMove}
+              onMouseLeave={handleCardMouseLeave}
+            >
+              <div className="aspect-[3/4] relative overflow-hidden">
+                {deal.imageUrl ? (
+                  <img
+                    src={deal.imageUrl}
+                    alt={deal.title}
+                    className="absolute inset-0 w-full h-full object-cover"
+                    loading="lazy"
+                  />
+                ) : (
+                  <div className="absolute inset-0 bg-gradient-to-br from-[#1e0a30] to-[#0a1e30]" />
+                )}
+                {badge && (
+                  <span className={`absolute top-[10px] left-[10px] px-[10px] py-1 rounded-md text-[0.65rem] font-extrabold uppercase tracking-[0.08em] z-[2] ${BADGE_CLASSES[badge.type] || BADGE_CLASSES.deal}`}>
+                    {badge.text}
+                  </span>
+                )}
+                <span
+                  className="absolute bottom-[10px] right-[10px] px-[10px] py-1 rounded-md bg-black/70 backdrop-blur-lg font-mono text-[0.8rem] font-bold z-[2]"
+                  style={{ color: isFree ? 'var(--cyan)' : 'var(--green)' }}
+                >
+                  {formatDealPrice(deal)}
                 </span>
-              )}
-              <span
-                className="absolute bottom-[10px] right-[10px] px-[10px] py-1 rounded-md bg-black/70 backdrop-blur-lg font-mono text-[0.8rem] font-bold z-[2]"
-                style={{ color: game.priceColor || 'var(--green)' }}
-              >
-                {game.price}
-              </span>
-              <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-[var(--deep)]" style={{ backgroundPosition: '50% 100%' }} />
-            </div>
-            <div className="p-[14px_16px]">
-              <div className="font-bold text-[0.92rem] mb-1.5 whitespace-nowrap overflow-hidden text-ellipsis">{game.title}</div>
-              <div className="flex items-center gap-2 text-[0.75rem] text-muted">
-                <span className="w-[5px] h-[5px] rounded-full bg-cyan" />
-                {game.platforms}
-                <span className={`ml-auto px-2 py-0.5 rounded font-extrabold font-mono text-[0.72rem] ${
-                  game.scoreType === 'high' ? 'bg-green/[0.15] text-green' : 'bg-amber-dim text-amber'
-                }`}>
-                  {game.score}
-                </span>
+                <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-[var(--deep)]" />
               </div>
-            </div>
-          </div>
-        ))}
+              <div className="p-[14px_16px]">
+                <div className="font-bold text-[0.92rem] mb-1.5 whitespace-nowrap overflow-hidden text-ellipsis">{deal.title}</div>
+                <div className="flex items-center gap-2 text-[0.75rem] text-muted">
+                  <span className="w-[5px] h-[5px] rounded-full bg-cyan" />
+                  {deal.store}
+                  {deal.originalPrice != null && deal.originalPrice > 0 && !isFree && (
+                    <span className="ml-auto line-through text-[0.7rem] opacity-50">
+                      ${deal.originalPrice.toFixed(2)}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </a>
+          );
+        })}
       </div>
     </section>
   );

@@ -132,8 +132,8 @@ export default function HomePage() {
         {/* Hero with live game count */}
         <Hero gameCount={catalogGames.length} />
 
-        {/* Trending — live games from API */}
-        <TrendingSection games={catalogGames} onViewGame={(slug) => navigate(`/games/${slug}`)} />
+        {/* Trending — live deals from API */}
+        <TrendingSection />
 
         {/* Signal Modules — interactive compatibility & price tracking */}
         <SignalModules />

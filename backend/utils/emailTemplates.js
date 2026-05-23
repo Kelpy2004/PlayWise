@@ -120,6 +120,38 @@ function welcomeEmail({ username, loginUrl }) {
   })
 }
 
+function dealAlertEmail({ freeGames = [], discounts = [], totalFree = 0, totalDiscounts = 0 }) {
+  const freeLines = freeGames.slice(0, 5).map(
+    (g) => `FREE: ${g.title} on ${g.store}${g.endsAt ? ` (ends ${new Date(g.endsAt).toLocaleDateString()})` : ''}`
+  )
+  const discountLines = discounts.slice(0, 5).map(
+    (d) => `${d.discountPct}% off: ${d.title} on ${d.store} — ${d.currency || '$'}${d.dealPrice} (was ${d.currency || '$'}${d.originalPrice})`
+  )
+
+  const bodyLines = []
+  if (freeLines.length) {
+    bodyLines.push(`🎮 ${totalFree} free game${totalFree === 1 ? '' : 's'} available:`)
+    bodyLines.push(...freeLines)
+  }
+  if (discountLines.length) {
+    bodyLines.push(`🔥 ${totalDiscounts} deal${totalDiscounts === 1 ? '' : 's'} found:`)
+    bodyLines.push(...discountLines)
+  }
+  if (!bodyLines.length) {
+    bodyLines.push('New gaming deals have been detected across multiple platforms.')
+  }
+
+  return renderLayout({
+    title: 'PlayWise Deal Alert',
+    heading: 'New Gaming Deals Detected',
+    intro: 'Free games or deep discounts have been spotted across platforms you care about.',
+    bodyLines,
+    ctaLabel: 'View All Deals',
+    ctaUrl: '/deals',
+    footerNote: 'You are receiving this because you subscribed to deal alerts on PlayWise.'
+  })
+}
+
 function signInNoticeEmail({ username, providerLabel, siteUrl }) {
   return renderLayout({
     title: `PlayWise sign-in via ${providerLabel}`,
@@ -136,6 +168,7 @@ function signInNoticeEmail({ username, providerLabel, siteUrl }) {
 }
 
 module.exports = {
+  dealAlertEmail,
   newsletterCampaignEmail,
   priceAlertEmail,
   signInNoticeEmail,

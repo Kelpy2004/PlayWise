@@ -2,6 +2,7 @@ const { getPrisma, isDatabaseReady } = require('../lib/prisma')
 const { addRuntimeNotificationDelivery } = require('./runtimeStore')
 const { sendEmail } = require('./emailService')
 const {
+  dealAlertEmail,
   newsletterCampaignEmail,
   priceAlertEmail,
   tournamentLiveEmail,
@@ -17,6 +18,9 @@ function resolveTemplate(type, payload) {
   }
   if (type === 'TOURNAMENT_LIVE') {
     return tournamentLiveEmail(payload)
+  }
+  if (type === 'DEAL_ALERT') {
+    return dealAlertEmail(payload)
   }
   return newsletterCampaignEmail(payload)
 }

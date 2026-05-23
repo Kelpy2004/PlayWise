@@ -1,6 +1,5 @@
 import { useRef, useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useScrollReveal } from '../hooks/useScrollReveal';
 import { api } from '../lib/api';
 import type { DealRecord } from '../types/api';
 
@@ -33,8 +32,6 @@ const REFRESH_INTERVAL = 5 * 60 * 1000;
 
 export default function TrendingSection() {
   const navigate = useNavigate();
-  const headerRef = useScrollReveal();
-  const scrollRef = useScrollReveal();
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const dragState = useRef({ isDown: false, startX: 0, scrollLeft: 0 });
   const [deals, setDeals] = useState<DealRecord[]>([]);
@@ -98,7 +95,7 @@ export default function TrendingSection() {
 
   return (
     <section id="trending" className="py-[100px] px-[clamp(1rem,5vw,6rem)] bg-surface border-t border-b border-border transition-[background] duration-[var(--transition-theme)]">
-      <div ref={headerRef} className="reveal flex justify-between items-end mb-10">
+      <div className="flex justify-between items-end mb-10">
         <div>
           <div className="inline-flex items-center gap-2 text-[0.72rem] font-bold uppercase tracking-[0.18em] text-cyan mb-3">
             <span className="w-6 h-0.5 bg-cyan rounded-sm" />
@@ -116,8 +113,8 @@ export default function TrendingSection() {
       </div>
 
       <div
-        ref={(el) => { scrollContainerRef.current = el; if (scrollRef.current !== el) (scrollRef as React.MutableRefObject<HTMLElement | null>).current = el; }}
-        className="reveal flex gap-5 overflow-x-auto pb-5 snap-x snap-mandatory scrollbar-hide"
+        ref={scrollContainerRef}
+        className="flex gap-5 overflow-x-auto pb-5 snap-x snap-mandatory scrollbar-hide"
         style={{ cursor: 'grab', scrollbarWidth: 'none', transitionDelay: '0.15s' }}
         onMouseDown={handleMouseDown}
         onMouseUp={handleMouseUp}

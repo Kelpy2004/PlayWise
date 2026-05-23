@@ -15,6 +15,8 @@ const store = {
   emailVerificationTokens: [],
   newsletterSubscribers: [],
   tournamentSubscriptions: new Map(),
+  dealSubscriptions: new Map(),
+  deals: [],
   notificationDeliveries: [],
   tournaments: [],
   telemetryEvents: [],
@@ -87,6 +89,8 @@ function saveRuntimeStore() {
           emailVerificationTokens: store.emailVerificationTokens,
           newsletterSubscribers: store.newsletterSubscribers,
           tournamentSubscriptions: serializeMapOfArrays(store.tournamentSubscriptions),
+          dealSubscriptions: serializeMapOfArrays(store.dealSubscriptions),
+          deals: store.deals,
           notificationDeliveries: store.notificationDeliveries,
           tournaments: store.tournaments,
           telemetryEvents: store.telemetryEvents,
@@ -118,6 +122,8 @@ function loadRuntimeStore() {
     store.emailVerificationTokens = Array.isArray(payload.emailVerificationTokens) ? payload.emailVerificationTokens : []
     store.newsletterSubscribers = Array.isArray(payload.newsletterSubscribers) ? payload.newsletterSubscribers : []
     store.tournamentSubscriptions = deserializeMapOfArrays(payload.tournamentSubscriptions)
+    store.dealSubscriptions = deserializeMapOfArrays(payload.dealSubscriptions)
+    store.deals = Array.isArray(payload.deals) ? payload.deals : []
     store.notificationDeliveries = Array.isArray(payload.notificationDeliveries) ? payload.notificationDeliveries : []
     store.tournaments = Array.isArray(payload.tournaments) ? payload.tournaments : []
     store.telemetryEvents = Array.isArray(payload.telemetryEvents) ? payload.telemetryEvents : []
@@ -514,6 +520,59 @@ function setRuntimeTournaments(tournaments) {
   saveRuntimeStore()
 }
 
+function getRuntimeDeals() {
+  return store.deals
+}
+
+function setRuntimeDeals(deals) {
+  store.deals = Array.isArray(deals) ? deals : []
+  saveRuntimeStore()
+}
+
+function upsertRuntimeDeal(deal) {
+  const index = store.deals.findIndex((d) => d.externalId === deal.externalId)
+  if (index >= 0) {
+    store.deals[index] = { ...store.deals[index], ...deal, updatedAt: new Date().toISOString() }
+  } else {
+    store.deals.unshift({ ...deal, id: `deal-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() })
+  }
+  store.deals = store.deals.slice(0, 500)
+  saveRuntimeStore()
+}
+
+function getRuntimeDealSubscriptions(userId) {
+  return store.dealSubscriptions.get(userId) || []
+}
+
+function getAllRuntimeDealSubscriptions() {
+  return Array.from(store.dealSubscriptions.values()).flat()
+}
+
+function upsertRuntimeDealSubscription(userId, subscription) {
+  const current = getRuntimeDealSubscriptions(userId)
+  const existingIndex = current.findIndex((entry) => entry.id === subscription.id)
+  const next = {
+    id: subscription.id || `deal-sub-${userId}-${Date.now()}`,
+    ...subscription
+  }
+
+  if (existingIndex >= 0) {
+    current[existingIndex] = { ...current[existingIndex], ...next }
+  } else {
+    current.unshift(next)
+  }
+
+  store.dealSubscriptions.set(userId, current.slice(0, 50))
+  saveRuntimeStore()
+  return next
+}
+
+function removeRuntimeDealSubscription(userId, subscriptionId) {
+  const next = getRuntimeDealSubscriptions(userId).filter((entry) => entry.id !== subscriptionId)
+  store.dealSubscriptions.set(userId, next)
+  saveRuntimeStore()
+}
+
 module.exports = {
   addDemoUser,
   addRuntimeComment,
@@ -552,5 +611,12 @@ module.exports = {
   upsertRuntimeEmailVerificationToken,
   upsertRuntimeNewsletterSubscriber,
   upsertRuntimePriceAlert,
-  upsertRuntimeTournamentSubscription
+  upsertRuntimeTournamentSubscription,
+  getRuntimeDeals,
+  setRuntimeDeals,
+  upsertRuntimeDeal,
+  getRuntimeDealSubscriptions,
+  getAllRuntimeDealSubscriptions,
+  upsertRuntimeDealSubscription,
+  removeRuntimeDealSubscription
 }

@@ -45,7 +45,7 @@ export default function App() {
   const routeLoadingFallback = (
     <div className="min-h-[40vh] w-full flex items-center justify-center text-white/80">
       <div className="text-center">
-        <p className="text-sm uppercase tracking-[0.18em] text-[#b1fa50] font-bold mb-2">PlayWise</p>
+        <p className="text-sm uppercase tracking-[0.18em] text-cyan font-bold mb-2">PlayWise</p>
         <p className="text-sm">Loading page…</p>
       </div>
     </div>

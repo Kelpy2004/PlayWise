@@ -20,7 +20,7 @@ function formatDateTime(value: string) {
 
 function statusBadgeClass(status: TournamentRecord['status']) {
   if (status === 'LIVE_NOW') return 'bg-[#ff7351]/15 text-[#ff7351] border border-[#ff7351]/30 shadow-[0_0_12px_rgba(255,115,81,0.15)]'
-  if (status === 'UPCOMING') return 'bg-[#b1fa50]/15 text-[#b1fa50] border border-[#b1fa50]/30'
+  if (status === 'UPCOMING') return 'bg-cyan/15 text-cyan border border-cyan/30'
   return 'bg-white/8 text-white/60 border border-white/10'
 }
 
@@ -89,7 +89,7 @@ export default function TournamentsPage() {
       <Seo title={seoTitle} description={seoDescription} url={seoUrl} />
       <section className="mx-auto w-full max-w-[1320px] px-4 py-12 text-white">
         <div className="mb-8 rounded-2xl border border-white/10 bg-[#111]/80 p-6">
-          <p className="mb-2 text-[10px] font-black uppercase tracking-[0.2em] text-[#b1fa50]">Tournament Center</p>
+          <p className="mb-2 text-[10px] font-black uppercase tracking-[0.2em] text-cyan">Tournament Center</p>
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <h1 className="text-3xl font-black">All PlayWise Events</h1>
@@ -106,7 +106,7 @@ export default function TournamentsPage() {
                 </span>
               )}
               {upcomingCount > 0 && (
-                <span className="rounded-full bg-[#b1fa50]/15 px-3 py-1 text-xs font-bold text-[#b1fa50] border border-[#b1fa50]/30">
+                <span className="rounded-full bg-cyan/15 px-3 py-1 text-xs font-bold text-cyan border border-cyan/30">
                   {upcomingCount} Upcoming
                 </span>
               )}
@@ -122,7 +122,7 @@ export default function TournamentsPage() {
             onClick={() => setActiveFilter(f)}
             className={`rounded-full px-4 py-1.5 text-xs font-bold uppercase tracking-[0.14em] transition-all ${
               activeFilter === f
-                ? 'bg-[#b1fa50] text-[#0e0e0e]'
+                ? 'bg-cyan text-white'
                 : 'border border-white/10 bg-white/[0.04] text-white/60 hover:text-white'
             }`}
           >
@@ -171,7 +171,7 @@ export default function TournamentsPage() {
                   href={entry.metadata.registrationUrl}
                   target="_blank"
                   rel="noreferrer"
-                  className="inline-flex rounded-lg bg-[#b1fa50] px-3 py-2 text-xs font-black text-[#0a1400]"
+                  className="inline-flex rounded-lg bg-cyan px-3 py-2 text-xs font-black text-white"
                 >
                   Register now
                 </a>

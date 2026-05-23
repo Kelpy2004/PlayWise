@@ -40,7 +40,7 @@ export default function OpenSourcePage() {
             <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#3ba7ff]">PlayWise // open-source library</p>
             <h1 className="mt-4 font-display text-4xl font-bold uppercase tracking-[-0.05em] text-white md:text-5xl">
               Free games with
-              <span className="italic text-[#b1fa50]"> real PlayWise analysis</span>
+              <span className="italic text-cyan"> real PlayWise analysis</span>
             </h1>
             <p className="mt-4 text-sm leading-7 text-white/56">
               Browse legitimate free and open-source picks with the same decision flow: ratings, compatibility, price-free access,
@@ -55,7 +55,7 @@ export default function OpenSourcePage() {
             <input
               id="open-source-search"
               type="search"
-              className="w-full rounded-2xl border border-white/10 bg-[#111] px-4 py-3 text-sm text-white outline-none transition-colors placeholder:text-white/28 focus:border-[#b1fa50]/40"
+              className="w-full rounded-2xl border border-white/10 bg-[#111] px-4 py-3 text-sm text-white outline-none transition-colors placeholder:text-white/28 focus:border-cyan/40"
               placeholder="Search by title or genre"
               value={query}
               onChange={(event) => setQuery(event.target.value)}

@@ -6,6 +6,7 @@ import { getOAuthStartUrl, api } from '../lib/api'
 import { trackEvent } from '../lib/telemetry'
 import type { AuthAvailabilityEntry, AuthProviderOption } from '../types/api'
 import Seo from '../components/Seo'
+import Logo from '../components/Logo'
 
 const PASSWORD_HELP_TEXT =
   'Use at least 6 characters with 1 uppercase letter, 1 lowercase letter, and 1 special character like ! @ # $ % ^ & * ( ) - _ + = ? / \\ . ,'
@@ -405,7 +406,7 @@ export default function AuthPage({ mode }: { mode: 'login' | 'register' }) {
           <div className="auth-modal-header">
             <div className="auth-modal-brand">
               <span className="auth-modal-mark">
-                <span className="material-symbols-outlined">bolt</span>
+                <Logo size={32} />
               </span>
               <div>
                 <p className="auth-modal-kicker">PlayWise</p>

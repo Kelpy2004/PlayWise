@@ -16,10 +16,10 @@ interface Particle {
 }
 
 const particleColors = [
-  'rgba(177,250,80,0.4)',
+  'rgba(0,212,255,0.4)',
   'rgba(59,167,255,0.3)',
   'rgba(255,115,81,0.2)',
-  'rgba(177,250,80,0.15)',
+  'rgba(0,212,255,0.15)',
   'rgba(255,255,255,0.08)',
 ]
 
@@ -102,7 +102,7 @@ export function ParticleBackground({ count = 90, className = '' }: ParticleBackg
 
           if (distance < 120) {
             activeContext.globalAlpha = (1 - distance / 120) * 0.15
-            activeContext.strokeStyle = 'rgba(177,250,80,0.2)'
+            activeContext.strokeStyle = 'rgba(0,212,255,0.2)'
             activeContext.lineWidth = 0.5
             activeContext.beginPath()
             activeContext.moveTo(particle.x, particle.y)

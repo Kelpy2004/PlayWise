@@ -8,7 +8,7 @@ export function HeroCorePreview() {
   if (shouldReduceMotion) {
     return (
       <div className="flex h-full min-h-[320px] items-center justify-center">
-        <div className="h-44 w-44 border border-[#b1fa50]/50 bg-[#b1fa50]/15 shadow-[0_0_90px_rgba(177,250,80,0.3)] [clip-path:polygon(50%_0,100%_50%,50%_100%,0_50%)]" />
+        <div className="h-44 w-44 border border-[#00d4ff]/50 bg-[#00d4ff]/15 shadow-[0_0_90px_rgba(0,212,255,0.3)] [clip-path:polygon(50%_0,100%_50%,50%_100%,0_50%)]" />
       </div>
     )
   }
@@ -16,13 +16,13 @@ export function HeroCorePreview() {
   return (
     <Canvas camera={{ position: [0, 0, 4] }} gl={{ alpha: true }}>
       <ambientLight intensity={0.3} />
-      <pointLight position={[5, 5, 5]} intensity={1.2} color="#b1fa50" />
+      <pointLight position={[5, 5, 5]} intensity={1.2} color="#00d4ff" />
       <pointLight position={[-4, -2, 3]} intensity={0.6} color="#3ba7ff" />
       <Float speed={2} rotationIntensity={0.75} floatIntensity={0.8}>
         <mesh rotation={[0.5, 0.2, 0.1]}>
           <icosahedronGeometry args={[1.55, 1]} />
           <meshStandardMaterial
-            color="#b1fa50"
+            color="#00d4ff"
             metalness={0.85}
             roughness={0.15}
             emissive="#1a3000"

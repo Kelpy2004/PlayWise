@@ -172,7 +172,7 @@ export default function GamesBrowsePage() {
         </motion.div>
 
         {query ? (
-          <div className="mb-6 inline-flex rounded-full border border-[#b1fa50]/30 bg-[#b1fa50]/10 px-4 py-1.5 text-[11px] font-bold uppercase tracking-[0.18em] text-[#b1fa50]">
+          <div className="mb-6 inline-flex rounded-full border border-cyan/30 bg-cyan-dim px-4 py-1.5 text-[11px] font-bold uppercase tracking-[0.18em] text-cyan">
             Filter: {query}
           </div>
         ) : null}
@@ -181,7 +181,7 @@ export default function GamesBrowsePage() {
           <div
             className={`mb-6 rounded-xl border px-4 py-3 text-sm ${
               status.tone === 'success'
-                ? 'border-[#b1fa50]/35 bg-[#b1fa50]/12 text-[#d8ff9c]'
+                ? 'border-cyan/35 bg-cyan/12 text-cyan'
                 : status.tone === 'danger'
                   ? 'border-red-400/35 bg-red-500/12 text-red-200'
                   : status.tone === 'warning'
@@ -231,7 +231,7 @@ export default function GamesBrowsePage() {
           <div className="rounded-2xl border border-white/10 bg-white/[0.02] px-6 py-12 text-center">
             <p className="text-lg font-semibold text-white">No games matched this filter.</p>
             <p className="mt-2 text-sm text-white/60">Try another category/platform from the Games menu or clear the search.</p>
-            <Link to="/games" className="mt-6 inline-flex rounded-full bg-[#b1fa50] px-5 py-2 text-xs font-black uppercase tracking-[0.16em] text-[#0a1202]">
+            <Link to="/games" className="mt-6 inline-flex rounded-full bg-cyan px-5 py-2 text-xs font-black uppercase tracking-[0.16em] text-white">
               View all games
             </Link>
           </div>

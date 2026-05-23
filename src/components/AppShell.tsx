@@ -3,11 +3,14 @@ import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 
 import { useAuth } from '../context/AuthContext'
+import { useTheme } from '../context/ThemeContext'
 import { getAllGames } from '../lib/catalog'
 import { api, getCachedCatalogSnapshot } from '../lib/api'
 import { trackEvent } from '../lib/telemetry'
 import type { GameRecord } from '../types/catalog'
 import SiteAssistant from './SiteAssistant'
+import Logo from './Logo'
+import Footer from './Footer'
 
 function SearchMark() {
   return (
@@ -31,7 +34,7 @@ function ShellLink({
       className={({ isActive }) =>
         [
           'relative px-2 py-1 text-sm font-medium tracking-wide transition-colors',
-          isActive ? 'text-[#b1fa50]' : 'text-white/58 hover:text-white'
+          isActive ? 'text-cyan' : 'text-[var(--muted)] hover:text-[var(--text)]'
         ].join(' ')
       }
     >
@@ -49,6 +52,7 @@ export default function AppShell() {
   const [searchWordIndex, setSearchWordIndex] = useState(0)
   const [isGamesMenuOpen, setIsGamesMenuOpen] = useState(false)
   const { user, isLoading, logout, token } = useAuth()
+  const { theme, toggleTheme } = useTheme()
   const location = useLocation()
   const navigate = useNavigate()
   
@@ -191,15 +195,23 @@ export default function AppShell() {
   }
 
   return (
-    <div className="min-h-screen overflow-x-clip bg-[#060806] text-white">
-      <header className="fixed inset-x-0 top-0 z-50 border-b border-[#b1fa50]/15 bg-[#0e0e0e]/80 shadow-[0_0_40px_rgba(177,250,80,0.08)] backdrop-blur-xl">
+    <div className="min-h-screen overflow-x-clip text-[var(--text)] transition-colors" style={{ background: 'var(--deep)', transitionDuration: 'var(--transition-theme)' }}>
+      <header
+        className="fixed inset-x-0 top-0 z-[100] border-b backdrop-blur-[24px] saturate-[1.6] transition-all"
+        style={{
+          borderColor: theme === 'dark' ? 'rgba(0,212,255,0.15)' : 'rgba(0,136,187,0.12)',
+          background: theme === 'dark' ? 'rgba(14,14,14,0.8)' : 'rgba(250,247,242,0.88)',
+          boxShadow: theme === 'dark' ? '0 0 40px rgba(0,212,255,0.08)' : '0 4px 24px rgba(0,0,0,0.06)',
+          transitionDuration: 'var(--transition-theme)',
+        }}
+      >
         <div className="mx-auto flex h-20 w-full max-w-[1920px] items-center gap-3 px-4 sm:gap-4 sm:px-6 xl:px-8">
-          <NavLink to="/" className="flex shrink-0 items-center gap-3">
-            <span className="flex h-8 w-8 items-center justify-center overflow-hidden bg-[#b1fa50] text-[#081003] shadow-[0_0_20px_rgba(177,250,80,0.2)] [clip-path:polygon(0_0,100%_0,86%_100%,0_100%)]">
-              <span className="material-symbols-outlined text-lg font-black">bolt</span>
-            </span>
-            <span className="font-display text-2xl font-black italic tracking-[-0.05em] text-white">
-              Play<span className="text-[#b1fa50]">Wise</span>
+          <NavLink to="/" className="flex shrink-0 items-center gap-[10px]">
+            <div className="w-9 h-9 rounded-[9px] grid place-items-center overflow-hidden shadow-[0_0_16px_rgba(0,180,255,0.2)]" style={{ background: theme === 'dark' ? '#0a1628' : '#e8f4ff' }}>
+              <Logo size={28} />
+            </div>
+            <span className="font-extrabold text-[1.35rem] tracking-tight text-[var(--text)]">
+              Play<span className="text-cyan">Wise</span>
             </span>
           </NavLink>
 
@@ -207,7 +219,7 @@ export default function AppShell() {
             <div className="relative flex h-20 items-center">
               <button
                 type="button"
-                className="flex items-center gap-1 border-b-2 border-[#b1fa50] pb-1 text-sm font-semibold text-[#b1fa50]"
+                className="flex items-center gap-1 border-b-2 border-cyan pb-1 text-sm font-semibold text-cyan"
                 onClick={() => setIsGamesMenuOpen((current) => !current)}
               >
                 Games
@@ -220,29 +232,35 @@ export default function AppShell() {
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: 8, scale: 0.98 }}
                 transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
-                className="fixed left-1/2 top-20 z-50 w-[min(95vw,1040px)] -translate-x-1/2 rounded-[26px] border border-[#b1fa50]/18 bg-[#111111]/90 p-6 shadow-[0_28px_80px_rgba(0,0,0,0.55),0_0_60px_rgba(177,250,80,0.04)] backdrop-blur-2xl xl:absolute xl:left-0 xl:top-full xl:w-[1040px] xl:translate-x-0"
+                className="fixed left-1/2 top-20 z-50 w-[min(95vw,1040px)] -translate-x-1/2 rounded-[26px] border border-cyan/18 p-6 backdrop-blur-2xl xl:absolute xl:left-0 xl:top-full xl:w-[1040px] xl:translate-x-0"
+                style={{
+                  background: theme === 'dark' ? 'rgba(17,17,17,0.9)' : 'rgba(250,247,242,0.95)',
+                  boxShadow: theme === 'dark'
+                    ? '0 28px 80px rgba(0,0,0,0.55), 0 0 60px rgba(0,212,255,0.04)'
+                    : '0 28px 80px rgba(0,0,0,0.12), 0 0 30px rgba(0,212,255,0.02)',
+                }}
               >
                 <div className="grid grid-cols-1 gap-6 xl:grid-cols-[220px_240px_1fr]">
                   <div className="space-y-7">
                     <div className="space-y-3">
-                      <p className="border-b border-white/10 pb-3 text-[10px] font-black uppercase tracking-[0.22em] text-[#b1fa50]">Browse by category</p>
+                      <p className="border-b border-[var(--border)] pb-3 text-[10px] font-black uppercase tracking-[0.22em] text-cyan">Browse by category</p>
                       {browseCategories.map((category) => (
-                        <button key={category} type="button" className="block text-left text-sm text-white/64 transition-colors hover:text-white" onClick={() => handleCatalogBrowse(category.toLowerCase())}>
+                        <button key={category} type="button" className="block text-left text-sm text-[var(--muted)] transition-colors hover:text-[var(--text)]" onClick={() => handleCatalogBrowse(category.toLowerCase())}>
                           {category}
                         </button>
                       ))}
                     </div>
                     <div className="space-y-3">
-                      <p className="border-b border-white/10 pb-3 text-[10px] font-black uppercase tracking-[0.22em] text-[#b1fa50]">Browse by platform</p>
+                      <p className="border-b border-[var(--border)] pb-3 text-[10px] font-black uppercase tracking-[0.22em] text-cyan">Browse by platform</p>
                       {browsePlatforms.map((platform) => (
-                        <button key={platform} type="button" className="block text-left text-sm text-white/64 transition-colors hover:text-white" onClick={() => handleCatalogBrowse(platform.toLowerCase())}>
+                        <button key={platform} type="button" className="block text-left text-sm text-[var(--muted)] transition-colors hover:text-[var(--text)]" onClick={() => handleCatalogBrowse(platform.toLowerCase())}>
                           {platform}
                         </button>
                       ))}
                     </div>
                     <button
                       type="button"
-                      className="rounded-full bg-[#b1fa50] px-5 py-3 text-xs font-black uppercase tracking-[0.2em] text-[#091100] transition-transform hover:-translate-y-0.5"
+                      className="rounded-full bg-cyan px-5 py-3 text-xs font-black uppercase tracking-[0.2em] text-white transition-transform hover:-translate-y-0.5"
                       onClick={() => handleCatalogBrowse('')}
                     >
                       View all games
@@ -251,33 +269,33 @@ export default function AppShell() {
 
                   <div className="space-y-5">
                     <div className="space-y-3">
-                      <p className="border-b border-white/10 pb-3 text-[10px] font-black uppercase tracking-[0.22em] text-[#b1fa50]">Browse by game</p>
+                      <p className="border-b border-[var(--border)] pb-3 text-[10px] font-black uppercase tracking-[0.22em] text-cyan">Browse by game</p>
                       <div className="grid gap-2">
                         {topMenuGames.map((game) => (
-                          <button key={game.slug} type="button" className="text-left text-sm text-white/66 transition-colors hover:text-white" onClick={() => handleMenuGameOpen(game.slug)}>
+                          <button key={game.slug} type="button" className="text-left text-sm text-[var(--muted)] transition-colors hover:text-[var(--text)]" onClick={() => handleMenuGameOpen(game.slug)}>
                             {game.title}
                           </button>
                         ))}
                       </div>
                     </div>
                     <div className="grid gap-2 pt-2">
-                      <button type="button" className="flex items-center gap-2 text-left text-sm font-semibold text-white transition-colors hover:text-[#b1fa50]" onClick={() => navigate('/games?view=wishlist')}>
+                      <button type="button" className="flex items-center gap-2 text-left text-sm font-semibold text-[var(--text)] transition-colors hover:text-cyan" onClick={() => navigate('/games?view=wishlist')}>
                         <span className="material-symbols-outlined text-sm">favorite</span>
                         Wishlist
                       </button>
-                      <button type="button" className="text-left text-sm text-white/64 transition-colors hover:text-white" onClick={() => navigate('/games')}>
+                      <button type="button" className="text-left text-sm text-[var(--muted)] transition-colors hover:text-[var(--text)]" onClick={() => navigate('/games')}>
                         Library
                       </button>
-                      <button type="button" className="text-left text-sm text-white/64 transition-colors hover:text-white" onClick={() => navigate('/games?sort=popular')}>
+                      <button type="button" className="text-left text-sm text-[var(--muted)] transition-colors hover:text-[var(--text)]" onClick={() => navigate('/games?sort=popular')}>
                         Recommendations
                       </button>
                     </div>
                   </div>
 
                   <div className="space-y-4">
-                    <div className="flex items-center justify-between border-b border-white/10 pb-3">
-                      <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#b1fa50]">Most popular</p>
-                      <button type="button" className="text-[10px] font-black uppercase tracking-[0.18em] text-white/52 transition-colors hover:text-white" onClick={() => navigate('/games?sort=popular')}>
+                    <div className="flex items-center justify-between border-b border-[var(--border)] pb-3">
+                      <p className="text-[10px] font-black uppercase tracking-[0.22em] text-cyan">Most popular</p>
+                      <button type="button" className="text-[10px] font-black uppercase tracking-[0.18em] text-[var(--muted)] transition-colors hover:text-[var(--text)]" onClick={() => navigate('/games?sort=popular')}>
                         View all
                       </button>
                     </div>
@@ -299,8 +317,8 @@ export default function AppShell() {
                             }}
                           />
                           <div className="p-3">
-                            <p className="line-clamp-2 text-sm font-semibold text-white">{game.title}</p>
-                            <p className="mt-1 text-[11px] text-white/44">{(game.platform || game.supportedPlatforms || ['PlayWise']).slice(0, 1).join('')}</p>
+                            <p className="line-clamp-2 text-sm font-semibold text-[var(--text)]">{game.title}</p>
+                            <p className="mt-1 text-[11px] text-[var(--muted)]">{(game.platform || game.supportedPlatforms || ['PlayWise']).slice(0, 1).join('')}</p>
                           </div>
                         </button>
                       ))}
@@ -311,47 +329,80 @@ export default function AppShell() {
               )}
               </AnimatePresence>
             </div>
-            <button type="button" className="text-sm font-medium text-white/58 transition-colors hover:text-white" onClick={() => handleSectionJump('tournaments')}>
+            <button type="button" className="text-sm font-medium text-[var(--muted)] transition-colors hover:text-[var(--text)]" onClick={() => handleSectionJump('tournaments')}>
               Tournaments
             </button>
-            <button type="button" className="text-sm font-medium text-white/58 transition-colors hover:text-white" onClick={() => navigate('/games')}>
+            <button type="button" className="text-sm font-medium text-[var(--muted)] transition-colors hover:text-[var(--text)]" onClick={() => navigate('/games')}>
               Store
             </button>
-            <button type="button" className="text-sm font-medium text-white/58 transition-colors hover:text-white" onClick={() => handleSectionJump('precision')}>
+            <button type="button" className="text-sm font-medium text-[var(--muted)] transition-colors hover:text-[var(--text)]" onClick={() => handleSectionJump('precision')}>
               News
             </button>
-            <button type="button" className="text-sm font-medium text-white/58 transition-colors hover:text-white" onClick={() => navigate('/games?view=wishlist')}>
+            <button type="button" className="text-sm font-medium text-[var(--muted)] transition-colors hover:text-[var(--text)]" onClick={() => navigate('/games?view=wishlist')}>
               Library
             </button>
             {user?.role === 'admin' ? <ShellLink to="/admin/hardware">Hardware</ShellLink> : null}
           </nav>
 
           <div className="ml-auto flex shrink-0 items-center justify-end gap-2 sm:gap-3">
+            {/* Dark / Light theme toggle */}
+            <div
+              onClick={toggleTheme}
+              role="button"
+              aria-label="Toggle theme"
+              title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+              className="relative w-14 h-7 rounded-full cursor-pointer overflow-hidden border transition-all"
+              style={{
+                background: theme === 'dark' ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.06)',
+                borderColor: theme === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(120,90,40,0.15)',
+                transitionDuration: 'var(--transition-theme)',
+              }}
+            >
+              {/* Stars (dark mode) */}
+              <div className="absolute inset-0 transition-opacity duration-500" style={{ opacity: theme === 'dark' ? 1 : 0 }}>
+                <span className="absolute w-[1.5px] h-[1.5px] bg-white rounded-full" style={{ top: '6px', left: '36px' }} />
+                <span className="absolute w-0.5 h-0.5 bg-white rounded-full" style={{ top: '14px', left: '42px' }} />
+                <span className="absolute w-[1px] h-[1px] bg-white rounded-full" style={{ top: '20px', left: '34px' }} />
+              </div>
+              {/* Knob (moon / sun) */}
+              <div
+                className="absolute top-[3px] w-[22px] h-[22px] rounded-full z-[2] transition-all duration-500"
+                style={{
+                  transitionTimingFunction: 'cubic-bezier(0.68,-0.55,0.265,1.55)',
+                  left: theme === 'dark' ? '3px' : '31px',
+                  background: theme === 'dark' ? '#c8dcff' : '#ffd54f',
+                  boxShadow: theme === 'dark'
+                    ? '0 0 12px rgba(200,220,255,0.6), inset -3px -1px 0 rgba(100,120,160,0.4)'
+                    : '0 0 16px rgba(255,213,79,0.7)',
+                }}
+              />
+            </div>
+
             <form className="hidden items-center gap-2 2xl:flex" onSubmit={handleSearchSubmit}>
-              <div className="flex items-center gap-2 rounded-xl border border-white/8 bg-white/[0.03] px-3 py-2 text-white/64 transition-all duration-300 hover:border-[#b1fa50]/25 hover:text-white focus-within:border-[#b1fa50]/40 focus-within:shadow-[0_0_20px_rgba(177,250,80,0.1)]">
+              <div className="flex items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--panel)] px-3 py-2 text-[var(--muted)] transition-all duration-300 hover:border-cyan/25 hover:text-[var(--text)] focus-within:border-cyan/40 focus-within:shadow-[0_0_20px_rgba(0,212,255,0.1)]">
                 <input
                   type="search"
                   value={searchText}
                   onChange={handleSearchChange}
                   placeholder={searchPlaceholder}
-                  className="w-28 border-none bg-transparent p-0 font-mono text-xs uppercase tracking-[0.14em] text-white outline-none placeholder:text-white/42 focus:ring-0 2xl:w-40"
+                  className="w-28 border-none bg-transparent p-0 font-mono text-xs uppercase tracking-[0.14em] text-[var(--text)] outline-none placeholder:text-[var(--muted)] focus:ring-0 2xl:w-40"
                 />
                 <SearchMark />
               </div>
             </form>
 
             {isLoading ? (
-              <span className="rounded-lg border border-white/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-white/45">
+              <span className="rounded-lg border border-[var(--border)] px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">
                 Restoring
               </span>
             ) : user ? (
               <>
-                <span className="hidden rounded-lg border border-[#b1fa50]/15 bg-white/[0.03] px-4 py-2 text-xs font-semibold uppercase tracking-[0.14em] text-white/70 sm:inline-flex">
+                <span className="hidden rounded-lg border border-cyan/15 bg-[var(--panel)] px-4 py-2 text-xs font-semibold uppercase tracking-[0.14em] text-[var(--muted)] sm:inline-flex">
                   {user.username}
                 </span>
                 <button
                   type="button"
-                  className="rounded-lg border border-white/12 px-4 py-2 text-xs font-semibold text-white/72 transition-colors hover:text-white"
+                  className="rounded-lg border border-[var(--border)] px-4 py-2 text-xs font-semibold text-[var(--muted)] transition-colors hover:text-[var(--text)]"
                   onClick={() => {
                     void trackEvent({ category: 'auth', action: 'logout', label: user.username }, token)
                     logout()
@@ -368,7 +419,7 @@ export default function AppShell() {
                     backgroundLocation: location,
                     from: `${location.pathname}${location.search}${location.hash}`
                   }}
-                  className="whitespace-nowrap rounded-lg bg-[#b1fa50] px-4 py-2 text-xs font-black text-[#111a02] shadow-[0_0_24px_rgba(177,250,80,0.22)] transition-transform hover:-translate-y-0.5 sm:px-5"
+                  className="whitespace-nowrap rounded-lg bg-cyan px-4 py-2 text-xs font-black text-white shadow-[0_0_24px_rgba(0,212,255,0.22)] transition-transform hover:-translate-y-0.5 sm:px-5"
                 >
                   Join Pro
                 </NavLink>
@@ -378,7 +429,7 @@ export default function AppShell() {
                     backgroundLocation: location,
                     from: `${location.pathname}${location.search}${location.hash}`
                   }}
-                  className="whitespace-nowrap rounded-lg px-3 py-2 text-xs font-semibold text-white/72 transition-colors hover:text-white sm:px-4"
+                  className="whitespace-nowrap rounded-lg px-3 py-2 text-xs font-semibold text-[var(--muted)] transition-colors hover:text-[var(--text)] sm:px-4"
                 >
                   Login
                 </NavLink>
@@ -394,66 +445,8 @@ export default function AppShell() {
 
       <SiteAssistant />
 
-      {/* Conditionally render the global footer based on route */}
-      {isGamePage ? null : (
-        <footer className="border-t border-white/6 bg-[#000000]">
-          <div className="mx-auto max-w-[1600px] px-4 py-16 sm:px-6 xl:px-8">
-            <div className="grid gap-12 xl:grid-cols-[1.5fr_0.75fr_0.75fr_1.15fr]">
-              <div>
-                <div className="mb-5 flex items-center gap-3">
-                  <span className="flex h-7 w-7 items-center justify-center overflow-hidden bg-[#b1fa50] text-[#081003] [clip-path:polygon(0_0,100%_0,86%_100%,0_100%)]">
-                    <span className="material-symbols-outlined text-sm">bolt</span>
-                  </span>
-                  <strong className="font-display text-2xl text-white">PlayWise</strong>
-                </div>
-                <p className="max-w-sm text-[1.05rem] leading-8 text-white/55">
-                  Decision intelligence platform for the next generation of gamers. PlayWise Obsidian Engine v4.2
-                </p>
-                <div className="mt-6 flex items-center gap-4 text-white/55">
-                  <span className="material-symbols-outlined text-xl">public</span>
-                  <span className="material-symbols-outlined text-xl">alternate_email</span>
-                  <span className="material-symbols-outlined text-xl">groups</span>
-                </div>
-              </div>
-
-              <div>
-                <p className="mb-4 text-[11px] font-black uppercase tracking-[0.24em] text-white">Ecosystem</p>
-                <div className="flex flex-col gap-3 text-[1.05rem] text-white/58">
-                  <button type="button" className="text-left transition-colors hover:text-[#b1fa50]" onClick={() => handleSectionJump('trending')}>
-                    Global Rankings
-                  </button>
-                  <button type="button" className="text-left transition-colors hover:text-[#b1fa50]" onClick={() => navigate('/games')}>
-                    Developer Portal
-                  </button>
-                  <button type="button" className="text-left transition-colors hover:text-[#b1fa50]" onClick={() => handleSectionJump('discover')}>
-                    Support Center
-                  </button>
-                </div>
-              </div>
-
-              <div>
-                <p className="mb-4 text-[11px] font-black uppercase tracking-[0.24em] text-white">Legal</p>
-                <div className="flex flex-col gap-3 text-[1.05rem] text-white/58">
-                  <span>Privacy Policy</span>
-                  <span>Terms of Service</span>
-                  <span>Community Guidelines</span>
-                </div>
-              </div>
-
-              <div className="flex flex-col justify-between xl:items-end xl:text-right">
-                <p className="text-[11px] uppercase tracking-[0.24em] text-[#47506a]">© 2024 PlayWise Interactive. All rights reserved.</p>
-                <div className="mt-10 xl:mt-20">
-                  <p className="mb-3 text-[11px] font-black uppercase tracking-[0.24em] text-white/32">System Status</p>
-                  <p className="inline-flex items-center gap-3 text-sm font-black uppercase tracking-[0.08em] text-[#b1fa50]">
-                    <span className="h-2.5 w-2.5 rounded-full bg-[#8fd22d]" />
-                    PlayWise systems operational
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </footer>
-      )}
+      {/* Footer — hide on individual game pages */}
+      {isGamePage ? null : <Footer />}
     </div>
   )
 }

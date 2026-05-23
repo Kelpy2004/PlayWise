@@ -96,7 +96,7 @@ export default function SiteAssistant() {
         <header className="site-assistant-header">
           <div>
             <strong className="d-block">PlayWise assistant</strong>
-            <small className="text-secondary-emphasis">
+            <small style={{ color: 'rgba(255,255,255,0.45)', fontSize: '0.78rem' }}>
               {gameSlug ? 'Page-aware help for this game and its price signal.' : 'Site help and quick decision guidance.'}
             </small>
           </div>

@@ -10,3 +10,4 @@ backend/data/runtime-store.json
 
 .vercel
 .env*.local
+.claude/

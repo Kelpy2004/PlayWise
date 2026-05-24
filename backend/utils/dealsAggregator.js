@@ -26,61 +26,43 @@ function isQualityGame(item) {
   return rating >= MIN_STEAM_RATING || metacritic >= MIN_METACRITIC
 }
 
-// ──────────────────────────── EPIC GAMES FREE ────────────────────────────
+// ──────────────────────────── EPIC GAMES (via CheapShark storeID=25) ────────────────────────────
 async function fetchEpicFreeGames() {
+  const deals = []
+
   try {
-    const response = await fetch(
-      'https://store-site-backend-official.ak.epicgames.com/freeGamesPromotions?locale=en-US&country=US&allowCountries=US',
-      { headers: { Accept: 'application/json', 'User-Agent': 'PlayWise/1.0' } }
-    )
-    if (!response.ok) throw new Error(`Epic API ${response.status}`)
+    const [freeRes, discountRes] = await Promise.all([
+      fetch('https://www.cheapshark.com/api/1.0/deals?storeID=25&upperPrice=0&pageSize=20&sortBy=recent',
+        { headers: { 'User-Agent': 'PlayWise/1.0' } }),
+      fetch('https://www.cheapshark.com/api/1.0/deals?storeID=25&pageSize=20&sortBy=savings&desc=1',
+        { headers: { 'User-Agent': 'PlayWise/1.0' } })
+    ])
 
-    const json = await response.json()
-    const elements = json?.data?.Catalog?.searchStore?.elements || []
-    const deals = []
-
-    for (const el of elements) {
-      const promotions = el?.promotions?.promotionalOffers || []
-      const upcoming = el?.promotions?.upcomingPromotionalOffers || []
-      const allOffers = [...promotions, ...upcoming]
-      if (!allOffers.length) continue
-
-      for (const group of allOffers) {
-        for (const offer of group?.promotionalOffers || []) {
-          if (offer?.discountSetting?.discountPercentage !== 0) continue
-
-          const originalPrice = el?.price?.totalPrice?.originalPrice
-            ? el.price.totalPrice.originalPrice / 100
-            : null
-          const imageUrl = el?.keyImages?.find((i) => i.type === 'DieselStoreFrontWide')?.url
-            || el?.keyImages?.find((i) => i.type === 'OfferImageWide')?.url
-            || el?.keyImages?.find((i) => i.type === 'VaultClosed')?.url
-            || el?.keyImages?.find((i) => i.type === 'Thumbnail')?.url
-            || el?.keyImages?.find((i) => i.type === 'DieselStoreFrontTall')?.url
-            || el?.keyImages?.[0]?.url || null
-          const slug = String(el?.productSlug || el?.urlSlug || el?.catalogNs?.mappings?.[0]?.pageSlug || '').trim()
-
+    if (freeRes.ok) {
+      const items = await freeRes.json()
+      if (Array.isArray(items)) {
+        for (const item of items) {
           deals.push({
-            externalId: `epic-free-${el?.id || slug}`,
+            externalId: `cheapshark-free-${item?.dealID || ''}`,
             type: 'FREE_GAME',
-            title: String(el?.title || 'Free Game').trim(),
-            gameSlug: slug ? slug.toLowerCase().replace(/[^a-z0-9]+/g, '-') : null,
+            title: String(item?.title || '').trim(),
+            gameSlug: String(item?.title || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-') || null,
             store: 'Epic Games Store',
-            originalPrice,
+            originalPrice: parseFloat(item?.normalPrice) || null,
             dealPrice: 0,
             discountPct: 100,
-            currency: el?.price?.totalPrice?.currencyCode || 'USD',
-            url: slug
-              ? `https://store.epicgames.com/p/${slug}`
-              : 'https://store.epicgames.com/free-games',
-            imageUrl,
-            startsAt: offer?.startDate || null,
-            endsAt: offer?.endDate || null,
-            source: 'epic',
+            currency: 'USD',
+            url: `https://www.cheapshark.com/redirect?dealID=${item?.dealID || ''}`,
+            imageUrl: item?.steamAppID
+              ? `https://cdn.akamai.steamstatic.com/steam/apps/${item.steamAppID}/header.jpg`
+              : item?.thumb || null,
+            startsAt: null,
+            endsAt: null,
+            source: 'cheapshark-epic',
             metadata: {
-              namespace: el?.namespace || null,
-              seller: el?.seller?.name || null,
-              isUpcoming: upcoming.length > 0 && promotions.length === 0
+              steamRating: item?.steamRatingPercent || null,
+              metacritic: item?.metacriticScore || null,
+              steamAppId: item?.steamAppID || null
             },
             isActive: true
           })
@@ -88,11 +70,44 @@ async function fetchEpicFreeGames() {
       }
     }
 
-    return deals
+    if (discountRes.ok) {
+      const items = await discountRes.json()
+      if (Array.isArray(items)) {
+        for (const item of items) {
+          const savings = parseFloat(item?.savings || '0')
+          if (savings < 50) continue
+          deals.push({
+            externalId: `cheapshark-deal-${item?.dealID || ''}`,
+            type: 'DISCOUNT',
+            title: String(item?.title || '').trim(),
+            gameSlug: String(item?.title || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-') || null,
+            store: 'Epic Games Store',
+            originalPrice: parseFloat(item?.normalPrice) || null,
+            dealPrice: parseFloat(item?.salePrice) || 0,
+            discountPct: Math.round(savings),
+            currency: 'USD',
+            url: `https://www.cheapshark.com/redirect?dealID=${item?.dealID || ''}`,
+            imageUrl: item?.steamAppID
+              ? `https://cdn.akamai.steamstatic.com/steam/apps/${item.steamAppID}/header.jpg`
+              : item?.thumb || null,
+            startsAt: null,
+            endsAt: null,
+            source: 'cheapshark-epic',
+            metadata: {
+              steamRating: item?.steamRatingPercent || null,
+              metacritic: item?.metacriticScore || null,
+              steamAppId: item?.steamAppID || null
+            },
+            isActive: true
+          })
+        }
+      }
+    }
   } catch (error) {
-    logger.warn({ error }, 'Failed to fetch Epic free games')
-    return []
+    logger.warn({ error }, 'Failed to fetch Epic games via CheapShark')
   }
+
+  return deals
 }
 
 // ──────────────────────────── CHEAPSHARK FREE ────────────────────────────
@@ -240,8 +255,35 @@ async function fetchItadDeals(minDiscountPct) {
   }
 }
 
-// ──────────────────────────── STEAM FREE (basic) ────────────────────────────
-async function fetchSteamFreeGames() {
+// ──────────────────────────── STEAM (specials + daily deal + new releases + top sellers) ────────────────────────────
+function parseSteamItem(item, minDiscountPct, tag) {
+  const discountPct = item?.discount_percent || 0
+  const isFree = item?.final_price === 0 && discountPct === 100
+  if (!isFree && discountPct < minDiscountPct) return null
+
+  return {
+    externalId: `steam-${tag}-${item?.id || ''}`,
+    type: isFree ? 'FREE_GAME' : 'DISCOUNT',
+    title: String(item?.name || '').trim(),
+    gameSlug: String(item?.name || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-') || null,
+    store: 'Steam',
+    originalPrice: item?.original_price ? item.original_price / 100 : null,
+    dealPrice: item?.final_price ? item.final_price / 100 : 0,
+    discountPct,
+    currency: 'USD',
+    url: `https://store.steampowered.com/app/${item?.id || ''}`,
+    imageUrl: item?.large_capsule_image || item?.header_image || null,
+    startsAt: null,
+    endsAt: item?.discount_expiration
+      ? new Date(item.discount_expiration * 1000).toISOString()
+      : null,
+    source: 'steam',
+    metadata: { steamAppId: item?.id, tag },
+    isActive: true
+  }
+}
+
+async function fetchSteamDeals(minDiscountPct) {
   try {
     const response = await fetch(
       'https://store.steampowered.com/api/featuredcategories?cc=us',
@@ -250,34 +292,232 @@ async function fetchSteamFreeGames() {
     if (!response.ok) return []
 
     const json = await response.json()
-    const specials = json?.specials?.items || []
+    const deals = []
 
-    return specials
-      .filter((item) => item?.final_price === 0 && item?.discount_percent === 100)
-      .map((item) => ({
-        externalId: `steam-free-${item?.id || ''}`,
-        type: 'FREE_GAME',
-        title: String(item?.name || '').trim(),
-        gameSlug: String(item?.name || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-') || null,
-        store: 'Steam',
-        originalPrice: item?.original_price ? item.original_price / 100 : null,
-        dealPrice: 0,
-        discountPct: 100,
-        currency: 'USD',
-        url: `https://store.steampowered.com/app/${item?.id || ''}`,
-        imageUrl: item?.large_capsule_image || item?.header_image || null,
-        startsAt: null,
-        endsAt: item?.discount_expiration
-          ? new Date(item.discount_expiration * 1000).toISOString()
-          : null,
-        source: 'steam',
-        metadata: { steamAppId: item?.id },
-        isActive: true
-      }))
+    for (const item of (json?.specials?.items || [])) {
+      const d = parseSteamItem(item, minDiscountPct, 'special')
+      if (d) deals.push(d)
+    }
+
+    const daily = json?.['0']
+    if (daily && daily.id) {
+      const d = parseSteamItem(daily, 0, 'daily')
+      if (d) deals.push(d)
+    }
+
+    for (const item of (json?.new_releases?.items || []).slice(0, 10)) {
+      const d = parseSteamItem(item, 0, 'new')
+      if (d) deals.push(d)
+    }
+
+    for (const item of (json?.top_sellers?.items || []).slice(0, 10)) {
+      const d = parseSteamItem(item, minDiscountPct, 'top')
+      if (d) deals.push(d)
+    }
+
+    return deals
   } catch (error) {
-    logger.debug({ error }, 'Steam free games fetch failed (non-critical)')
+    logger.debug({ error }, 'Steam deals fetch failed (non-critical)')
     return []
   }
+}
+
+// ──────────────────────────── XBOX / MICROSOFT STORE ────────────────────────────
+async function fetchXboxDeals() {
+  const results = []
+
+  try {
+    const siglIds = [
+      'fdd9e2a7-0fee-49f6-ad69-4354098401a8',
+      '29a81209-df6f-41fd-a528-2ae6b91f719c',
+    ]
+
+    const productIds = new Set()
+
+    for (const siglId of siglIds) {
+      try {
+        const res = await fetch(
+          `https://catalog.gamepass.com/sigls/v2?id=${siglId}&market=US&language=en-US`,
+          { headers: { Accept: 'application/json', 'User-Agent': 'PlayWise/1.0' }, signal: AbortSignal.timeout(6000) }
+        )
+        if (!res.ok) continue
+
+        const data = await res.json()
+        if (!Array.isArray(data)) continue
+
+        for (const item of data) {
+          if (item.id && typeof item.id === 'string' && item.id.length <= 12) {
+            productIds.add(item.id)
+          }
+        }
+      } catch { /* individual sigl failure is OK */ }
+    }
+
+    if (!productIds.size) return []
+
+    const ids = Array.from(productIds).slice(0, 25)
+    const dcRes = await fetch(
+      `https://displaycatalog.mp.microsoft.com/v7.0/products?bigIds=${ids.join(',')}&market=US&languages=en-US`,
+      { headers: { Accept: 'application/json', 'User-Agent': 'PlayWise/1.0', 'MS-CV': 'PlayWise.1' }, signal: AbortSignal.timeout(8000) }
+    )
+    if (!dcRes.ok) return []
+
+    const dcData = await dcRes.json()
+    const products = dcData?.Products || []
+
+    for (const product of products) {
+      const localized = product?.LocalizedProperties?.[0]
+      const title = localized?.ProductTitle || ''
+      const productId = product?.ProductId || ''
+      if (!title) continue
+
+      const skuAvail = product?.DisplaySkuAvailabilities?.[0]
+      const avail = skuAvail?.Availabilities?.[0]
+      const price = avail?.OrderManagementData?.Price
+      const listPrice = price?.ListPrice ?? 0
+      const msrp = price?.MSRP ?? listPrice
+
+      const images = localized?.Images || []
+      const imgObj = images.find((i) => i.ImagePurpose === 'SuperHeroArt')
+        || images.find((i) => i.ImagePurpose === 'BrandedKeyArt')
+        || images.find((i) => i.ImagePurpose === 'Poster')
+        || images.find((i) => i.ImagePurpose === 'BoxArt')
+        || images[0]
+      const rawUri = imgObj?.Uri || null
+      const imageUrl = rawUri ? (rawUri.startsWith('//') ? `https:${rawUri}` : rawUri) : null
+
+      const isFree = listPrice === 0
+      const discountPct = msrp > 0 && !isFree
+        ? Math.round((1 - listPrice / msrp) * 100)
+        : isFree ? 100 : 0
+
+      if (!isFree && discountPct < 25) continue
+
+      results.push({
+        externalId: `xbox-${productId}`,
+        type: isFree ? 'FREE_GAME' : 'DISCOUNT',
+        title: String(title).trim(),
+        gameSlug: String(title).trim().toLowerCase().replace(/[^a-z0-9]+/g, '-') || null,
+        store: 'Xbox',
+        originalPrice: msrp || null,
+        dealPrice: isFree ? 0 : listPrice,
+        discountPct,
+        currency: price?.CurrencyCode || 'USD',
+        url: `https://www.xbox.com/games/store/-/${productId}`,
+        imageUrl,
+        startsAt: null,
+        endsAt: null,
+        source: 'xbox',
+        metadata: { productId, category: product?.Properties?.Category || null },
+        isActive: true
+      })
+    }
+  } catch (error) {
+    logger.debug({ error }, 'Xbox deals fetch failed (non-critical)')
+  }
+
+  return results
+}
+
+// ──────────────────────────── GAMERPOWER (flash giveaways) ────────────────────────────
+const GAMERPOWER_PLATFORMS = new Set(['pc', 'steam', 'epic-games-store', 'ubisoft', 'xbox-one', 'xbox-series-xs'])
+
+function gamerPowerStore(platforms) {
+  if (!platforms) return 'PC'
+  const p = platforms.toLowerCase()
+  if (p.includes('steam')) return 'Steam'
+  if (p.includes('epic')) return 'Epic Games Store'
+  if (p.includes('ubisoft')) return 'Ubisoft Store'
+  if (p.includes('xbox')) return 'Xbox'
+  if (p.includes('nvidia') || p.includes('geforce')) return 'NVIDIA'
+  return 'PC'
+}
+
+async function fetchGamerPowerGiveaways() {
+  try {
+    const response = await fetch(
+      'https://www.gamerpower.com/api/giveaways?type=game&sort-by=value',
+      { headers: { Accept: 'application/json', 'User-Agent': 'PlayWise/1.0' } }
+    )
+    if (!response.ok) return []
+
+    const items = await response.json()
+    if (!Array.isArray(items)) return []
+
+    return items
+      .filter((item) => {
+        const platforms = String(item?.platforms || '').toLowerCase()
+        return Array.from(GAMERPOWER_PLATFORMS).some((p) => platforms.includes(p))
+      })
+      .slice(0, 30)
+      .map((item) => {
+        const worth = parseFloat(String(item?.worth || '0').replace(/[^0-9.]/g, '')) || null
+        return {
+          externalId: `gamerpower-${item?.id || ''}`,
+          type: 'FREE_GAME',
+          title: String(item?.title || '').trim(),
+          gameSlug: String(item?.title || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-') || null,
+          store: gamerPowerStore(item?.platforms),
+          originalPrice: worth,
+          dealPrice: 0,
+          discountPct: 100,
+          currency: 'USD',
+          url: item?.open_giveaway_url || item?.gamerpower_url || '#',
+          imageUrl: item?.thumbnail || item?.image || null,
+          startsAt: item?.published_date || null,
+          endsAt: item?.end_date && item.end_date !== 'N/A' ? item.end_date : null,
+          source: 'gamerpower',
+          metadata: {
+            gamerPowerId: item?.id,
+            platforms: item?.platforms,
+            type: item?.type,
+            instructions: item?.instructions || null,
+            worth: item?.worth || null
+          },
+          isActive: item?.status === 'Active'
+        }
+      })
+  } catch (error) {
+    logger.debug({ error }, 'GamerPower giveaways fetch failed (non-critical)')
+    return []
+  }
+}
+
+// ──────────────────────────── STEAM NEWS (game updates) ────────────────────────────
+async function fetchSteamNews(appIds) {
+  if (!appIds?.length) return []
+  const results = []
+
+  for (const appId of appIds.slice(0, 10)) {
+    try {
+      const response = await fetch(
+        `https://api.steampowered.com/ISteamNews/GetNewsForApp/v2/?appid=${appId}&count=3&maxlength=300`,
+        { headers: { Accept: 'application/json' } }
+      )
+      if (!response.ok) continue
+
+      const json = await response.json()
+      const newsItems = json?.appnews?.newsitems || []
+
+      for (const news of newsItems) {
+        results.push({
+          id: `steam-news-${news?.gid || ''}`,
+          appId,
+          title: String(news?.title || '').trim(),
+          contents: String(news?.contents || '').trim(),
+          url: news?.url || '',
+          author: news?.author || '',
+          date: news?.date ? new Date(news.date * 1000).toISOString() : null,
+          feedLabel: news?.feedlabel || '',
+          source: 'steam'
+        })
+      }
+    } catch {
+      // skip individual app failures
+    }
+  }
+
+  return results
 }
 
 // ──────────────────────────── AGGREGATE ────────────────────────────
@@ -307,13 +547,15 @@ function dedupeDeals(deals) {
 async function refreshDeals() {
   const minPct = env.DEALS_MIN_DISCOUNT_PCT || 75
 
-  const [epicFree, cheapsharkFree, cheapsharkDeals, itadDeals, steamFree] =
+  const [epicFree, cheapsharkFree, cheapsharkDeals, itadDeals, steamDeals, xboxDeals, gamerPower] =
     await Promise.allSettled([
       fetchEpicFreeGames(),
       fetchCheapSharkFreeGames(),
       fetchCheapSharkDiscounts(minPct),
       fetchItadDeals(minPct),
-      fetchSteamFreeGames()
+      fetchSteamDeals(minPct),
+      fetchXboxDeals(),
+      fetchGamerPowerGiveaways()
     ])
 
   const allDeals = dedupeDeals([
@@ -321,7 +563,9 @@ async function refreshDeals() {
     ...(cheapsharkFree.status === 'fulfilled' ? cheapsharkFree.value : []),
     ...(cheapsharkDeals.status === 'fulfilled' ? cheapsharkDeals.value : []),
     ...(itadDeals.status === 'fulfilled' ? itadDeals.value : []),
-    ...(steamFree.status === 'fulfilled' ? steamFree.value : [])
+    ...(steamDeals.status === 'fulfilled' ? steamDeals.value : []),
+    ...(xboxDeals.status === 'fulfilled' ? xboxDeals.value : []),
+    ...(gamerPower.status === 'fulfilled' ? gamerPower.value : [])
   ])
 
   // Persist to DB or runtime store
@@ -464,5 +708,6 @@ module.exports = {
   getDeals,
   refreshDeals,
   startDealsRefreshLoop,
-  getDealsCache
+  getDealsCache,
+  fetchSteamNews
 }

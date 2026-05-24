@@ -1,6 +1,6 @@
 const { Router } = require('express')
 const { getPrisma, isDatabaseReady } = require('../lib/prisma')
-const { getDeals } = require('../utils/dealsAggregator')
+const { getDeals, fetchSteamNews } = require('../utils/dealsAggregator')
 const {
   getRuntimeDealSubscriptions,
   upsertRuntimeDealSubscription,
@@ -35,6 +35,19 @@ router.get('/free', async (_req, res, next) => {
   try {
     const deals = await getDeals({ freeOnly: true })
     res.json({ ok: true, count: deals.length, deals })
+  } catch (error) {
+    next(error)
+  }
+})
+
+// GET /api/deals/news — Steam news for specific games
+router.get('/news', async (req, res, next) => {
+  try {
+    const appIds = String(req.query.appIds || '').split(',').map((s) => s.trim()).filter(Boolean)
+    if (!appIds.length) return res.status(400).json({ ok: false, error: 'appIds query param required (comma-separated Steam app IDs)' })
+
+    const news = await fetchSteamNews(appIds.slice(0, 10))
+    res.json({ ok: true, count: news.length, news })
   } catch (error) {
     next(error)
   }

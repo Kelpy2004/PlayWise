@@ -520,6 +520,132 @@ async function fetchSteamNews(appIds) {
   return results
 }
 
+// ──────────────────────────── REDDIT DEALS ────────────────────────────
+const REDDIT_SOURCES = [
+  { sub: 'GameDeals', sort: 'hot', limit: 50 },
+  { sub: 'FreeGameFindings', sort: 'new', limit: 30 },
+  { sub: 'steamdeals', sort: 'hot', limit: 20 },
+]
+
+const REDDIT_STORE_ALIASES = {
+  'steam': 'Steam', 'valve': 'Steam',
+  'epic games': 'Epic Games Store', 'epic games store': 'Epic Games Store',
+  'epic': 'Epic Games Store', 'egs': 'Epic Games Store',
+  'ubisoft': 'Ubisoft Store', 'ubisoft store': 'Ubisoft Store', 'uplay': 'Ubisoft Store',
+  'xbox': 'Xbox', 'microsoft': 'Xbox', 'microsoft store': 'Xbox',
+  'ea': 'EA', 'origin': 'EA', 'ea app': 'EA',
+  'nvidia': 'NVIDIA', 'geforce now': 'NVIDIA',
+  'gog': 'GOG', 'gog.com': 'GOG',
+  'humble': 'Humble Bundle', 'humble bundle': 'Humble Bundle', 'humble store': 'Humble Bundle',
+  'green man gaming': 'Green Man Gaming', 'gmg': 'Green Man Gaming',
+  'fanatical': 'Fanatical', 'indiegala': 'IndieGala', 'itch.io': 'itch.io',
+}
+
+const REDDIT_WANTED_STORES = new Set([
+  'Steam', 'Epic Games Store', 'Ubisoft Store', 'Xbox', 'EA', 'NVIDIA'
+])
+
+function normalizeRedditStore(raw) {
+  if (!raw) return null
+  const lower = raw.toLowerCase().trim()
+  return REDDIT_STORE_ALIASES[lower] || raw.trim()
+}
+
+function parseRedditTitle(title) {
+  const match = title.match(/^\[([^\]]+)\]\s*(.+?)(?:\s*\(([^)]+)\)\s*)?$/)
+  if (!match) return null
+
+  const store = normalizeRedditStore(match[1])
+  const gameTitle = (match[2] || '').trim()
+  const priceInfo = (match[3] || '').trim()
+  if (!gameTitle) return null
+
+  let dealPrice = null
+  let originalPrice = null
+  let discountPct = 0
+  let isFree = false
+
+  const lower = priceInfo.toLowerCase()
+  if (lower.includes('free') || lower === '$0' || lower === '$0.00' || lower === '100%') {
+    isFree = true
+    dealPrice = 0
+    discountPct = 100
+  } else {
+    const pm = priceInfo.match(/\$(\d+(?:\.\d{2})?)/)
+    if (pm) dealPrice = parseFloat(pm[1])
+    const dm = priceInfo.match(/(\d+)%\s*off/i) || priceInfo.match(/-(\d+)%/)
+    if (dm) {
+      discountPct = parseInt(dm[1], 10)
+      if (dealPrice != null && discountPct > 0 && discountPct < 100) {
+        originalPrice = Math.round((dealPrice / (1 - discountPct / 100)) * 100) / 100
+      }
+    }
+  }
+
+  return { store, gameTitle, dealPrice, originalPrice, discountPct, isFree }
+}
+
+async function fetchRedditDeals() {
+  const deals = []
+
+  for (const { sub, sort, limit } of REDDIT_SOURCES) {
+    try {
+      const res = await fetch(
+        `https://www.reddit.com/r/${sub}/${sort}.json?limit=${limit}&raw_json=1`,
+        {
+          headers: { 'User-Agent': 'PlayWise/1.0 (game deals aggregator)', Accept: 'application/json' },
+          signal: AbortSignal.timeout(8000)
+        }
+      )
+      if (!res.ok) continue
+
+      const json = await res.json()
+      const posts = json?.data?.children || []
+
+      for (const post of posts) {
+        const d = post?.data
+        if (!d || d.over_18 || d.removed_by_category) continue
+
+        const parsed = parseRedditTitle(d.title || '')
+        if (!parsed || !parsed.store) continue
+        if (!REDDIT_WANTED_STORES.has(parsed.store)) continue
+        if ((d.score || 0) < 5) continue
+
+        const url = d.url || d.url_overridden_by_dest || `https://reddit.com${d.permalink}`
+
+        deals.push({
+          externalId: `reddit-${d.id || ''}`,
+          type: parsed.isFree ? 'FREE_GAME' : 'DISCOUNT',
+          title: parsed.gameTitle,
+          gameSlug: parsed.gameTitle.toLowerCase().replace(/[^a-z0-9]+/g, '-') || null,
+          store: parsed.store,
+          originalPrice: parsed.originalPrice,
+          dealPrice: parsed.isFree ? 0 : parsed.dealPrice,
+          discountPct: parsed.discountPct,
+          currency: 'USD',
+          url,
+          imageUrl: d.thumbnail && d.thumbnail.startsWith('http') ? d.thumbnail : null,
+          startsAt: d.created_utc ? new Date(d.created_utc * 1000).toISOString() : null,
+          endsAt: null,
+          source: 'reddit',
+          metadata: {
+            subreddit: sub,
+            redditScore: d.score || 0,
+            numComments: d.num_comments || 0,
+            flair: d.link_flair_text || null,
+            permalink: `https://reddit.com${d.permalink}`
+          },
+          isActive: true
+        })
+      }
+    } catch (error) {
+      logger.debug({ error, sub }, 'Reddit deals fetch failed (non-critical)')
+    }
+  }
+
+  return deals
+}
+
 // ──────────────────────────── AGGREGATE ────────────────────────────
 function dealQualityScore(deal) {
   let score = 0
@@ -528,17 +654,32 @@ function dealQualityScore(deal) {
   const metacritic = parseInt(deal.metadata?.metacritic || '0', 10)
   score += Math.max(rating, metacritic)
   if (deal.discountPct) score += deal.discountPct / 2
-  const majorStores = ['Steam', 'Epic Games Store', 'Ubisoft Store', 'Xbox', 'NVIDIA']
+  const majorStores = ['Steam', 'Epic Games Store', 'Ubisoft Store', 'Xbox', 'NVIDIA', 'EA']
   if (majorStores.some((s) => deal.store?.includes(s))) score += 20
+  if (deal.source === 'reddit' && deal.metadata?.redditScore) {
+    score += Math.min(deal.metadata.redditScore / 10, 30)
+  }
   return score
 }
 
+function normTitle(t) {
+  return (t || '').toLowerCase().replace(/[^a-z0-9]/g, '')
+}
+
 function dedupeDeals(deals) {
-  const seen = new Set()
+  const seenIds = new Set()
+  const seenTitleStore = new Set()
+
   return deals
     .filter((d) => {
-      if (!d.externalId || seen.has(d.externalId)) return false
-      seen.add(d.externalId)
+      if (!d.externalId || seenIds.has(d.externalId)) return false
+      seenIds.add(d.externalId)
+
+      // Cross-source dedup: same game + same store from different providers
+      const key = `${normTitle(d.title)}::${(d.store || '').toLowerCase()}`
+      if (seenTitleStore.has(key)) return false
+      seenTitleStore.add(key)
+
       return true
     })
     .sort((a, b) => dealQualityScore(b) - dealQualityScore(a))
@@ -547,7 +688,7 @@ function dedupeDeals(deals) {
 async function refreshDeals() {
   const minPct = env.DEALS_MIN_DISCOUNT_PCT || 75
 
-  const [epicFree, cheapsharkFree, cheapsharkDeals, itadDeals, steamDeals, xboxDeals, gamerPower] =
+  const [epicFree, cheapsharkFree, cheapsharkDeals, itadDeals, steamDeals, xboxDeals, gamerPower, redditDeals] =
     await Promise.allSettled([
       fetchEpicFreeGames(),
       fetchCheapSharkFreeGames(),
@@ -555,9 +696,11 @@ async function refreshDeals() {
       fetchItadDeals(minPct),
       fetchSteamDeals(minPct),
       fetchXboxDeals(),
-      fetchGamerPowerGiveaways()
+      fetchGamerPowerGiveaways(),
+      fetchRedditDeals()
     ])
 
+  // API sources come first (structured data, better images) — Reddit fills gaps
   const allDeals = dedupeDeals([
     ...(epicFree.status === 'fulfilled' ? epicFree.value : []),
     ...(cheapsharkFree.status === 'fulfilled' ? cheapsharkFree.value : []),
@@ -565,7 +708,8 @@ async function refreshDeals() {
     ...(itadDeals.status === 'fulfilled' ? itadDeals.value : []),
     ...(steamDeals.status === 'fulfilled' ? steamDeals.value : []),
     ...(xboxDeals.status === 'fulfilled' ? xboxDeals.value : []),
-    ...(gamerPower.status === 'fulfilled' ? gamerPower.value : [])
+    ...(gamerPower.status === 'fulfilled' ? gamerPower.value : []),
+    ...(redditDeals.status === 'fulfilled' ? redditDeals.value : [])
   ])
 
   // Persist to DB or runtime store

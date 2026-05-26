@@ -1162,6 +1162,18 @@ router.post(
       throw new ApiError(403, message)
     }
 
+    // Auto-promote to admin if email is in ADMIN_EMAILS but role is still USER
+    if (user.role !== 'ADMIN' && authUsesDatabase()) {
+      const configuredAdmins = String(env.ADMIN_EMAILS || '')
+        .split(',')
+        .map((entry) => entry.trim().toLowerCase())
+        .filter(Boolean)
+      if (configuredAdmins.includes(normalizeEmail(user.email))) {
+        await query(`UPDATE "User" SET role = 'ADMIN' WHERE id = $1`, [user.id])
+        user.role = 'ADMIN'
+      }
+    }
+
     const token = signToken(user)
     res.json({ token, user: serializeUser(user) })
   })

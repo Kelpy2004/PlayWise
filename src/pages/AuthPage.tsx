@@ -375,42 +375,20 @@ export default function AuthPage({ mode }: { mode: 'login' | 'register' }) {
     }
 
     try {
+      let user
       if (isRegister) {
-        const response = await register({
+        user = await register({
           username,
           email,
           password,
           adminSetupCode
         })
-
-        setFieldErrors({})
-        setForm((current) => ({
-          ...current,
-          password: '',
-          confirmPassword: '',
-          usernameOrEmail: current.email
-        }))
-        navigate(
-          {
-            pathname: '/login',
-            hash: `#message=${encodeURIComponent(
-              response.message || 'Account created. Check your email to verify your account before logging in.'
-            )}&tone=success`
-          },
-          {
-            replace: true,
-            state: {
-              from: returnTo
-            }
-          }
-        )
-        return
+      } else {
+        user = await login({
+          usernameOrEmail,
+          password
+        })
       }
-
-      const user = await login({
-        usernameOrEmail,
-        password
-      })
 
       await trackEvent(
         {

@@ -9,7 +9,7 @@ import Seo from '../components/Seo'
 import Logo from '../components/Logo'
 
 const PASSWORD_HELP_TEXT =
-  'Use at least 6 characters with 1 uppercase letter, 1 lowercase letter, and 1 special character like ! @ # $ % ^ & * ( ) - _ + = ? / \\ . ,'
+  'Use at least 8 characters with 1 uppercase letter, 1 lowercase letter, 1 number, and 1 special character.'
 const USERNAME_HELP_TEXT = 'Use 3 to 24 characters with only letters, numbers, underscores, or periods.'
 const USERNAME_PATTERN = /^[A-Za-z0-9._]+$/
 
@@ -19,11 +19,23 @@ const DEFAULT_OAUTH_PROVIDERS: AuthProviderOption[] = [
 
 function passwordChecks(password: string) {
   return {
-    minLength: password.length >= 6,
+    minLength: password.length >= 8,
     uppercase: /[A-Z]/.test(password),
     lowercase: /[a-z]/.test(password),
+    digit: /[0-9]/.test(password),
     special: /[^A-Za-z0-9]/.test(password)
   }
+}
+
+function passwordStrength(password: string): { score: number; label: string; color: string } {
+  if (!password) return { score: 0, label: '', color: '' }
+  const checks = passwordChecks(password)
+  const passed = Object.values(checks).filter(Boolean).length
+  if (passed <= 1) return { score: 1, label: 'Very weak', color: '#ef4444' }
+  if (passed === 2) return { score: 2, label: 'Weak', color: '#f97316' }
+  if (passed === 3) return { score: 3, label: 'Fair', color: '#eab308' }
+  if (passed === 4) return { score: 4, label: 'Good', color: '#22c55e' }
+  return { score: 5, label: 'Strong', color: '#00d4ff' }
 }
 
 function GoogleMark() {
@@ -57,6 +69,50 @@ function AvailabilityText({ entry }: { entry?: AuthAvailabilityEntry | null }) {
   return <div className="auth-field-note auth-field-note-danger">{entry.message}</div>
 }
 
+function PasswordStrengthBar({ password }: { password: string }) {
+  const checks = passwordChecks(password)
+  const strength = passwordStrength(password)
+
+  if (!password) return null
+
+  const rules = [
+    { key: 'minLength', label: 'At least 8 characters', met: checks.minLength },
+    { key: 'uppercase', label: 'One uppercase letter', met: checks.uppercase },
+    { key: 'lowercase', label: 'One lowercase letter', met: checks.lowercase },
+    { key: 'digit', label: 'One number', met: checks.digit },
+    { key: 'special', label: 'One special character', met: checks.special }
+  ]
+
+  return (
+    <div className="auth-pw-strength">
+      <div className="auth-pw-strength-bar-track">
+        {[1, 2, 3, 4, 5].map((segment) => (
+          <div
+            key={segment}
+            className="auth-pw-strength-bar-segment"
+            style={{
+              background: segment <= strength.score ? strength.color : 'rgba(255,255,255,0.08)'
+            }}
+          />
+        ))}
+      </div>
+      <span className="auth-pw-strength-label" style={{ color: strength.color }}>
+        {strength.label}
+      </span>
+      <ul className="auth-pw-rules">
+        {rules.map((rule) => (
+          <li key={rule.key} className={rule.met ? 'auth-pw-rule-met' : 'auth-pw-rule-unmet'}>
+            <span className="material-symbols-outlined" style={{ fontSize: '0.85rem' }}>
+              {rule.met ? 'check_circle' : 'radio_button_unchecked'}
+            </span>
+            {rule.label}
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
 export default function AuthPage({ mode }: { mode: 'login' | 'register' }) {
   const isRegister = mode === 'register'
   const navigate = useNavigate()
@@ -66,11 +122,13 @@ export default function AuthPage({ mode }: { mode: 'login' | 'register' }) {
     username: '',
     email: '',
     password: '',
+    confirmPassword: '',
     usernameOrEmail: '',
     adminSetupCode: ''
   })
   const [providers, setProviders] = useState<AuthProviderOption[]>(DEFAULT_OAUTH_PROVIDERS)
   const [showPassword, setShowPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isProcessingRedirect, setIsProcessingRedirect] = useState(false)
   const [feedback, setFeedback] = useState({ tone: 'danger', message: '' })
@@ -78,6 +136,7 @@ export default function AuthPage({ mode }: { mode: 'login' | 'register' }) {
     username?: boolean
     email?: boolean
     password?: boolean
+    confirmPassword?: boolean
     usernameOrEmail?: boolean
   }>({})
   const [availability, setAvailability] = useState<{
@@ -85,9 +144,19 @@ export default function AuthPage({ mode }: { mode: 'login' | 'register' }) {
     email?: AuthAvailabilityEntry | null
   }>({})
 
+  const [slowConnection, setSlowConnection] = useState(false)
+
+  // Forgot password state
+  const [showForgotPassword, setShowForgotPassword] = useState(false)
+  const [forgotEmail, setForgotEmail] = useState('')
+  const [forgotSubmitting, setForgotSubmitting] = useState(false)
+  const [forgotFeedback, setForgotFeedback] = useState({ tone: '', message: '' })
+
   const locationState = location.state as { from?: string; backgroundLocation?: Location } | null
   const returnTo = locationState?.from || '/'
   const passwordState = passwordChecks(form.password)
+  const allPasswordRulesMet =
+    passwordState.minLength && passwordState.uppercase && passwordState.lowercase && passwordState.digit && passwordState.special
   const oauthProviders = useMemo(
     () =>
       providers.filter(
@@ -179,7 +248,7 @@ export default function AuthPage({ mode }: { mode: 'login' | 'register' }) {
           oauthToken
         )
 
-        navigate(user.role === 'admin' ? '/admin/hardware' : oauthReturnTo, { replace: true })
+        navigate(user.role === 'admin' ? '/admin/deals' : oauthReturnTo, { replace: true })
       })
       .catch((error) => {
         if (!ignore) {
@@ -245,15 +314,26 @@ export default function AuthPage({ mode }: { mode: 'login' | 'register' }) {
     }
   }, [form.email, form.username, isRegister])
 
+  useEffect(() => {
+    if (!isSubmitting) {
+      setSlowConnection(false)
+      return
+    }
+    const timer = window.setTimeout(() => setSlowConnection(true), 5000)
+    return () => window.clearTimeout(timer)
+  }, [isSubmitting])
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setIsSubmitting(true)
+    setSlowConnection(false)
     setFeedback({ tone: 'danger', message: '' })
     setFieldErrors({})
 
     const username = form.username.trim()
     const email = form.email.trim()
     const password = form.password
+    const confirmPassword = form.confirmPassword
     const usernameOrEmail = form.usernameOrEmail.trim()
     const adminSetupCode = form.adminSetupCode.trim()
 
@@ -264,9 +344,16 @@ export default function AuthPage({ mode }: { mode: 'login' | 'register' }) {
       return
     }
 
-    if (isRegister && (!passwordState.minLength || !passwordState.uppercase || !passwordState.lowercase || !passwordState.special)) {
+    if (isRegister && !allPasswordRulesMet) {
       setFieldErrors({ password: true })
       setFeedback({ tone: 'danger', message: PASSWORD_HELP_TEXT })
+      setIsSubmitting(false)
+      return
+    }
+
+    if (isRegister && password !== confirmPassword) {
+      setFieldErrors({ confirmPassword: true })
+      setFeedback({ tone: 'danger', message: 'Passwords do not match.' })
       setIsSubmitting(false)
       return
     }
@@ -300,6 +387,7 @@ export default function AuthPage({ mode }: { mode: 'login' | 'register' }) {
         setForm((current) => ({
           ...current,
           password: '',
+          confirmPassword: '',
           usernameOrEmail: current.email
         }))
         navigate(
@@ -333,7 +421,7 @@ export default function AuthPage({ mode }: { mode: 'login' | 'register' }) {
         token
       )
 
-      navigate(user.role === 'admin' ? '/admin/hardware' : returnTo, { replace: true })
+      navigate(user.role === 'admin' ? '/admin/deals' : returnTo, { replace: true })
     } catch (error) {
       setFieldErrors(
         isRegister
@@ -350,6 +438,31 @@ export default function AuthPage({ mode }: { mode: 'login' | 'register' }) {
       setFeedback({ tone: 'danger', message: error instanceof Error ? error.message : 'Could not continue.' })
     } finally {
       setIsSubmitting(false)
+    }
+  }
+
+  async function handleForgotPassword(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setForgotSubmitting(true)
+    setForgotFeedback({ tone: '', message: '' })
+
+    const email = forgotEmail.trim()
+    if (!email || !email.includes('@')) {
+      setForgotFeedback({ tone: 'danger', message: 'Please enter a valid email address.' })
+      setForgotSubmitting(false)
+      return
+    }
+
+    try {
+      const result = await api.forgotPassword({ email })
+      setForgotFeedback({ tone: 'success', message: result.message })
+    } catch (error) {
+      setForgotFeedback({
+        tone: 'danger',
+        message: error instanceof Error ? error.message : 'Could not send reset email. Please try again.'
+      })
+    } finally {
+      setForgotSubmitting(false)
     }
   }
 
@@ -376,11 +489,13 @@ export default function AuthPage({ mode }: { mode: 'login' | 'register' }) {
 
   const submitLabel = isProcessingRedirect
     ? 'Finishing sign in...'
-    : isSubmitting
-      ? 'Working...'
-      : isRegister
-        ? 'Continue'
-        : 'Log in'
+    : isSubmitting && slowConnection
+      ? 'Server is waking up, hang tight...'
+      : isSubmitting
+        ? 'Working...'
+        : isRegister
+          ? 'Create account'
+          : 'Log in'
   const origin = typeof window !== 'undefined' ? window.location.origin : ''
   const seoTitle = isRegister ? 'Create account | PlayWise' : 'Login | PlayWise'
   const seoDescription = isRegister
@@ -410,154 +525,261 @@ export default function AuthPage({ mode }: { mode: 'login' | 'register' }) {
               </span>
               <div>
                 <p className="auth-modal-kicker">PlayWise</p>
-                <h1>{isRegister ? 'Join PlayWise today' : 'Welcome back to PlayWise'}</h1>
+                <h1>
+                  {showForgotPassword
+                    ? 'Reset your password'
+                    : isRegister
+                      ? 'Join PlayWise today'
+                      : 'Welcome back to PlayWise'}
+                </h1>
               </div>
             </div>
-            <div className="auth-mode-switch">
-              <Link to="/login" state={locationState || undefined} className={`auth-mode-pill ${!isRegister ? 'is-active' : ''}`}>
-                Log in
-              </Link>
-              <Link to="/register" state={locationState || undefined} className={`auth-mode-pill ${isRegister ? 'is-active' : ''}`}>
-                Sign up
-              </Link>
-            </div>
+            {!showForgotPassword && (
+              <div className="auth-mode-switch">
+                <Link to="/login" state={locationState || undefined} className={`auth-mode-pill ${!isRegister ? 'is-active' : ''}`}>
+                  Log in
+                </Link>
+                <Link to="/register" state={locationState || undefined} className={`auth-mode-pill ${isRegister ? 'is-active' : ''}`}>
+                  Sign up
+                </Link>
+              </div>
+            )}
           </div>
 
-          {feedback.message ? (
-            <div className={`auth-inline-alert auth-inline-alert-${feedback.tone}`}>{feedback.message}</div>
-          ) : null}
+          {/* ─── Forgot Password inline form ─── */}
+          {showForgotPassword ? (
+            <div className="auth-forgot-section">
+              <p className="auth-forgot-desc">
+                Enter the email address linked to your account and we'll send you a link to reset your password.
+              </p>
 
-          <form onSubmit={handleSubmit} className="auth-modal-form">
-            {isRegister ? (
-              <>
+              {forgotFeedback.message ? (
+                <div className={`auth-inline-alert auth-inline-alert-${forgotFeedback.tone}`}>
+                  {forgotFeedback.message}
+                </div>
+              ) : null}
+
+              <form onSubmit={handleForgotPassword} className="auth-modal-form">
                 <div className="auth-form-group">
-                  <label>Email</label>
+                  <label>Email address</label>
                   <input
-                    name="email"
-                    autoComplete="email"
+                    name="forgotEmail"
                     type="email"
-                    className={`form-control auth-modal-input ${fieldErrors.email ? 'is-invalid' : ''}`}
+                    autoComplete="email"
+                    className="form-control auth-modal-input"
                     placeholder="you@example.com"
-                    value={form.email}
-                    onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))}
+                    value={forgotEmail}
+                    onChange={(event) => setForgotEmail(event.target.value)}
                     required
                   />
-                  <AvailabilityText entry={availability.email} />
                 </div>
+                <button
+                  type="submit"
+                  className="auth-submit-button"
+                  disabled={forgotSubmitting}
+                >
+                  {forgotSubmitting ? 'Sending...' : 'Send reset link'}
+                </button>
+              </form>
+
+              <button
+                type="button"
+                className="auth-forgot-back"
+                onClick={() => {
+                  setShowForgotPassword(false)
+                  setForgotFeedback({ tone: '', message: '' })
+                }}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: '1rem' }}>arrow_back</span>
+                Back to login
+              </button>
+            </div>
+          ) : (
+            <>
+              {feedback.message ? (
+                <div className={`auth-inline-alert auth-inline-alert-${feedback.tone}`}>{feedback.message}</div>
+              ) : null}
+
+              <form onSubmit={handleSubmit} className="auth-modal-form">
+                {isRegister ? (
+                  <>
+                    <div className="auth-form-group">
+                      <label>Email</label>
+                      <input
+                        name="email"
+                        autoComplete="email"
+                        type="email"
+                        className={`form-control auth-modal-input ${fieldErrors.email ? 'is-invalid' : ''}`}
+                        placeholder="you@example.com"
+                        value={form.email}
+                        onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))}
+                        required
+                      />
+                      <AvailabilityText entry={availability.email} />
+                    </div>
+
+                    <div className="auth-form-group">
+                      <label>Username</label>
+                      <input
+                        name="username"
+                        autoComplete="username"
+                        className={`form-control auth-modal-input ${fieldErrors.username ? 'is-invalid' : ''}`}
+                        placeholder="Choose a unique username"
+                        value={form.username}
+                        onChange={(event) => setForm((current) => ({ ...current, username: event.target.value }))}
+                        required
+                      />
+                      <AvailabilityText entry={availability.username} />
+                    </div>
+                  </>
+                ) : (
+                  <div className="auth-form-group">
+                    <label>Username or email</label>
+                    <input
+                      name="usernameOrEmail"
+                      autoComplete="username"
+                      className={`form-control auth-modal-input ${fieldErrors.usernameOrEmail ? 'is-invalid' : ''}`}
+                      placeholder="Enter your username or email"
+                      value={form.usernameOrEmail}
+                      onChange={(event) => setForm((current) => ({ ...current, usernameOrEmail: event.target.value }))}
+                      required
+                    />
+                  </div>
+                )}
 
                 <div className="auth-form-group">
-                  <label>Username</label>
-                  <input
-                    name="username"
-                    autoComplete="username"
-                    className={`form-control auth-modal-input ${fieldErrors.username ? 'is-invalid' : ''}`}
-                    placeholder="Choose a unique username"
-                    value={form.username}
-                    onChange={(event) => setForm((current) => ({ ...current, username: event.target.value }))}
-                    required
-                  />
-                  <AvailabilityText entry={availability.username} />
+                  <label>Password</label>
+                  <div className="auth-password-wrap">
+                    <input
+                      name="password"
+                      autoComplete={isRegister ? 'new-password' : 'current-password'}
+                      type={showPassword ? 'text' : 'password'}
+                      className={`form-control auth-modal-input ${fieldErrors.password ? 'is-invalid' : ''}`}
+                      placeholder={isRegister ? 'Create a password' : 'Enter your password'}
+                      value={form.password}
+                      onChange={(event) => setForm((current) => ({ ...current, password: event.target.value }))}
+                      required
+                    />
+                    <button
+                      type="button"
+                      className="auth-password-toggle"
+                      onClick={() => setShowPassword((current) => !current)}
+                      aria-label={showPassword ? 'Hide password' : 'Show password'}
+                    >
+                      {showPassword ? 'Hide' : 'Show'}
+                    </button>
+                  </div>
+                  {isRegister && <PasswordStrengthBar password={form.password} />}
                 </div>
-              </>
-            ) : (
-              <div className="auth-form-group">
-                <label>Username or email</label>
-                <input
-                  name="usernameOrEmail"
-                  autoComplete="username"
-                  className={`form-control auth-modal-input ${fieldErrors.usernameOrEmail ? 'is-invalid' : ''}`}
-                  placeholder="Enter your username or email"
-                  value={form.usernameOrEmail}
-                  onChange={(event) => setForm((current) => ({ ...current, usernameOrEmail: event.target.value }))}
-                  required
-                />
-              </div>
-            )
-}
 
-            <div className="auth-form-group">
-              <label>Password</label>
-              <div className="auth-password-wrap">
-                <input
-                  name="password"
-                  autoComplete={isRegister ? 'new-password' : 'current-password'}
-                  type={showPassword ? 'text' : 'password'}
-                  className={`form-control auth-modal-input ${fieldErrors.password ? 'is-invalid' : ''}`}
-                  placeholder={isRegister ? 'Create a password' : 'Enter your password'}
-                  value={form.password}
-                  onChange={(event) => setForm((current) => ({ ...current, password: event.target.value }))}
-                  required
-                />
+                {isRegister && (
+                  <div className="auth-form-group">
+                    <label>Confirm password</label>
+                    <div className="auth-password-wrap">
+                      <input
+                        name="confirmPassword"
+                        autoComplete="new-password"
+                        type={showConfirmPassword ? 'text' : 'password'}
+                        className={`form-control auth-modal-input ${fieldErrors.confirmPassword ? 'is-invalid' : ''}`}
+                        placeholder="Re-enter your password"
+                        value={form.confirmPassword}
+                        onChange={(event) => setForm((current) => ({ ...current, confirmPassword: event.target.value }))}
+                        required
+                      />
+                      <button
+                        type="button"
+                        className="auth-password-toggle"
+                        onClick={() => setShowConfirmPassword((current) => !current)}
+                        aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
+                      >
+                        {showConfirmPassword ? 'Hide' : 'Show'}
+                      </button>
+                    </div>
+                    {form.confirmPassword && form.password !== form.confirmPassword && (
+                      <div className="auth-field-note auth-field-note-danger">Passwords do not match.</div>
+                    )}
+                    {form.confirmPassword && form.password === form.confirmPassword && form.confirmPassword.length > 0 && (
+                      <div className="auth-field-note auth-field-note-success">Passwords match.</div>
+                    )}
+                  </div>
+                )}
+
+                {!isRegister && (
+                  <div className="auth-forgot-link-wrap">
+                    <button
+                      type="button"
+                      className="auth-forgot-link"
+                      onClick={() => {
+                        setShowForgotPassword(true)
+                        setFeedback({ tone: 'danger', message: '' })
+                      }}
+                    >
+                      Forgot password?
+                    </button>
+                  </div>
+                )}
+
+                {isRegister ? (
+                  <details className="auth-admin-details">
+                    <summary>I have an admin setup code</summary>
+                    <div className="auth-form-group auth-admin-group">
+                      <label>Admin setup code</label>
+                      <input
+                        name="adminSetupCode"
+                        autoComplete="off"
+                        className="form-control auth-modal-input"
+                        placeholder="Only if someone shared one with you"
+                        value={form.adminSetupCode}
+                        onChange={(event) => setForm((current) => ({ ...current, adminSetupCode: event.target.value }))}
+                      />
+                    </div>
+                  </details>
+                ) : null}
+
                 <button
-                  type="button"
-                  className="auth-password-toggle"
-                  onClick={() => setShowPassword((current) => !current)}
-                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  type="submit"
+                  className="auth-submit-button"
+                  disabled={isSubmitting || isProcessingRedirect || (isRegister && !allPasswordRulesMet)}
                 >
-                  {showPassword ? 'Hide' : 'Show'}
+                  {submitLabel}
                 </button>
+              </form>
+
+              <div className="auth-divider">
+                <span>or</span>
               </div>
-            </div>
 
-            {isRegister ? (
-              <details className="auth-admin-details">
-                <summary>I have an admin setup code</summary>
-                <div className="auth-form-group auth-admin-group">
-                  <label>Admin setup code</label>
-                  <input
-                    name="adminSetupCode"
-                    autoComplete="off"
-                    className="form-control auth-modal-input"
-                    placeholder="Only if someone shared one with you"
-                    value={form.adminSetupCode}
-                    onChange={(event) => setForm((current) => ({ ...current, adminSetupCode: event.target.value }))}
-                  />
-                </div>
-              </details>
-            ) : null}
+              <div className="auth-social-grid">
+                {oauthProviders.map((provider) => {
+                  return (
+                    <button
+                      key={provider.key}
+                      type="button"
+                      className="auth-social-button google"
+                      onClick={() => handleSocialStart(provider)}
+                      disabled={!provider.available || isSubmitting || isProcessingRedirect}
+                    >
+                      <span className="auth-social-mark google-icon" aria-hidden="true">
+                        <GoogleMark />
+                      </span>
+                      <span className="auth-social-copy">
+                        <strong>{isRegister ? 'Sign up with Google' : 'Sign in with Google'}</strong>
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
 
-            <button
-              type="submit"
-              className="auth-submit-button"
-              disabled={isSubmitting || isProcessingRedirect}
-            >
-              {submitLabel}
-            </button>
-          </form>
-
-          <div className="auth-divider">
-            <span>or</span>
-          </div>
-
-          <div className="auth-social-grid">
-            {oauthProviders.map((provider) => {
-              return (
-                <button
-                  key={provider.key}
-                  type="button"
-                  className="auth-social-button google"
-                  onClick={() => handleSocialStart(provider)}
-                  disabled={!provider.available || isSubmitting || isProcessingRedirect}
-                >
-                  <span className="auth-social-mark google-icon" aria-hidden="true">
-                    <GoogleMark />
-                  </span>
-                  <span className="auth-social-copy">
-                    <strong>{isRegister ? 'Sign up with Google' : 'Sign in with Google'}</strong>
-                  </span>
-                </button>
-              )
-            })}
-          </div>
-
-          <div className="auth-modal-footer">
-            <p>
-              {isRegister ? 'Have an account already?' : 'Need an account?'}{' '}
-              <Link to={isRegister ? '/login' : '/register'} state={locationState || undefined} className="auth-footer-link">
-                {isRegister ? 'Log in' : 'Sign up'}
-              </Link>
-            </p>
-          </div>
+              <div className="auth-modal-footer">
+                <p>
+                  {isRegister ? 'Have an account already?' : 'Need an account?'}{' '}
+                  <Link to={isRegister ? '/login' : '/register'} state={locationState || undefined} className="auth-footer-link">
+                    {isRegister ? 'Log in' : 'Sign up'}
+                  </Link>
+                </p>
+              </div>
+            </>
+          )}
         </div>
         </div>
       </section>

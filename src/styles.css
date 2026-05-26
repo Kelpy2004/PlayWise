@@ -2223,6 +2223,125 @@ a {
   font-size: 0.92rem;
 }
 
+/* ─── Password strength bar & rules ─── */
+
+.auth-pw-strength {
+  margin-top: 0.55rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.auth-pw-strength-bar-track {
+  display: flex;
+  gap: 4px;
+  height: 5px;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.auth-pw-strength-bar-segment {
+  flex: 1;
+  border-radius: 999px;
+  transition: background 220ms ease;
+}
+
+.auth-pw-strength-label {
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.auth-pw-rules {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.18rem;
+}
+
+.auth-pw-rules li {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
+.auth-pw-rule-met {
+  color: #22c55e;
+}
+
+.auth-pw-rule-unmet {
+  color: rgba(255, 255, 255, 0.38);
+}
+
+/* ─── Confirm password match note ─── */
+
+.auth-field-note-success {
+  color: #22c55e;
+}
+
+/* ─── Forgot password ─── */
+
+.auth-forgot-link-wrap {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: -0.35rem;
+}
+
+.auth-forgot-link {
+  background: none;
+  border: none;
+  color: rgba(0, 212, 255, 0.82);
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0;
+  transition: color 150ms ease;
+}
+
+.auth-forgot-link:hover,
+.auth-forgot-link:focus-visible {
+  color: #00d4ff;
+  text-decoration: underline;
+}
+
+.auth-forgot-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.95rem;
+}
+
+.auth-forgot-desc {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.55;
+  color: rgba(255, 255, 255, 0.58);
+}
+
+.auth-forgot-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: none;
+  border: none;
+  color: rgba(0, 212, 255, 0.82);
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0;
+  margin-top: 0.3rem;
+  transition: color 150ms ease;
+}
+
+.auth-forgot-back:hover,
+.auth-forgot-back:focus-visible {
+  color: #00d4ff;
+}
+
 .auth-modal-footer a,
 .auth-footer-link {
   color: #00d4ff;

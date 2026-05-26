@@ -1109,7 +1109,7 @@ router.post(
         email: normalizedEmail,
         passwordHash,
         role,
-        verified: false
+        verified: true
       })
     } else {
       try {
@@ -1118,7 +1118,7 @@ router.post(
           email: normalizedEmail,
           passwordHash,
           role,
-          verified: false
+          verified: true
         })
       } catch (error) {
         if (isDatabaseConflictError(error)) {
@@ -1129,15 +1129,17 @@ router.post(
       }
     }
 
-    const emailResult = await sendVerificationForUser(req, user)
-    const message = emailResult.ok
-      ? 'Account created. Check your email to verify your account before logging in.'
-      : 'Account created, but the verification email could not be sent right now. Try logging in again later to resend it.'
+    // Send welcome email in the background (non-blocking)
+    if (hasDeliverableEmail(user)) {
+      sendWelcomeEmail({ req, email: user.email, username: user.username }).catch(() => {})
+    }
 
+    // Auto-login: return token immediately after registration
+    const token = signToken(user)
     res.status(201).json({
-      message,
-      requiresVerification: true,
-      email: user.email
+      token,
+      user: serializeUser(user),
+      message: 'Account created successfully.'
     })
   })
 )
@@ -1156,14 +1158,6 @@ router.post(
     const isMatch = await bcrypt.compare(password, user.passwordHash)
     if (!isMatch) {
       throw new ApiError(401, 'Invalid credentials.')
-    }
-
-    if (!user.verified) {
-      const emailResult = await sendVerificationForUser(req, user)
-      const message = emailResult.ok
-        ? 'Please verify your email before logging in. A fresh verification link has been sent.'
-        : 'Please verify your email before logging in. The verification email could not be sent right now.'
-      throw new ApiError(403, message)
     }
 
     // Auto-promote to admin if email is in ADMIN_EMAILS but role is still USER

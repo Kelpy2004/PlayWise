@@ -152,6 +152,22 @@ function dealAlertEmail({ freeGames = [], discounts = [], totalFree = 0, totalDi
   })
 }
 
+function passwordResetEmail({ username, resetUrl, expiresInMinutes }) {
+  return renderLayout({
+    title: 'Reset your PlayWise password',
+    heading: 'Password reset request',
+    intro: `Hi ${username}, we received a request to reset your password.`,
+    bodyLines: [
+      'Use the button below to set a new password for your account.',
+      `This link will expire in ${expiresInMinutes} minute${expiresInMinutes === 1 ? '' : 's'}.`,
+      'If you did not request this reset, you can safely ignore this email.'
+    ],
+    ctaLabel: 'Reset password',
+    ctaUrl: resetUrl,
+    footerNote: 'This security email was sent because a password reset was requested for your PlayWise account.'
+  })
+}
+
 function signInNoticeEmail({ username, providerLabel, siteUrl }) {
   return renderLayout({
     title: `PlayWise sign-in via ${providerLabel}`,
@@ -170,6 +186,7 @@ function signInNoticeEmail({ username, providerLabel, siteUrl }) {
 module.exports = {
   dealAlertEmail,
   newsletterCampaignEmail,
+  passwordResetEmail,
   priceAlertEmail,
   signInNoticeEmail,
   tournamentLiveEmail,

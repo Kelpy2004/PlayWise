@@ -1,6 +1,6 @@
 const { env } = require('../lib/env')
 const { sendEmail } = require('./emailService')
-const { signInNoticeEmail, verificationEmail, welcomeEmail } = require('./emailTemplates')
+const { passwordResetEmail, signInNoticeEmail, verificationEmail, welcomeEmail } = require('./emailTemplates')
 
 function buildSiteUrl(req, path = '/') {
   const origin = env.APP_ORIGIN || `${req.protocol}://${req.get('host')}`
@@ -49,7 +49,22 @@ async function sendSignInNoticeEmail({ req, email, username, providerLabel }) {
   })
 }
 
+async function sendPasswordResetEmail({ req, email, username, token }) {
+  const template = passwordResetEmail({
+    username,
+    resetUrl: buildSiteUrl(req, `/reset-password?token=${encodeURIComponent(token)}`),
+    expiresInMinutes: 60
+  })
+
+  return sendEmail({
+    to: email,
+    subject: template.subject,
+    html: template.html
+  })
+}
+
 module.exports = {
+  sendPasswordResetEmail,
   sendSignInNoticeEmail,
   sendVerificationEmail,
   sendWelcomeEmail

@@ -18,7 +18,7 @@ export default function Footer() {
             PlayWise
           </div>
           <p className="text-muted text-[0.9rem] max-w-[300px] leading-relaxed">
-            The gaming decision engine. Every price, every tournament, every detail &mdash; unified.
+            Game deals, free games, tournaments, and PC compatibility &mdash; aggregated from Steam, Epic, Xbox, Ubisoft, and more.
           </p>
         </div>
 

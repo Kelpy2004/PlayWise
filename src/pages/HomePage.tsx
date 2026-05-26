@@ -111,7 +111,7 @@ export default function HomePage() {
     <>
       <Seo
         title="PlayWise | Decide Before You Download"
-        description="PlayWise helps players compare games, check hardware compatibility, and decide if a title matches their PC, budget, and playstyle."
+        description="Game deals from Steam, Epic, Xbox, and Ubisoft in one place. Free games, price drops, tournaments, and PC compatibility checks — no more site hopping."
         url={origin ? `${origin}/` : undefined}
       />
 
@@ -147,10 +147,10 @@ export default function HomePage() {
         {/* Newsletter subscribe */}
         <section className="bg-[var(--deep)] px-[clamp(1rem,5vw,6rem)] py-16" id="newsletter">
           <div className="mx-auto max-w-[980px] rounded-2xl border border-border bg-panel p-8 md:p-10">
-            <p className="mb-2 text-[0.72rem] font-black uppercase tracking-[0.22em] text-cyan">Newsletter Uplink</p>
-            <h3 className="text-[clamp(1.8rem,3vw,2.5rem)] font-extrabold tracking-tight">Get weekly PlayWise updates</h3>
+            <p className="mb-2 text-[0.72rem] font-black uppercase tracking-[0.22em] text-cyan">Deal Alerts</p>
+            <h3 className="text-[clamp(1.8rem,3vw,2.5rem)] font-extrabold tracking-tight">Never miss a free game</h3>
             <p className="mt-3 text-[0.92rem] text-muted">
-              Subscribe for top value picks, tournament reminders, and major price-drop opportunities.
+              Get notified when games go free or hit your target price. We check Steam, Epic, Xbox, and more every 5 minutes.
             </p>
             <div className="mt-5 flex flex-col gap-3 sm:flex-row">
               <input

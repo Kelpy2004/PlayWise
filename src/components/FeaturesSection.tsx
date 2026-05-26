@@ -2,12 +2,12 @@ import { useScrollReveal } from '../hooks/useScrollReveal';
 import { useTilt3D } from '../hooks/useTilt3D';
 
 const FEATURES = [
-  { icon: 'trending_down', title: 'Live Price Intelligence', desc: 'Real-time price comparison across Steam, Epic, GOG, Humble, Green Man Gaming, and 40+ stores.', span: 'col-span-12 lg:col-span-7 row-span-2', iconBg: 'bg-cyan-dim', iconColor: 'text-cyan' },
-  { icon: 'emoji_events', title: 'Tournament Radar', desc: 'Every esports event, community tournament, and ranked season in one feed.', span: 'col-span-12 lg:col-span-5', iconBg: 'bg-amber-dim', iconColor: 'text-amber' },
-  { icon: 'devices', title: 'Can It Run?', desc: 'Enter your PC specs once. We auto-check compatibility, estimate FPS, and show recommended settings.', span: 'col-span-12 lg:col-span-5', iconBg: 'bg-magenta/[0.12]', iconColor: 'text-magenta' },
-  { icon: 'forum', title: 'Community Pulse', desc: 'Aggregated reviews, sentiment analysis, and live player discussions.', span: 'col-span-12 lg:col-span-4', iconBg: 'bg-green/[0.12]', iconColor: 'text-green' },
-  { icon: 'notifications_active', title: 'Price Drop Alerts', desc: 'Set a target price and get notified instantly when any store hits it.', span: 'col-span-12 lg:col-span-4', iconBg: 'bg-cyan-dim', iconColor: 'text-cyan' },
-  { icon: 'speed', title: 'Instant Redirect', desc: 'One click takes you to the original platform to buy, register, or download.', span: 'col-span-12 lg:col-span-4', iconBg: 'bg-amber-dim', iconColor: 'text-amber' },
+  { icon: 'trending_down', title: 'Live Deal Aggregator', desc: 'Pulls deals from Steam, Epic, Xbox, Ubisoft, CheapShark, ITAD, GamerPower, and Reddit in real time. Free games and discounts, auto-refreshed every 5 minutes.', span: 'col-span-12 lg:col-span-7 row-span-2', iconBg: 'bg-cyan-dim', iconColor: 'text-cyan' },
+  { icon: 'emoji_events', title: 'Tournament Radar', desc: 'Live and upcoming esports events pulled from start.gg and curated feeds, with reminders and prize pool details.', span: 'col-span-12 lg:col-span-5', iconBg: 'bg-amber-dim', iconColor: 'text-amber' },
+  { icon: 'devices', title: 'PC Compatibility Check', desc: 'Enter your hardware specs and get an instant compatibility score, estimated FPS, and recommended settings for any game.', span: 'col-span-12 lg:col-span-5', iconBg: 'bg-magenta/[0.12]', iconColor: 'text-magenta' },
+  { icon: 'redeem', title: 'Free Game Alerts', desc: 'Never miss a giveaway. We track free games from Epic, Steam, Xbox Game Pass, GamerPower, and more.', span: 'col-span-12 lg:col-span-4', iconBg: 'bg-green/[0.12]', iconColor: 'text-green' },
+  { icon: 'notifications_active', title: 'Price Drop Alerts', desc: 'Set a target price for any game and get notified by email when a store hits it.', span: 'col-span-12 lg:col-span-4', iconBg: 'bg-cyan-dim', iconColor: 'text-cyan' },
+  { icon: 'open_in_new', title: 'Direct Store Links', desc: 'Every deal links straight to the store page. No middlemen, no affiliate redirects, no extra clicks.', span: 'col-span-12 lg:col-span-4', iconBg: 'bg-amber-dim', iconColor: 'text-amber' },
 ];
 
 function BentoCard({ feature }) {
@@ -42,7 +42,7 @@ export default function FeaturesSection() {
         <h2 className="text-[clamp(2rem,4vw,3.2rem)] font-extrabold tracking-tight leading-tight mb-4">
           Everything gamers need.<br /><span className="text-cyan">Nothing they don't.</span>
         </h2>
-        <p className="text-muted text-[1.05rem] max-w-[520px]">We aggregate data from 47 sources so you don't have to.</p>
+        <p className="text-muted text-[1.05rem] max-w-[520px]">Eight data pipelines, zero site hopping.</p>
       </div>
 
       <div ref={gridRef} className="reveal grid grid-cols-12 auto-rows-[minmax(200px,auto)] gap-4 mt-12" style={{ transitionDelay: '0.15s' }}>

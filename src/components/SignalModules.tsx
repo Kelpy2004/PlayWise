@@ -118,8 +118,8 @@ function ValueTrackingCard() {
         <span className="material-symbols-outlined" style={{ fontSize: '28px', color: 'var(--blue)' }}>insights</span>
         <span className="px-[10px] py-[3px] rounded border border-red/20 bg-red/10 text-[10px] font-extrabold uppercase text-red">LIVE DATA</span>
       </div>
-      <h3 className="text-[1.5rem] font-extrabold uppercase tracking-tighter mb-3">Game Value Tracking</h3>
-      <p className="text-[var(--text-secondary)] text-[0.92rem] mb-6 max-w-[380px]">Clean historical analysis of unit cost vs market demand via PlayWise Core.</p>
+      <h3 className="text-[1.5rem] font-extrabold uppercase tracking-tighter mb-3">Price History</h3>
+      <p className="text-[var(--text-secondary)] text-[0.92rem] mb-6 max-w-[380px]">See how a game's price has moved over time. Scrub the chart to find the best moment to buy.</p>
 
       <div className="flex justify-between items-center mb-1">
         <span className="text-[10px] font-black uppercase tracking-[0.18em] text-muted">Scrub anywhere on the graph</span>
@@ -182,12 +182,12 @@ export default function SignalModules() {
       <div ref={headerRef} className="reveal">
         <div className="inline-flex items-center gap-2 text-[0.72rem] font-bold uppercase tracking-[0.18em] text-cyan mb-3">
           <span className="w-6 h-0.5 bg-cyan rounded-sm" />
-          Engineered for Precision
+          Built-in Tools
         </div>
         <h2 className="text-[clamp(2rem,4vw,3.2rem)] font-extrabold tracking-tight leading-tight mb-4">
-          Real-time <span className="text-lime">intelligence</span>
+          Check before <span className="text-lime">you buy</span>
         </h2>
-        <p className="text-muted text-[1.05rem] max-w-[520px]">Interactive tools that put deep game analytics at your fingertips.</p>
+        <p className="text-muted text-[1.05rem] max-w-[520px]">Test hardware compatibility and track price history for any game in the catalog.</p>
       </div>
 
       <div ref={gridRef} className="reveal grid grid-cols-1 lg:grid-cols-[7fr_5fr] gap-5 mt-12" style={{ transitionDelay: '0.15s' }}>

@@ -10,15 +10,15 @@ export default function CTASection() {
         style={{ background: 'radial-gradient(circle, var(--cyan), var(--magenta))' }}
       />
       <h2 className="relative z-[1] text-[clamp(2.5rem,5vw,4rem)] font-black tracking-tighter mb-4">
-        Ready to stop<br /><span className="text-cyan">tab-hopping?</span>
+        Every deal. Every store.<br /><span className="text-cyan">One dashboard.</span>
       </h2>
       <p className="relative z-[1] text-muted text-[1.1rem] mb-9">
-        Join thousands of gamers who save time and money with PlayWise.
+        PlayWise is free, open source, and built for gamers who are tired of checking six stores for one deal.
       </p>
-      <button className="relative z-[1] inline-flex items-center gap-2 px-8 py-4 rounded-[14px] bg-cyan text-white font-bold text-base border-none cursor-pointer shadow-[0_8px_32px_rgba(0,212,255,0.3)] hover:shadow-[0_16px_48px_rgba(0,212,255,0.4)] hover:-translate-y-[3px] transition-all duration-[350ms]">
+      <a href="/register" className="relative z-[1] inline-flex items-center gap-2 px-8 py-4 rounded-[14px] bg-cyan text-white font-bold text-base border-none cursor-pointer shadow-[0_8px_32px_rgba(0,212,255,0.3)] hover:shadow-[0_16px_48px_rgba(0,212,255,0.4)] hover:-translate-y-[3px] transition-all duration-[350ms] no-underline">
         <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>rocket_launch</span>
-        Get Started Free
-      </button>
+        Create Free Account
+      </a>
     </section>
   );
 }

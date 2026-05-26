@@ -2,9 +2,9 @@ import { useScrollReveal } from '../hooks/useScrollReveal';
 import { useTilt3D } from '../hooks/useTilt3D';
 
 const TOURNAMENTS = [
-  { status: 'live', title: 'Valorant Champions 2025', game: 'Valorant', location: 'Shanghai', prize: '$1.5M', teams: '16', cta: 'Watch Live' },
-  { status: 'upcoming', title: 'The International 2025', game: 'Dota 2', location: 'Berlin', prize: '$20M+', teams: '20', cta: 'Set Reminder' },
-  { status: 'live', title: 'BLAST Premier Spring', game: 'CS2', location: 'Copenhagen', prize: '$425K', teams: '12', cta: 'Watch Live' },
+  { status: 'live', title: 'Valorant Champions 2026', game: 'Valorant', location: 'Seoul', prize: '$2M', teams: '16', cta: 'Watch Live' },
+  { status: 'upcoming', title: 'The International 2026', game: 'Dota 2', location: 'Copenhagen', prize: '$18M+', teams: '18', cta: 'Set Reminder' },
+  { status: 'live', title: 'BLAST Premier Spring 2026', game: 'CS2', location: 'London', prize: '$500K', teams: '12', cta: 'Watch Live' },
 ];
 
 function TournamentCard({ tournament }) {

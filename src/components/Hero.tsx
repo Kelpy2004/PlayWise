@@ -84,14 +84,14 @@ export default function Hero({ gameCount = 12400 }: { gameCount?: number }) {
           style={{ opacity: 0, animation: 'slideUp 0.7s 0.2s forwards' }}
         >
           <span className="w-1.5 h-1.5 bg-cyan rounded-full animate-pulse-dot" />
-          Live tracking {gameCount.toLocaleString()}+ games
+          Tracking {gameCount.toLocaleString()} games &middot; deals refresh every 5 min
         </div>
 
         <h1
           className="text-[clamp(3.2rem,6vw,5.5rem)] font-black leading-[0.95] tracking-tighter mb-6"
           style={{ opacity: 0, animation: 'slideUp 0.8s 0.35s forwards' }}
         >
-          Every game.<br />
+          No more<br />
           <span
             className="accent"
             style={{
@@ -101,10 +101,10 @@ export default function Hero({ gameCount = 12400 }: { gameCount?: number }) {
               backgroundClip: 'text',
             }}
           >
-            One search.
+            site hopping.
           </span>
           <span className="block italic text-muted text-[0.65em] tracking-tight" style={{ WebkitTextFillColor: 'var(--muted)' }}>
-            prices, tournaments, details &mdash; unified.
+            prices, deals, tournaments &mdash; all here.
           </span>
         </h1>
 
@@ -112,7 +112,7 @@ export default function Hero({ gameCount = 12400 }: { gameCount?: number }) {
           className="text-[1.15rem] text-muted max-w-[520px] leading-relaxed mb-10"
           style={{ opacity: 0, animation: 'slideUp 0.8s 0.5s forwards' }}
         >
-          Stop juggling 10 tabs. PlayWise brings real-time prices from every store, live tournaments, and deep game intel under one roof.
+          Steam, Epic, Xbox, Ubisoft &mdash; every deal, every free game, every tournament pulled into one dashboard. Stop checking six stores. Start playing.
         </p>
 
         <div
@@ -120,16 +120,16 @@ export default function Hero({ gameCount = 12400 }: { gameCount?: number }) {
           style={{ opacity: 0, animation: 'slideUp 0.8s 0.8s forwards' }}
         >
           <div>
-            <div className="text-[2rem] font-extrabold font-mono tracking-tighter text-cyan">12.4K</div>
-            <div className="text-[0.72rem] text-muted uppercase tracking-[0.1em] font-semibold">Games tracked</div>
+            <div className="text-[2rem] font-extrabold font-mono tracking-tighter text-cyan">{gameCount.toLocaleString()}</div>
+            <div className="text-[0.72rem] text-muted uppercase tracking-[0.1em] font-semibold">Games in catalog</div>
           </div>
           <div>
-            <div className="text-[2rem] font-extrabold font-mono tracking-tighter text-amber">47</div>
-            <div className="text-[0.72rem] text-muted uppercase tracking-[0.1em] font-semibold">Store sources</div>
+            <div className="text-[2rem] font-extrabold font-mono tracking-tighter text-amber">8</div>
+            <div className="text-[0.72rem] text-muted uppercase tracking-[0.1em] font-semibold">Deal sources</div>
           </div>
           <div>
-            <div className="text-[2rem] font-extrabold font-mono tracking-tighter text-green">$2.8M</div>
-            <div className="text-[0.72rem] text-muted uppercase tracking-[0.1em] font-semibold">Saved by users</div>
+            <div className="text-[2rem] font-extrabold font-mono tracking-tighter text-green">100%</div>
+            <div className="text-[0.72rem] text-muted uppercase tracking-[0.1em] font-semibold">Free to use</div>
           </div>
         </div>
       </div>

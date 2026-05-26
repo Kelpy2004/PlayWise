@@ -212,6 +212,10 @@ export const api = {
     request<AuthResponse>('/auth/login', { method: 'POST', body }),
   register: (body: { username: string; email: string; password: string; adminSetupCode?: string }) =>
     request<AuthResponse>('/auth/register', { method: 'POST', body }),
+  forgotPassword: (body: { email: string }) =>
+    request<{ ok: boolean; message: string }>('/auth/forgot-password', { method: 'POST', body }),
+  resetPassword: (body: { token: string; password: string }) =>
+    request<{ ok: boolean; message: string }>('/auth/reset-password', { method: 'POST', body }),
   sendContact: (body: { name: string; email: string; message: string }) =>
     request<ContactResponse>('/contact', { method: 'POST', body }),
   getHardwareCatalog: () => request<HardwareCatalog>('/hardware/catalog'),

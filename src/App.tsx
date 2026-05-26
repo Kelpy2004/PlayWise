@@ -14,6 +14,7 @@ const NotFoundPage = lazy(() => import('./pages/NotFoundPage'))
 const OpenSourcePage = lazy(() => import('./pages/OpenSourcePage'))
 const TournamentsPage = lazy(() => import('./pages/TournamentsPage'))
 const DealsPage = lazy(() => import('./pages/DealsPage'))
+const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage'))
 
 function LegacyGameRedirect() {
   const [searchParams] = useSearchParams()
@@ -77,6 +78,7 @@ export default function App() {
             <Route path="/login.html" element={<LegacySimpleRedirect to="/login" />} />
             <Route path="/register" element={<AuthPage mode="register" />} />
             <Route path="/registration.html" element={<LegacySimpleRedirect to="/register" />} />
+            <Route path="/reset-password" element={<ResetPasswordPage />} />
             <Route
               path="/admin/hardware"
               element={

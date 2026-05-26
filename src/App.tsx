@@ -5,6 +5,7 @@ import AppShell from './components/AppShell'
 import ProtectedRoute from './components/ProtectedRoute'
 
 const AdminPage = lazy(() => import('./pages/AdminPage'))
+const AdminDealsPage = lazy(() => import('./pages/AdminDealsPage'))
 const AuthPage = lazy(() => import('./pages/AuthPage'))
 const GamePage = lazy(() => import('./pages/GamePage'))
 const GamesBrowsePage = lazy(() => import('./pages/GamesBrowsePage'))
@@ -81,6 +82,14 @@ export default function App() {
               element={
                 <ProtectedRoute adminOnly>
                   <AdminPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/deals"
+              element={
+                <ProtectedRoute adminOnly>
+                  <AdminDealsPage />
                 </ProtectedRoute>
               }
             />

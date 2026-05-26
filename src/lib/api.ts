@@ -350,7 +350,31 @@ export const api = {
     token?: string | null
   ) => request<{ ok: boolean; subscription: DealSubscriptionRecord }>('/deals/subscribe', { method: 'POST', body, token }),
   unsubscribeFromDealAlerts: (body: { email?: string }, token?: string | null) =>
-    request<{ ok: boolean; unsubscribed: number }>('/deals/subscribe', { method: 'DELETE', body, token })
+    request<{ ok: boolean; unsubscribed: number }>('/deals/subscribe', { method: 'DELETE', body, token }),
+
+  // Admin deal management
+  fetchAdminDeals: (params: { page?: number; limit?: number; store?: string; type?: string; source?: string; active?: string; q?: string }, token: string) => {
+    const search = new URLSearchParams()
+    if (params.page) search.set('page', String(params.page))
+    if (params.limit) search.set('limit', String(params.limit))
+    if (params.store) search.set('store', params.store)
+    if (params.type) search.set('type', params.type)
+    if (params.source) search.set('source', params.source)
+    if (params.active) search.set('active', params.active)
+    if (params.q) search.set('q', params.q)
+    const suffix = search.toString() ? `?${search}` : ''
+    return request<{ ok: boolean; deals: DealRecord[]; pagination: { page: number; limit: number; total: number; totalPages: number } }>(`/admin/deals${suffix}`, { token })
+  },
+  createAdminDeal: (body: Partial<DealRecord>, token: string) =>
+    request<{ ok: boolean; deal: DealRecord }>('/admin/deals', { method: 'POST', body, token }),
+  updateAdminDeal: (id: string, body: Partial<DealRecord>, token: string) =>
+    request<{ ok: boolean; deal: DealRecord }>(`/admin/deals/${id}`, { method: 'PUT', body, token }),
+  deleteAdminDeal: (id: string, token: string) =>
+    request<{ ok: boolean; deleted: boolean }>(`/admin/deals/${id}`, { method: 'DELETE', token }),
+  refreshDeals: (token: string) =>
+    request<{ ok: boolean; message: string; count: number }>('/admin/deals/refresh', { method: 'POST', token }),
+  purgeOldSourceDeals: (token: string) =>
+    request<{ ok: boolean; deleted: number; sources: string[] }>('/admin/deals/purge-old-sources', { method: 'POST', token })
 }
 
 export function getOAuthStartUrl(provider: 'google' | 'microsoft' | 'apple', returnTo = '/'): string {

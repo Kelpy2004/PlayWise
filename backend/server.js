@@ -20,6 +20,7 @@ const tournamentRoutes = require('./routes/tournaments')
 const newsletterRoutes = require('./routes/newsletter')
 const adminNotificationRoutes = require('./routes/adminNotifications')
 const dealRoutes = require('./routes/deals')
+const adminDealRoutes = require('./routes/adminDeals')
 
 const { env } = require('./lib/env')
 const { connectPrisma, isDatabaseReady } = require('./lib/prisma')
@@ -136,6 +137,7 @@ app.use('/api/tournaments', tournamentRoutes)
 app.use('/api/newsletter', newsletterRoutes)
 app.use('/api/admin/notifications', adminNotificationRoutes)
 app.use('/api/deals', dealRoutes)
+app.use('/api/admin/deals', adminDealRoutes)
 
 if (HAS_FRONTEND_BUILD) {
   app.use(express.static(FRONTEND_ROOT))

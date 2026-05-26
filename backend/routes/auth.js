@@ -20,14 +20,16 @@ const {
   updateDemoUser,
   upsertRuntimeEmailVerificationToken
 } = require('../utils/runtimeStore')
-const { sendSignInNoticeEmail, sendVerificationEmail, sendWelcomeEmail } = require('../utils/authEmailService')
+const { sendSignInNoticeEmail, sendVerificationEmail, sendWelcomeEmail, sendPasswordResetEmail } = require('../utils/authEmailService')
 
 const router = express.Router()
 
 const USERNAME_RULE_MESSAGE =
   'Username must be 3 to 24 characters and use only letters, numbers, underscores, or periods.'
 const PASSWORD_RULE_MESSAGE =
-  'Password must be at least 6 characters and include 1 uppercase letter, 1 lowercase letter, and 1 special character like ! @ # $ % ^ & * ( ) - _ + = ? / \\ . ,'
+  'Password must be at least 8 characters and include 1 uppercase letter, 1 lowercase letter, 1 number, and 1 special character.'
+
+const BCRYPT_ROUNDS = 12
 
 const usernameSchema = z
   .string()
@@ -38,9 +40,11 @@ const usernameSchema = z
 
 const passwordSchema = z
   .string()
-  .min(6)
+  .min(8, 'Password must be at least 8 characters.')
+  .max(128, 'Password must not exceed 128 characters.')
   .refine((value) => /[A-Z]/.test(value), PASSWORD_RULE_MESSAGE)
   .refine((value) => /[a-z]/.test(value), PASSWORD_RULE_MESSAGE)
+  .refine((value) => /[0-9]/.test(value), PASSWORD_RULE_MESSAGE)
   .refine((value) => /[^A-Za-z0-9]/.test(value), PASSWORD_RULE_MESSAGE)
 
 const registerSchema = z.object({
@@ -549,7 +553,7 @@ async function buildUniqueUsername(base, client = null) {
 }
 
 async function createRandomPasswordHash() {
-  return bcrypt.hash(randomBytes(24).toString('hex'), 10)
+  return bcrypt.hash(randomBytes(24).toString('hex'), BCRYPT_ROUNDS)
 }
 
 function getVerificationExpiryDate() {
@@ -1094,7 +1098,7 @@ router.post(
     }
 
     const role = shouldGrantAdmin(normalizedEmail, adminSetupCode, await countAdmins()) ? 'ADMIN' : 'USER'
-    const passwordHash = await bcrypt.hash(password, 10)
+    const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS)
 
     let user
 
@@ -1336,6 +1340,111 @@ router.get(
         role: req.user.role
       }
     })
+  })
+)
+
+/* ─── Forgot / Reset password ────────────────────────────────── */
+
+const forgotPasswordSchema = z.object({
+  email: z.string().trim().email('Please enter a valid email address.')
+})
+
+const resetPasswordSchema = z.object({
+  token: z.string().min(1, 'Reset token is required.'),
+  password: passwordSchema
+})
+
+const RESET_TOKEN_EXPIRY = '1h'
+
+function createPasswordResetToken(userId) {
+  return jwt.sign({ sub: userId, purpose: 'password-reset' }, JWT_SECRET, {
+    expiresIn: RESET_TOKEN_EXPIRY
+  })
+}
+
+function verifyPasswordResetToken(token) {
+  try {
+    const payload = jwt.verify(token, JWT_SECRET)
+    if (!payload || payload.purpose !== 'password-reset' || !payload.sub) {
+      return null
+    }
+    return { userId: payload.sub }
+  } catch {
+    return null
+  }
+}
+
+router.post(
+  '/forgot-password',
+  validateBody(forgotPasswordSchema),
+  asyncHandler(async (req, res) => {
+    const { email } = req.validatedBody
+    const user = await findUserByEmail(email)
+
+    // Always return success to prevent email enumeration
+    const successMessage = 'If an account with that email exists, a password reset link has been sent.'
+
+    if (!user || !hasDeliverableEmail(user)) {
+      res.json({ ok: true, message: successMessage })
+      return
+    }
+
+    const resetToken = createPasswordResetToken(user.id)
+
+    await sendPasswordResetEmail({
+      req,
+      email: user.email,
+      username: user.username,
+      token: resetToken
+    })
+
+    res.json({ ok: true, message: successMessage })
+  })
+)
+
+router.post(
+  '/reset-password',
+  validateBody(resetPasswordSchema),
+  asyncHandler(async (req, res) => {
+    const { token, password } = req.validatedBody
+    const decoded = verifyPasswordResetToken(token)
+
+    if (!decoded) {
+      throw new ApiError(400, 'This password reset link is invalid or has expired. Please request a new one.')
+    }
+
+    const newPasswordHash = await bcrypt.hash(password, BCRYPT_ROUNDS)
+
+    if (!authUsesDatabase()) {
+      const user = updateDemoUser(decoded.userId, { passwordHash: newPasswordHash })
+      if (!user) {
+        throw new ApiError(404, 'Account not found.')
+      }
+      // Ensure user is also verified (in case they never verified)
+      if (!user.verified) {
+        updateDemoUser(decoded.userId, { verified: true })
+      }
+      res.json({ ok: true, message: 'Your password has been reset. You can now log in with your new password.' })
+      return
+    }
+
+    const result = await query(
+      `
+        UPDATE "User"
+        SET "passwordHash" = $2,
+            verified = true,
+            "updatedAt" = now()
+        WHERE id = $1
+        RETURNING id
+      `,
+      [decoded.userId, newPasswordHash]
+    )
+
+    if (result.rowCount === 0) {
+      throw new ApiError(404, 'Account not found.')
+    }
+
+    res.json({ ok: true, message: 'Your password has been reset. You can now log in with your new password.' })
   })
 )
 

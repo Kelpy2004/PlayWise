@@ -10,7 +10,7 @@ interface AuthContextValue {
   user: SessionUser | null
   isLoading: boolean
   login: (payload: { usernameOrEmail: string; password: string }) => Promise<SessionUser>
-  register: (payload: { username: string; email: string; password: string; adminSetupCode?: string }) => Promise<AuthResponse>
+  register: (payload: { username: string; email: string; password: string; adminSetupCode?: string }) => Promise<SessionUser>
   acceptExternalToken: (token: string) => Promise<SessionUser>
   logout: () => void
 }
@@ -89,7 +89,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user,
       isLoading,
       login: (payload) => handleAuthResponse(api.login(payload)),
-      register: (payload) => api.register(payload),
+      register: (payload) => handleAuthResponse(api.register(payload)),
       acceptExternalToken,
       logout: () => {
         window.localStorage.removeItem(TOKEN_KEY)

@@ -124,8 +124,8 @@ export default function Hero({ gameCount = 12400 }: { gameCount?: number }) {
             <div className="text-[0.72rem] text-muted uppercase tracking-[0.1em] font-semibold">Games in catalog</div>
           </div>
           <div>
-            <div className="text-[2rem] font-extrabold font-mono tracking-tighter text-amber">6</div>
-            <div className="text-[0.72rem] text-muted uppercase tracking-[0.1em] font-semibold">Deal sources</div>
+            <div className="text-[2rem] font-extrabold font-mono tracking-tighter text-amber">4</div>
+            <div className="text-[0.72rem] text-muted uppercase tracking-[0.1em] font-semibold">Store sources</div>
           </div>
           <div>
             <div className="text-[2rem] font-extrabold font-mono tracking-tighter text-green">100%</div>

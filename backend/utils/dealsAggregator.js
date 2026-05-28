@@ -405,207 +405,6 @@ async function fetchUbisoftDeals() {
   return deals
 }
 
-// ──────────────────────────── CHEAPSHARK (covers Steam, Epic, GOG, etc.) ────────────────────────────
-const CHEAPSHARK_STORE_MAP = {
-  '1': 'Steam',
-  '2': 'GamersGate',
-  '3': 'GreenManGaming',
-  '7': 'GOG',
-  '8': 'Origin',
-  '11': 'Humble Store',
-  '13': 'Ubisoft Store',
-  '15': 'Fanatical',
-  '21': 'WinGameStore',
-  '23': 'GameBillet',
-  '24': 'Voidu',
-  '25': 'Epic Games Store',
-  '27': 'Gamesplanet',
-  '28': 'Gamesload',
-  '29': '2Game',
-  '30': 'IndieGala',
-  '31': 'Blizzard Shop',
-  '33': 'DLGamer',
-  '34': 'Noctre',
-  '35': 'DreamGame',
-}
-
-async function fetchCheapSharkDeals() {
-  const deals = []
-
-  try {
-    // Fetch best deals across all stores
-    const mainRes = await fetch(
-      'https://www.cheapshark.com/api/1.0/deals?sortBy=Deal%20Rating&onSale=1&pageSize=60',
-      { headers: { Accept: 'application/json', 'User-Agent': 'PlayWise/1.0' }, signal: AbortSignal.timeout(10000) }
-    )
-
-    const items = mainRes.ok ? await mainRes.json() : []
-    if (!Array.isArray(items) || !items.length) return []
-
-    for (const item of items) {
-      const title = String(item?.title || '').trim()
-      if (!title) continue
-
-      const storeId = String(item?.storeID || '')
-      const store = CHEAPSHARK_STORE_MAP[storeId] || `Store #${storeId}`
-      const salePrice = parseFloat(item?.salePrice)
-      const normalPrice = parseFloat(item?.normalPrice)
-      const savings = parseFloat(item?.savings || '0')
-
-      if (!Number.isFinite(salePrice) || !Number.isFinite(normalPrice)) continue
-      if (savings < 50 && salePrice > 0) continue
-
-      const isFree = salePrice === 0
-      const steamAppId = item?.steamAppID || null
-      const steamRating = item?.steamRatingPercent || null
-      const metacritic = item?.metacriticScore || null
-
-      deals.push({
-        externalId: `cs-${item?.dealID || title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
-        type: isFree ? 'FREE_GAME' : 'DISCOUNT',
-        title,
-        gameSlug: title.toLowerCase().replace(/[^a-z0-9]+/g, '-') || null,
-        store,
-        originalPrice: normalPrice,
-        dealPrice: isFree ? 0 : salePrice,
-        discountPct: Math.round(savings),
-        currency: 'USD',
-        url: `https://www.cheapshark.com/redirect?dealID=${item?.dealID}`,
-        imageUrl: steamAppId ? `https://cdn.akamai.steamstatic.com/steam/apps/${steamAppId}/header.jpg` : item?.thumb || null,
-        startsAt: null,
-        endsAt: null,
-        source: 'cheapshark',
-        metadata: { dealID: item?.dealID, steamAppId, steamRating, metacritic, dealRating: item?.dealRating },
-        isActive: true
-      })
-    }
-  } catch (error) {
-    logger.debug({ error }, 'CheapShark deals fetch failed (non-critical)')
-  }
-
-  return deals
-}
-
-// ──────────────────────────── ITAD (IsThereAnyDeal — 200+ stores) ────────────────────────────
-async function fetchItadDeals() {
-  const apiKey = env.ITAD_API_KEY
-  if (!apiKey) return []
-
-  const deals = []
-
-  try {
-    const country = env.ITAD_COUNTRY || 'US'
-    const res = await fetch(
-      `https://api.isthereanydeal.com/deals/v2?key=${apiKey}&country=${country}&sort=cut%3Adesc&limit=60`,
-      { headers: { Accept: 'application/json', 'User-Agent': 'PlayWise/1.0' }, signal: AbortSignal.timeout(10000) }
-    )
-    if (!res.ok) return []
-
-    const json = await res.json()
-    const items = json?.list || json?.data?.list || json || []
-    if (!Array.isArray(items)) return []
-
-    for (const item of items) {
-      const title = String(item?.title || '').trim()
-      if (!title) continue
-
-      const shop = item?.shop?.name || 'Unknown'
-      const priceNew = item?.deal?.price?.amount ?? item?.price_new
-      const priceOld = item?.deal?.regular?.amount ?? item?.price_old
-      const priceCut = item?.deal?.cut ?? item?.price_cut ?? 0
-
-      if (priceNew == null || priceOld == null) continue
-      if (priceCut < 50 && priceNew > 0) continue
-
-      const isFree = priceNew === 0
-
-      deals.push({
-        externalId: `itad-${item?.id || item?.plain || title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
-        type: isFree ? 'FREE_GAME' : 'DISCOUNT',
-        title,
-        gameSlug: item?.plain || title.toLowerCase().replace(/[^a-z0-9]+/g, '-') || null,
-        store: shop,
-        originalPrice: priceOld,
-        dealPrice: isFree ? 0 : priceNew,
-        discountPct: Math.round(priceCut),
-        currency: item?.deal?.price?.currency || 'USD',
-        url: item?.deal?.url || item?.urls?.buy || `https://isthereanydeal.com/game/${item?.plain || ''}/info/`,
-        imageUrl: item?.asset || null,
-        startsAt: null,
-        endsAt: item?.expiry ? new Date(item.expiry * 1000).toISOString() : null,
-        source: 'itad',
-        metadata: { plain: item?.plain, shop, itadId: item?.id },
-        isActive: true
-      })
-    }
-  } catch (error) {
-    logger.debug({ error }, 'ITAD deals fetch failed (non-critical)')
-  }
-
-  return deals
-}
-
-// ──────────────────────────── GAMERPOWER (free game giveaways) ────────────────────────────
-async function fetchGamerPowerDeals() {
-  const deals = []
-
-  try {
-    const res = await fetch(
-      'https://www.gamerpower.com/api/giveaways?platform=pc&type=game&sort-by=value',
-      { headers: { Accept: 'application/json', 'User-Agent': 'PlayWise/1.0' }, signal: AbortSignal.timeout(10000) }
-    )
-    if (!res.ok) return []
-
-    const items = await res.json()
-    if (!Array.isArray(items)) return []
-
-    const targetPlatforms = /steam|epic|ubisoft|xbox|ea|gog|drm.free/i
-
-    for (const item of items) {
-      const title = String(item?.title || '').trim()
-      if (!title) continue
-
-      const platforms = String(item?.platforms || '')
-      if (!targetPlatforms.test(platforms)) continue
-
-      // Determine store from platforms string
-      let store = 'PC'
-      if (/epic/i.test(platforms)) store = 'Epic Games Store'
-      else if (/steam/i.test(platforms)) store = 'Steam'
-      else if (/ubisoft/i.test(platforms)) store = 'Ubisoft Store'
-      else if (/xbox/i.test(platforms)) store = 'Xbox'
-      else if (/ea\b|origin/i.test(platforms)) store = 'EA'
-      else if (/gog/i.test(platforms)) store = 'GOG'
-      else if (/drm.free/i.test(platforms)) store = 'DRM-Free'
-
-      const worth = parseFloat(String(item?.worth || '0').replace(/[^0-9.]/g, ''))
-
-      deals.push({
-        externalId: `gp-${item?.id || title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
-        type: 'FREE_GAME',
-        title,
-        gameSlug: title.toLowerCase().replace(/[^a-z0-9]+/g, '-') || null,
-        store,
-        originalPrice: Number.isFinite(worth) && worth > 0 ? worth : null,
-        dealPrice: 0,
-        discountPct: 100,
-        currency: 'USD',
-        url: item?.open_giveaway_url || item?.gamerpower_url || null,
-        imageUrl: item?.thumbnail || item?.image || null,
-        startsAt: null,
-        endsAt: item?.end_date && item.end_date !== 'N/A' ? new Date(item.end_date).toISOString() : null,
-        source: 'gamerpower',
-        metadata: { gamerPowerId: item?.id, status: item?.status, type: item?.type },
-        isActive: true
-      })
-    }
-  } catch (error) {
-    logger.debug({ error }, 'GamerPower deals fetch failed (non-critical)')
-  }
-
-  return deals
-}
-
 // ──────────────────────────── STEAM NEWS (game updates) ────────────────────────────
 async function fetchSteamNews(appIds) {
   if (!appIds?.length) return []
@@ -647,12 +446,8 @@ async function fetchSteamNews(appIds) {
 function dealQualityScore(deal) {
   let score = 0
   if (deal.type === 'FREE_GAME') score += 50
-  const rating = parseInt(deal.metadata?.steamRating || '0', 10)
-  const metacritic = parseInt(deal.metadata?.metacritic || '0', 10)
-  score += Math.max(rating, metacritic)
   if (deal.discountPct) score += deal.discountPct / 2
-  const majorStores = ['Steam', 'Epic Games Store', 'Ubisoft Store', 'Xbox', 'NVIDIA', 'EA']
-  if (majorStores.some((s) => deal.store?.includes(s))) score += 20
+  // All deals now come from direct store APIs — boost admin-curated ones
   if (deal.source === 'admin') score += 10
   return score
 }
@@ -682,24 +477,18 @@ function dedupeDeals(deals) {
 async function refreshDeals() {
   const minPct = env.DEALS_MIN_DISCOUNT_PCT || 75
 
-  const [steamDeals, epicDeals, xboxDeals, ubisoftDeals, cheapSharkDeals, itadDeals, gamerPowerDeals] = await Promise.allSettled([
+  const [steamDeals, epicDeals, xboxDeals, ubisoftDeals] = await Promise.allSettled([
     fetchSteamDeals(minPct),
     fetchEpicDeals(),
     fetchXboxDeals(),
-    fetchUbisoftDeals(),
-    fetchCheapSharkDeals(),
-    fetchItadDeals(),
-    fetchGamerPowerDeals()
+    fetchUbisoftDeals()
   ])
 
   const autoDeals = dedupeDeals([
     ...(steamDeals.status === 'fulfilled' ? steamDeals.value : []),
     ...(epicDeals.status === 'fulfilled' ? epicDeals.value : []),
     ...(xboxDeals.status === 'fulfilled' ? xboxDeals.value : []),
-    ...(ubisoftDeals.status === 'fulfilled' ? ubisoftDeals.value : []),
-    ...(cheapSharkDeals.status === 'fulfilled' ? cheapSharkDeals.value : []),
-    ...(itadDeals.status === 'fulfilled' ? itadDeals.value : []),
-    ...(gamerPowerDeals.status === 'fulfilled' ? gamerPowerDeals.value : [])
+    ...(ubisoftDeals.status === 'fulfilled' ? ubisoftDeals.value : [])
   ])
 
   if (isDatabaseReady()) {
@@ -750,6 +539,15 @@ async function refreshDeals() {
         logger.debug({ error, externalId: deal.externalId }, 'Failed to upsert deal')
       }
     }
+
+    // Deactivate stale deals from retired third-party sources
+    try {
+      const retired = await prisma.deal.updateMany({
+        where: { source: { in: ['cheapshark', 'itad', 'gamerpower'] }, isActive: true },
+        data: { isActive: false }
+      })
+      if (retired.count) logger.info({ count: retired.count }, 'Deactivated stale third-party deals')
+    } catch { /* non-critical */ }
 
     // Load ALL active deals (auto + admin) for cache
     try {

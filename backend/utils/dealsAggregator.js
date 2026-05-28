@@ -260,7 +260,152 @@ async function fetchXboxDeals() {
   return results
 }
 
-// ──────────────────────────── CHEAPSHARK (covers Ubisoft, Steam, Epic, GOG, etc.) ────────────────────────────
+// ──────────────────────────── UBISOFT STORE (direct HTML scrape — no key needed) ────────────────────────────
+function decodeHtmlEntities(str) {
+  return (str || '')
+    .replace(/&rsquo;/g, '’')
+    .replace(/&lsquo;/g, '‘')
+    .replace(/&mdash;/g, '—')
+    .replace(/&ndash;/g, '–')
+    .replace(/&amp;/g, '&')
+    .replace(/&#39;/g, "'")
+    .replace(/&quot;/g, '"')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .trim()
+}
+
+async function fetchUbisoftDeals() {
+  const deals = []
+
+  try {
+    const res = await fetch('https://store.ubisoft.com/us/deals', {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
+        Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.9',
+      },
+      signal: AbortSignal.timeout(15000),
+    })
+    if (!res.ok) {
+      logger.debug({ status: res.status }, 'Ubisoft Store returned non-OK')
+      return []
+    }
+
+    const html = await res.text()
+
+    // ── Strategy: extract parallel arrays using global regex, then zip by index ──
+    // The inline JSON scripts sit AFTER the <!-- END: .product-tile --> comment,
+    // so splitting by that marker misaligns JSON with HTML. Instead we extract
+    // each data point globally in document order and match by position.
+
+    // 1. Inline product JSON (id, url, image, edition, brand, promotions)
+    const jsonBlocks = [...html.matchAll(/var\s+product\s*=\s*(\{[^}]+\})\s*;/g)]
+      .map((m) => { try { return JSON.parse(m[1]) } catch { return null } })
+      .filter((d) => d && d.id)
+
+    // 2. Display titles from <div class="prod-title">
+    const titles = [...html.matchAll(/<div\s+class="prod-title">\s*([\s\S]*?)\s*<\/div>/g)]
+      .map((m) => decodeHtmlEntities(m[1]))
+
+    // 3. Edition / subtitle from <div class="card-subtitle">
+    const editions = [...html.matchAll(/<div\s+class="card-subtitle">\s*([\s\S]*?)\s*<\/div>/g)]
+      .map((m) => m[1].trim())
+
+    // 4. Sale prices from <span class="price-sales ...">$XX.XX</span>
+    const salePrices = [...html.matchAll(/<span\s+class="price-sales[^"]*">\s*\$?([\d,.]+)\s*<\/span>/g)]
+      .map((m) => parseFloat(m[1].replace(/,/g, '')))
+
+    // 5. Original prices from <span class="price-item">$XX.XX</span>
+    const origPrices = [...html.matchAll(/<span\s+class="price-item">\s*\$?([\d,.]+)\s*<\/span>/g)]
+      .map((m) => parseFloat(m[1].replace(/,/g, '')))
+
+    // 6. Discount badges from <div class="deal-percentage ..." >-XX%</div>
+    const discounts = [...html.matchAll(/<div\s+class="deal-percentage[^"]*"\s*>\s*-?(\d+)%\s*<\/div>/g)]
+      .map((m) => parseInt(m[1], 10))
+
+    const count = jsonBlocks.length
+    if (!count) {
+      logger.debug('Ubisoft Store: no products found in HTML')
+      return []
+    }
+
+    for (let i = 0; i < count; i++) {
+      const pd = jsonBlocks[i]
+      const productId = pd.id
+
+      // Display title (fallback to JSON name)
+      let displayTitle = (i < titles.length) ? titles[i] : ''
+      const edition = (i < editions.length) ? editions[i] : (pd.edition || '')
+
+      let title = displayTitle || pd.name || ''
+      if (edition && !title.toLowerCase().includes(edition.toLowerCase())) {
+        title = `${title} - ${edition}`
+      }
+      title = title.trim()
+      if (!title) continue
+
+      // Prices
+      let salePrice = (i < salePrices.length && Number.isFinite(salePrices[i])) ? salePrices[i] : null
+      let originalPrice = (i < origPrices.length && Number.isFinite(origPrices[i])) ? origPrices[i] : null
+
+      // JSON fallback for prices (works for DLC items)
+      if (salePrice == null && pd.unit_sale_price) salePrice = pd.unit_sale_price
+      if (originalPrice == null && pd.unit_price) originalPrice = pd.unit_price
+
+      // Discount %
+      let discountPct = (i < discounts.length) ? discounts[i] : 0
+
+      // Fallback: extract from promotion code (e.g. "Promo-TCTD2-2026-60off")
+      if (!discountPct && Array.isArray(pd.promotions) && pd.promotions.length) {
+        const promoMatch = String(pd.promotions[0] || '').match(/(\d+)off/i)
+        if (promoMatch) discountPct = parseInt(promoMatch[1], 10)
+      }
+
+      // Fallback: calculate from prices
+      if (!discountPct && originalPrice && salePrice != null && originalPrice > salePrice) {
+        discountPct = Math.round((1 - salePrice / originalPrice) * 100)
+      }
+
+      const isFree = salePrice === 0 && discountPct === 100
+      const imageUrl = pd.image_url || null
+      const productUrl = pd.url || `https://store.ubisoft.com/us/${productId}.html`
+
+      deals.push({
+        externalId: `ubi-${productId}`,
+        type: isFree ? 'FREE_GAME' : 'DISCOUNT',
+        title,
+        gameSlug: title.toLowerCase().replace(/[^a-z0-9]+/g, '-') || null,
+        store: 'Ubisoft Store',
+        originalPrice: Number.isFinite(originalPrice) && originalPrice > 0 ? originalPrice : null,
+        dealPrice: isFree ? 0 : (Number.isFinite(salePrice) ? salePrice : null),
+        discountPct,
+        currency: pd.currency || 'USD',
+        url: productUrl,
+        imageUrl,
+        startsAt: null,
+        endsAt: null,
+        source: 'ubisoft',
+        metadata: {
+          ubisoftId: productId,
+          edition: edition || null,
+          brand: pd.brand || null,
+          platform: pd.platform || null,
+          promotions: pd.promotions || [],
+        },
+        isActive: true,
+      })
+    }
+
+    logger.info({ count: deals.length }, 'Ubisoft Store deals scraped directly')
+  } catch (error) {
+    logger.debug({ error }, 'Ubisoft Store deals fetch failed (non-critical)')
+  }
+
+  return deals
+}
+
+// ──────────────────────────── CHEAPSHARK (covers Steam, Epic, GOG, etc.) ────────────────────────────
 const CHEAPSHARK_STORE_MAP = {
   '1': 'Steam',
   '2': 'GamersGate',
@@ -294,17 +439,8 @@ async function fetchCheapSharkDeals() {
       { headers: { Accept: 'application/json', 'User-Agent': 'PlayWise/1.0' }, signal: AbortSignal.timeout(10000) }
     )
 
-    // Also fetch Ubisoft-specific deals (storeID=13) with lower threshold
-    const ubiRes = await fetch(
-      'https://www.cheapshark.com/api/1.0/deals?storeID=13&sortBy=Deal%20Rating&onSale=1&pageSize=20',
-      { headers: { Accept: 'application/json', 'User-Agent': 'PlayWise/1.0' }, signal: AbortSignal.timeout(10000) }
-    ).catch(() => null)
-
-    const mainItems = mainRes.ok ? await mainRes.json() : []
-    const ubiItems = ubiRes?.ok ? await ubiRes.json() : []
-
-    const items = [...(Array.isArray(mainItems) ? mainItems : []), ...(Array.isArray(ubiItems) ? ubiItems : [])]
-    if (!items.length) return []
+    const items = mainRes.ok ? await mainRes.json() : []
+    if (!Array.isArray(items) || !items.length) return []
 
     for (const item of items) {
       const title = String(item?.title || '').trim()
@@ -317,9 +453,7 @@ async function fetchCheapSharkDeals() {
       const savings = parseFloat(item?.savings || '0')
 
       if (!Number.isFinite(salePrice) || !Number.isFinite(normalPrice)) continue
-      // Lower threshold for Ubisoft (fewer deals available), 50%+ for others
-      const minSavings = store === 'Ubisoft Store' ? 20 : 50
-      if (savings < minSavings && salePrice > 0) continue
+      if (savings < 50 && salePrice > 0) continue
 
       const isFree = salePrice === 0
       const steamAppId = item?.steamAppID || null
@@ -548,10 +682,11 @@ function dedupeDeals(deals) {
 async function refreshDeals() {
   const minPct = env.DEALS_MIN_DISCOUNT_PCT || 75
 
-  const [steamDeals, epicDeals, xboxDeals, cheapSharkDeals, itadDeals, gamerPowerDeals] = await Promise.allSettled([
+  const [steamDeals, epicDeals, xboxDeals, ubisoftDeals, cheapSharkDeals, itadDeals, gamerPowerDeals] = await Promise.allSettled([
     fetchSteamDeals(minPct),
     fetchEpicDeals(),
     fetchXboxDeals(),
+    fetchUbisoftDeals(),
     fetchCheapSharkDeals(),
     fetchItadDeals(),
     fetchGamerPowerDeals()
@@ -561,6 +696,7 @@ async function refreshDeals() {
     ...(steamDeals.status === 'fulfilled' ? steamDeals.value : []),
     ...(epicDeals.status === 'fulfilled' ? epicDeals.value : []),
     ...(xboxDeals.status === 'fulfilled' ? xboxDeals.value : []),
+    ...(ubisoftDeals.status === 'fulfilled' ? ubisoftDeals.value : []),
     ...(cheapSharkDeals.status === 'fulfilled' ? cheapSharkDeals.value : []),
     ...(itadDeals.status === 'fulfilled' ? itadDeals.value : []),
     ...(gamerPowerDeals.status === 'fulfilled' ? gamerPowerDeals.value : [])

@@ -34,6 +34,21 @@ function mapNvidiaStore(store) {
   return 'Steam'
 }
 
+function extractSteamAppId(steamUrl) {
+  if (!steamUrl) return null
+  const match = String(steamUrl).match(/\/app\/(\d+)/)
+  return match ? match[1] : null
+}
+
+function steamImage(appId, type = 'header') {
+  if (!appId) return null
+  const base = 'https://cdn.akamai.steamstatic.com/steam/apps'
+  if (type === 'header') return `${base}/${appId}/header.jpg`
+  if (type === 'capsule') return `${base}/${appId}/capsule_616x353.jpg`
+  if (type === 'library') return `${base}/${appId}/library_600x900.jpg`
+  return `${base}/${appId}/header.jpg`
+}
+
 function transformNvidiaGame(entry) {
   const slug = titleToSlug(entry.title)
   if (!slug) return null
@@ -41,6 +56,7 @@ function transformNvidiaGame(entry) {
   const genres = Array.isArray(entry.genres) ? entry.genres.filter(Boolean) : []
   const nativeStore = mapNvidiaStore(entry.store)
   const stores = [nativeStore, 'GeForce NOW'].filter(Boolean)
+  const steamAppId = extractSteamAppId(entry.steamUrl)
 
   return {
     slug,
@@ -60,8 +76,8 @@ function transformNvidiaGame(entry) {
     supportedPlatforms: ['PC (Microsoft Windows)'],
     stores,
     averageRating: null,
-    image: null,
-    banner: null,
+    image: steamImage(steamAppId, 'header'),
+    banner: steamImage(steamAppId, 'capsule'),
     publisher: entry.publisher || null,
     steamUrl: entry.steamUrl || null,
     nvidiaId: entry.id,
@@ -122,7 +138,7 @@ async function syncNvidiaToDatabase() {
   const prisma = getPrisma()
 
   const existingGames = await prisma.game.findMany({
-    select: { slug: true, title: true, stores: true, catalogBuckets: true, payload: true }
+    select: { slug: true, title: true, stores: true, catalogBuckets: true, image: true, banner: true, payload: true }
   })
 
   const titleIndex = new Map()
@@ -150,12 +166,16 @@ async function syncNvidiaToDatabase() {
         ? currentBuckets
         : [...currentBuckets, gfnBucket]
 
-      if (newStores.length !== currentStores.length || newBuckets.length !== currentBuckets.length) {
-        updates.push({
-          slug: existing.slug,
-          stores: newStores,
-          catalogBuckets: newBuckets
-        })
+      const needsStoreUpdate = newStores.length !== currentStores.length || newBuckets.length !== currentBuckets.length
+      const needsImage = !existing.image && nvGame.image
+
+      if (needsStoreUpdate || needsImage) {
+        const data = { slug: existing.slug, stores: newStores, catalogBuckets: newBuckets }
+        if (needsImage) {
+          data.image = nvGame.image
+          data.banner = nvGame.banner
+        }
+        updates.push(data)
       }
       matched++
     } else {
@@ -175,8 +195,8 @@ async function syncNvidiaToDatabase() {
         supportedPlatforms: nvGame.supportedPlatforms,
         stores: nvGame.stores,
         averageRating: null,
-        image: null,
-        banner: null,
+        image: nvGame.image || null,
+        banner: nvGame.banner || null,
         payload: {
           ...nvGame,
           catalogSource: 'nvidia-gfn'
@@ -189,12 +209,12 @@ async function syncNvidiaToDatabase() {
   const updateChunks = chunkValues(updates, UPSERT_BATCH_SIZE)
   for (const chunk of updateChunks) {
     await prisma.$transaction(
-      chunk.map((u) =>
-        prisma.game.update({
-          where: { slug: u.slug },
-          data: { stores: u.stores, catalogBuckets: u.catalogBuckets }
-        })
-      )
+      chunk.map((u) => {
+        const data = { stores: u.stores, catalogBuckets: u.catalogBuckets }
+        if (u.image) data.image = u.image
+        if (u.banner) data.banner = u.banner
+        return prisma.game.update({ where: { slug: u.slug }, data })
+      })
     )
   }
 

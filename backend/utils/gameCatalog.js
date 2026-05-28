@@ -7,6 +7,7 @@ const { env } = require('../lib/env')
 const { logger } = require('../lib/logger')
 const { getPrisma, isDatabaseReady } = require('../lib/prisma')
 const { getTopRatedGames } = require('./igdbCatalog')
+const { fetchNvidiaGfnGames } = require('./nvidiaCatalog')
 
 const DATA_FILE = path.resolve(__dirname, '../../public/data.js')
 const UPSERT_BATCH_SIZE = 40
@@ -244,8 +245,11 @@ async function loadGames() {
   const sharedGames = readSharedCatalog()
 
   if (!isDatabaseReady()) {
-    const externalGames = await getTopRatedGames().catch(() => [])
-    const merged = mergeCatalogLists(sharedGames, externalGames)
+    const [externalGames, nvidiaGames] = await Promise.all([
+      getTopRatedGames().catch(() => []),
+      fetchNvidiaGfnGames().catch(() => [])
+    ])
+    const merged = mergeCatalogLists(sharedGames, [...externalGames, ...nvidiaGames])
     mergedCatalogCache = merged
     mergedCatalogCachedAt = Date.now()
     return merged
@@ -254,7 +258,7 @@ async function loadGames() {
   const prisma = getPrisma()
   const dbGames = await prisma.game.findMany({
     orderBy: [{ popularityScore: 'desc' }, { averageRating: 'desc' }, { title: 'asc' }],
-    take: Math.max(600, Number(env.IGDB_TOP_GAMES_LIMIT) || 500)
+    take: Math.max(3000, Number(env.IGDB_TOP_GAMES_LIMIT) || 500)
   })
 
   const parsedDbGames = dbGames.map(mapDbGameToCatalog)

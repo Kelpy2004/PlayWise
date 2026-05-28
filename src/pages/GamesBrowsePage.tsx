@@ -12,6 +12,7 @@ const STORE_CONFIG: Record<string, { color: string; icon: string }> = {
   Xbox:               { color: '#107c10', icon: 'sports_esports' },
   'Ubisoft Store':    { color: '#0070ff', icon: 'stadia_controller' },
   EA:                 { color: '#ff4747', icon: 'sports_soccer' },
+  'GeForce NOW':      { color: '#76b900', icon: 'cloud' },
 }
 
 const SORT_OPTIONS = [

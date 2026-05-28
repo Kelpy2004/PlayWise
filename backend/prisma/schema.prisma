@@ -160,6 +160,7 @@ model Game {
   genres             String[]
   platforms          String[]
   supportedPlatforms String[]
+  stores             String[]
   averageRating      Float?
   image              String?
   banner             String?
@@ -169,6 +170,9 @@ model Game {
 
   @@index([title])
   @@index([catalogSource])
+  @@index([averageRating])
+  @@index([popularityScore])
+  @@index([releaseTimestamp])
 }
 
 model Comment {

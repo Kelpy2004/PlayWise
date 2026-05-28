@@ -174,6 +174,7 @@ function mapCatalogGameToDb(game) {
     genres: normalized.genres || [],
     platforms: normalized.platform || [],
     supportedPlatforms: normalized.supportedPlatforms || [],
+    stores: Array.isArray(normalized.stores) ? normalized.stores : [],
     averageRating: typeof normalized.averageRating === 'number' ? normalized.averageRating : null,
     image: normalized.image || null,
     banner: normalized.banner || null,

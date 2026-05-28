@@ -378,7 +378,35 @@ export const api = {
   refreshDeals: (token: string) =>
     request<{ ok: boolean; message: string; count: number }>('/admin/deals/refresh', { method: 'POST', token }),
   purgeOldSourceDeals: (token: string) =>
-    request<{ ok: boolean; deleted: number; sources: string[] }>('/admin/deals/purge-old-sources', { method: 'POST', token })
+    request<{ ok: boolean; deleted: number; sources: string[] }>('/admin/deals/purge-old-sources', { method: 'POST', token }),
+
+  // Game library (paginated, server-side filtering)
+  fetchLibrary: (params?: {
+    page?: number; limit?: number; q?: string; store?: string; genre?: string; sort?: string
+  }) => {
+    const search = new URLSearchParams()
+    if (params?.page) search.set('page', String(params.page))
+    if (params?.limit) search.set('limit', String(params.limit))
+    if (params?.q) search.set('q', params.q)
+    if (params?.store) search.set('store', params.store)
+    if (params?.genre) search.set('genre', params.genre)
+    if (params?.sort) search.set('sort', params.sort || 'popular')
+    const suffix = search.toString() ? `?${search}` : ''
+    return request<{
+      games: Array<{
+        slug: string; title: string; year: number | null; heroTag: string | null
+        genres: string[]; stores: string[]; platforms: string[]
+        averageRating: number | null; popularityScore: number | null
+        image: string | null; banner: string | null
+        catalogBuckets: string[]; releaseTimestamp: string | null
+      }>
+      pagination: { page: number; limit: number; total: number; totalPages: number }
+      filters: {
+        genres: string[]
+        stores: Array<{ name: string; count: number }>
+      }
+    }>(`/games/library${suffix}`)
+  }
 }
 
 export function getOAuthStartUrl(provider: 'google' | 'microsoft' | 'apple', returnTo = '/'): string {

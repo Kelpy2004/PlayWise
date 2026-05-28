@@ -25,7 +25,7 @@ const envSchema = z.object({
   IGDB_CLIENT_ID: z.string().optional(),
   IGDB_CLIENT_SECRET: z.string().optional(),
   IGDB_CACHE_MS: z.coerce.number().default(1000 * 60 * 60 * 6),
-  IGDB_TOP_GAMES_LIMIT: z.coerce.number().default(500),
+  IGDB_TOP_GAMES_LIMIT: z.coerce.number().default(5000),
   STARTGG_API_TOKEN: z.string().optional(),
   STARTGG_TOURNAMENT_LIMIT: z.coerce.number().default(80),
   ITAD_API_KEY: z.string().optional(),

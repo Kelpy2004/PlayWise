@@ -162,6 +162,112 @@ router.get(
   })
 )
 
+/* ── Paginated library endpoint (server-side filtering) ── */
+router.get(
+  '/library',
+  asyncHandler(async (req, res) => {
+    if (!isDatabaseReady()) {
+      return res.status(503).json({ message: 'Database not available' })
+    }
+
+    const page = Math.max(1, parseInt(req.query.page) || 1)
+    const limit = Math.min(60, Math.max(1, parseInt(req.query.limit) || 24))
+    const skip = (page - 1) * limit
+    const q = String(req.query.q || '').trim()
+    const store = String(req.query.store || '').trim()
+    const genre = String(req.query.genre || '').trim()
+    const sort = String(req.query.sort || 'popular').trim()
+
+    // Build Prisma where clause
+    const where = {}
+
+    if (q) {
+      where.title = { contains: q, mode: 'insensitive' }
+    }
+
+    if (store) {
+      where.stores = { has: store }
+    }
+
+    if (genre) {
+      where.genres = { has: genre }
+    }
+
+    // Build sort
+    let orderBy
+    switch (sort) {
+      case 'rating':
+        orderBy = [{ averageRating: 'desc' }, { title: 'asc' }]
+        break
+      case 'newest':
+        orderBy = [{ releaseTimestamp: 'desc' }, { title: 'asc' }]
+        break
+      case 'title':
+        orderBy = [{ title: 'asc' }]
+        break
+      case 'popular':
+      default:
+        orderBy = [{ popularityScore: 'desc' }, { averageRating: 'desc' }, { title: 'asc' }]
+        break
+    }
+
+    const prisma = getPrisma()
+
+    const [games, total] = await Promise.all([
+      prisma.game.findMany({
+        where,
+        orderBy,
+        skip,
+        take: limit,
+        select: {
+          slug: true,
+          title: true,
+          year: true,
+          heroTag: true,
+          genres: true,
+          stores: true,
+          platforms: true,
+          averageRating: true,
+          popularityScore: true,
+          image: true,
+          banner: true,
+          catalogBuckets: true,
+          releaseTimestamp: true,
+        }
+      }),
+      prisma.game.count({ where })
+    ])
+
+    // Fetch available genres + store counts for filters
+    const [allGenres, storeCounts] = await Promise.all([
+      prisma.$queryRaw`
+        SELECT DISTINCT unnest(genres) AS genre FROM "Game" ORDER BY genre
+      `.catch(() => []),
+      prisma.$queryRaw`
+        SELECT unnest(stores) AS store, COUNT(*)::int AS count
+        FROM "Game"
+        GROUP BY store
+        ORDER BY count DESC
+      `.catch(() => [])
+    ])
+
+    res.set('Cache-Control', 'public, max-age=30, stale-while-revalidate=120')
+    res.json({
+      games,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit)
+      },
+      filters: {
+        genres: allGenres.map((r) => r.genre).filter(Boolean),
+        stores: storeCounts.map((r) => ({ name: r.store, count: r.count }))
+      }
+    })
+  })
+)
+
 router.get('/hardware/library', (_req, res) => {
   res.json({ laptops: LAPTOP_LIBRARY, cpuScores: CPU_SCORES, gpuScores: GPU_SCORES })
 })

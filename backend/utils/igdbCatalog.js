@@ -66,6 +66,44 @@ function normalizeWebsiteLabel(category) {
   }
 }
 
+/* ── Store detection ── */
+const WEBSITE_STORE_MAP = { 13: 'Steam', 16: 'Epic Games Store' }
+
+const PUBLISHER_STORE_MAP = {
+  ubisoft:          'Ubisoft Store',
+  'electronic arts': 'EA',
+  ea:               'EA',
+  'ea sports':      'EA',
+  'ea games':       'EA',
+}
+
+function detectStores(game) {
+  const stores = new Set()
+
+  // Website categories → Steam, Epic
+  for (const w of ensureArray(game.websites)) {
+    const store = WEBSITE_STORE_MAP[Number(w?.category)]
+    if (store) stores.add(store)
+  }
+
+  // Publishers → Ubisoft, EA
+  for (const ic of ensureArray(game.involved_companies)) {
+    if (!ic?.publisher) continue
+    const name = trimText(ic?.company?.name).toLowerCase()
+    for (const [keyword, store] of Object.entries(PUBLISHER_STORE_MAP)) {
+      if (name.includes(keyword)) stores.add(store)
+    }
+  }
+
+  // Platform names → Xbox
+  for (const p of ensureArray(game.platforms)) {
+    const pName = trimText(p?.name).toLowerCase()
+    if (pName.includes('xbox')) stores.add('Xbox')
+  }
+
+  return Array.from(stores)
+}
+
 function buildStoreLinks(websites = []) {
   const links = []
   const seen = new Set()
@@ -127,6 +165,13 @@ function getBucketLabel(catalogBuckets = []) {
   return 'IGDB profile'
 }
 
+function extractCompanyNames(game, role) {
+  return ensureArray(game.involved_companies)
+    .filter((ic) => ic?.[role])
+    .map((ic) => trimText(ic?.company?.name))
+    .filter(Boolean)
+}
+
 function transformIgdbGame(game, options = {}) {
   const normalizedSlug = normalizeSlug(game.slug)
   const genres = ensureArray(game.genres)
@@ -140,9 +185,12 @@ function transformIgdbGame(game, options = {}) {
   const summary = trimText(game.summary)
   const storyline = trimText(game.storyline)
   const storeLinks = buildStoreLinks(game.websites)
+  const stores = detectStores(game)
   const hasEpicLink = storeLinks.some((entry) => entry.label === 'Epic Games')
   const catalogBuckets = mergeCatalogBuckets(options.catalogBuckets, hasEpicLink ? ['epic-store'] : [])
   const popularityScore = typeof options.popularityScore === 'number' ? options.popularityScore : null
+  const developers = extractCompanyNames(game, 'developer')
+  const publishers = extractCompanyNames(game, 'publisher')
 
   return {
     slug: normalizedSlug,
@@ -154,6 +202,9 @@ function transformIgdbGame(game, options = {}) {
     genres: genres.length ? genres : ['Action'],
     platform: platforms,
     supportedPlatforms: platforms,
+    stores,
+    developer: developers[0] || null,
+    publisher: publishers[0] || null,
     heroTag: firstSentence(summary || storyline || `${game.name} is now available inside the PlayWise expanded catalog.`),
     image: buildImageUrl(game.cover?.image_id, 'cover_big'),
     banner: buildImageUrl(screenshots[0]?.image_id, 'screenshot_big') || buildImageUrl(game.cover?.image_id, 'screenshot_big'),
@@ -290,7 +341,10 @@ function buildGameFields() {
     'websites.url',
     'websites.category',
     'videos.video_id',
-    'similar_games.slug'
+    'similar_games.slug',
+    'involved_companies.company.name',
+    'involved_companies.publisher',
+    'involved_companies.developer'
   ].join(',')
 }
 
@@ -419,18 +473,18 @@ async function fetchGamesByIds(ids, catalogBuckets, popularityScores) {
 
 async function getPopularGamesByTier(targetCount) {
   const primitivePages = []
-
-  for (const offset of [0, 250, 500, 750, 1000, 1250]) {
-    primitivePages.push(await queryIgdb('popularity_primitives', buildPopularityPrimitiveQuery(250, offset)))
+  // Scale popularity fetches based on target count
+  const popPageCount = Math.min(Math.ceil(targetCount / 250), 12)
+  for (let i = 0; i < popPageCount; i++) {
+    primitivePages.push(await queryIgdb('popularity_primitives', buildPopularityPrimitiveQuery(250, i * 250)))
   }
 
   const popularityRankings = aggregatePopularityEntries(primitivePages.flat())
   const popularityScores = new Map(popularityRankings.map((entry) => [entry.gameId, entry.score]))
 
-  const popularIds = popularityRankings.slice(0, Math.max(targetCount, 100)).map((entry) => entry.gameId)
-  const midPopularIds = popularityRankings
-    .slice(Math.max(targetCount, 100), Math.max(targetCount, 100) + Math.max(targetCount, 100))
-    .map((entry) => entry.gameId)
+  const popularCut = Math.max(Math.floor(targetCount * 0.6), 100)
+  const popularIds = popularityRankings.slice(0, popularCut).map((entry) => entry.gameId)
+  const midPopularIds = popularityRankings.slice(popularCut, popularCut * 2).map((entry) => entry.gameId)
 
   const popularGames = await fetchGamesByIds(popularIds, ['popular'], popularityScores)
   const midPopularGames = await fetchGamesByIds(midPopularIds, ['mid-popular'], popularityScores)
@@ -447,20 +501,21 @@ async function getExpandedCatalog(limit = env.IGDB_TOP_GAMES_LIMIT) {
     return topGamesCache.games.slice(0, targetCount)
   }
 
+  // IGDB max limit per request is 500
+  const batchSize = Math.min(500, Math.max(100, Math.floor(targetCount / 10)))
+  const pages = Math.max(2, Math.ceil(targetCount / batchSize))
+
   const recentGames = []
   const topRatedGames = []
-  const recentBatchSize = 100
-  const topRatedBatchSize = 100
-  const pages = Math.max(2, Math.ceil(targetCount / 100))
 
   for (let page = 0; page < pages; page += 1) {
-    const recentChunk = await fetchGamesFromQuery(buildRecentQuery(recentBatchSize, page * recentBatchSize), ['new-release'])
-    const topRatedChunk = await fetchGamesFromQuery(buildTopRatedQuery(topRatedBatchSize, page * topRatedBatchSize), ['top-rated'])
+    const recentChunk = await fetchGamesFromQuery(buildRecentQuery(batchSize, page * batchSize), ['new-release'])
+    const topRatedChunk = await fetchGamesFromQuery(buildTopRatedQuery(batchSize, page * batchSize), ['top-rated'])
     recentGames.push(...recentChunk)
     topRatedGames.push(...topRatedChunk)
   }
   const { popularGames, midPopularGames } = await getPopularGamesByTier(
-    Math.min(Math.max(Math.floor(targetCount / 2), 80), 120)
+    Math.min(Math.max(Math.floor(targetCount / 3), 200), 1500)
   )
 
   const games = normalizeCatalogList([...topRatedGames, ...popularGames, ...midPopularGames, ...recentGames]).slice(0, targetCount)

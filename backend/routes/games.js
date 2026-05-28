@@ -171,75 +171,69 @@ router.get(
     }
 
     const page = Math.max(1, parseInt(req.query.page) || 1)
-    const limit = Math.min(60, Math.max(1, parseInt(req.query.limit) || 24))
+    const limit = Math.min(60, Math.max(1, parseInt(req.query.limit) || 36))
     const skip = (page - 1) * limit
     const q = String(req.query.q || '').trim()
     const store = String(req.query.store || '').trim()
     const genre = String(req.query.genre || '').trim()
-    const sort = String(req.query.sort || 'popular').trim()
-
-    // Build Prisma where clause
-    const where = {}
-
-    if (q) {
-      where.title = { contains: q, mode: 'insensitive' }
-    }
-
-    if (store) {
-      where.stores = { has: store }
-    }
-
-    if (genre) {
-      where.genres = { has: genre }
-    }
-
-    // Build sort
-    let orderBy
-    switch (sort) {
-      case 'rating':
-        orderBy = [{ averageRating: 'desc' }, { title: 'asc' }]
-        break
-      case 'newest':
-        orderBy = [{ releaseTimestamp: 'desc' }, { title: 'asc' }]
-        break
-      case 'title':
-        orderBy = [{ title: 'asc' }]
-        break
-      case 'popular':
-      default:
-        orderBy = [{ popularityScore: 'desc' }, { averageRating: 'desc' }, { title: 'asc' }]
-        break
-    }
+    const sort = String(req.query.sort || 'title').trim()
 
     const prisma = getPrisma()
 
-    const [games, total] = await Promise.all([
-      prisma.game.findMany({
-        where,
-        orderBy,
-        skip,
-        take: limit,
-        select: {
-          slug: true,
-          title: true,
-          year: true,
-          heroTag: true,
-          genres: true,
-          stores: true,
-          platforms: true,
-          averageRating: true,
-          popularityScore: true,
-          image: true,
-          banner: true,
-          catalogBuckets: true,
-          releaseTimestamp: true,
-        }
-      }),
-      prisma.game.count({ where })
-    ])
+    const filterParams = []
+    const conditions = ['TRUE']
 
-    // Fetch available genres + store counts for filters
-    const [allGenres, storeCounts] = await Promise.all([
+    if (q) {
+      filterParams.push(`%${q}%`)
+      conditions.push(`title ILIKE $${filterParams.length}`)
+    }
+    if (store) {
+      filterParams.push(store)
+      conditions.push(`$${filterParams.length} = ANY(stores)`)
+    }
+    if (genre) {
+      filterParams.push(genre)
+      conditions.push(`$${filterParams.length} = ANY(genres)`)
+    }
+
+    const where = conditions.join(' AND ')
+
+    let orderClause
+    switch (sort) {
+      case 'rating':
+        orderClause = '"averageRating" DESC NULLS LAST, title ASC'
+        break
+      case 'newest':
+        orderClause = '"releaseTimestamp" DESC NULLS LAST, title ASC'
+        break
+      case 'popular':
+        orderClause = '"popularityScore" DESC NULLS LAST, "averageRating" DESC NULLS LAST, title ASC'
+        break
+      case 'title':
+      default:
+        orderClause = `CASE WHEN title ~* '^[a-z]' THEN 0 ELSE 1 END, title ASC`
+        break
+    }
+
+    const limitIdx = filterParams.length + 1
+    const offsetIdx = filterParams.length + 2
+
+    const dataQuery = `
+      SELECT slug, title, year, "heroTag", genres, stores, platforms,
+             "averageRating", "popularityScore", image, banner,
+             "catalogBuckets", "releaseTimestamp",
+             payload->>'publisher' AS publisher
+      FROM "Game"
+      WHERE ${where}
+      ORDER BY ${orderClause}
+      LIMIT $${limitIdx} OFFSET $${offsetIdx}
+    `
+
+    const countQuery = `SELECT COUNT(*)::int AS total FROM "Game" WHERE ${where}`
+
+    const [games, countResult, allGenres, storeCounts] = await Promise.all([
+      prisma.$queryRawUnsafe(dataQuery, ...filterParams, limit, skip),
+      prisma.$queryRawUnsafe(countQuery, ...filterParams),
       prisma.$queryRaw`
         SELECT DISTINCT unnest(genres) AS genre FROM "Game" ORDER BY genre
       `.catch(() => []),
@@ -250,6 +244,8 @@ router.get(
         ORDER BY count DESC
       `.catch(() => [])
     ])
+
+    const total = countResult[0]?.total || 0
 
     res.set('Cache-Control', 'public, max-age=30, stale-while-revalidate=120')
     res.json({

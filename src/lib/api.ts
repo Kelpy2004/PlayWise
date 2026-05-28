@@ -51,9 +51,7 @@ function resolveApiBase(): string {
     host === '0.0.0.0'
 
   if (isLocalHost) {
-    const port = window.location.port
-    if (port === '4000') return '/api'
-    return LIVE_API_BASE
+    return '/api'
   }
 
   if (host.endsWith('.vercel.app')) {
@@ -390,7 +388,7 @@ export const api = {
     if (params?.q) search.set('q', params.q)
     if (params?.store) search.set('store', params.store)
     if (params?.genre) search.set('genre', params.genre)
-    if (params?.sort) search.set('sort', params.sort || 'popular')
+    if (params?.sort) search.set('sort', params.sort || 'title')
     const suffix = search.toString() ? `?${search}` : ''
     return request<{
       games: Array<{
@@ -399,6 +397,7 @@ export const api = {
         averageRating: number | null; popularityScore: number | null
         image: string | null; banner: string | null
         catalogBuckets: string[]; releaseTimestamp: string | null
+        publisher: string | null
       }>
       pagination: { page: number; limit: number; total: number; totalPages: number }
       filters: {

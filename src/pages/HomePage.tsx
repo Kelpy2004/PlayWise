@@ -10,6 +10,7 @@ import Seo from '../components/Seo'
 import CinematicIntro from '../components/CinematicIntro'
 import Hero from '../components/Hero'
 import TrendingSection from '../components/TrendingSection'
+import IndustryNewsSection from '../components/IndustryNewsSection'
 import SignalModules from '../components/SignalModules'
 import FeaturesSection from '../components/FeaturesSection'
 import TournamentsSection from '../components/TournamentsSection'
@@ -134,6 +135,9 @@ export default function HomePage() {
 
         {/* Trending — live deals from API */}
         <TrendingSection />
+
+        {/* Industry News — latest from Steam, Xbox, NVIDIA, Epic, Ubisoft, EA */}
+        <IndustryNewsSection />
 
         {/* Signal Modules — interactive compatibility & price tracking */}
         <SignalModules />

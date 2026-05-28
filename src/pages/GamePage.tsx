@@ -24,6 +24,7 @@ import type {
   CompatibilityResult,
   HardwareCatalog,
   HardwareSearchSuggestion,
+  NewsItem,
   PriceHistoryPoint,
   PriceSnapshot,
   PriceTimingInsight,
@@ -276,6 +277,8 @@ export default function GamePage() {
   const [reactionBusyKey, setReactionBusyKey] = useState<string | null>(null)
   const [prices, setPrices] = useState<PriceSnapshot | null>(null)
   const [pricesStatus, setPricesStatus] = useState({ loading: false, message: '' })
+  const [gameNews, setGameNews] = useState<NewsItem[]>([])
+  const [gameNewsLoading, setGameNewsLoading] = useState(false)
   const [activeNav, setActiveNav] = useState('overview')
   const [priceAlerts, setPriceAlerts] = useState<Array<{ id: string; targetPrice?: number | null; isActive: boolean }>>([])
   const [priceAlertFeedback, setPriceAlertFeedback] = useState({ tone: 'info', message: '' })
@@ -424,6 +427,21 @@ export default function GamePage() {
     void loadTournaments()
     return () => { ignore = true }
   }, [game])
+
+  useEffect(() => {
+    if (!game?.slug) { setGameNews([]); return }
+    let ignore = false
+    async function loadGameNews() {
+      setGameNewsLoading(true)
+      try {
+        const response = await api.fetchGameNews(game!.slug)
+        if (!ignore) setGameNews(Array.isArray(response) ? response : [])
+      } catch { if (!ignore) setGameNews([]) }
+      finally { if (!ignore) setGameNewsLoading(false) }
+    }
+    void loadGameNews()
+    return () => { ignore = true }
+  }, [game?.slug])
 
   useEffect(() => {
     if (!token || !game) { setPriceAlerts([]); setTournamentSubscriptions([]); return }
@@ -1230,20 +1248,97 @@ export default function GamePage() {
           {/* ═══ SIDEBAR ═══ */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14, position: 'sticky', top: 80, height: 'fit-content' }}>
 
-            {/* Patch Notes */}
+            {/* Game Updates / News */}
             <motion.div initial={{ opacity: 0, x: 20 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} transition={{ duration: 0.5, ease }}
               style={{ borderRadius: 16, background: 'var(--card-bg)', border: '1px solid var(--card-border)', overflow: 'hidden' }}>
-              <div style={{ height: 90, background: heroImage ? `url('${heroImage}') center/cover` : 'var(--panel)', opacity: 0.35 }} />
               <div style={{ padding: 16 }}>
-                <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
-                  <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 8px', borderRadius: 6, background: 'var(--cyan-dim)', color: 'var(--cyan)', textTransform: 'uppercase', letterSpacing: '0.12em' }}>Patch v1.0.4</span>
-                  <span style={{ fontSize: 9, color: 'var(--muted-solid)', alignSelf: 'center' }}>2h ago</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                  <Icon name="campaign" size={16} style={{ color: 'var(--cyan)' }} />
+                  <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.18em', color: 'var(--muted-solid)' }}>Game Updates</span>
+                  {gameNews.length > 0 ? (
+                    <span style={{ marginLeft: 'auto', fontSize: 9, color: 'var(--cyan)', fontWeight: 700 }}>{gameNews.length} live</span>
+                  ) : null}
                 </div>
-                <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--ds-text)', marginBottom: 4 }}>{sideInsightTitle}</p>
-                <p style={{ fontSize: 11, color: 'var(--ds-muted)', marginBottom: 10, lineHeight: 1.5 }}>{sideInsightNote}</p>
-                <button style={{ display: 'flex', alignItems: 'center', gap: 4, border: 'none', background: 'none', cursor: 'pointer', color: 'var(--cyan)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', fontFamily: "'Outfit', sans-serif" }}>
-                  Read notes <Icon name="arrow_forward" size={12} />
-                </button>
+
+                {gameNewsLoading && gameNews.length === 0 ? (
+                  <p style={{ fontSize: 11, color: 'var(--muted-solid)', marginBottom: 8 }}>Loading latest news…</p>
+                ) : null}
+
+                {!gameNewsLoading && gameNews.length === 0 ? (
+                  <>
+                    <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--ds-text)', marginBottom: 4 }}>{sideInsightTitle}</p>
+                    <p style={{ fontSize: 11, color: 'var(--ds-muted)', marginBottom: 6, lineHeight: 1.5 }}>{sideInsightNote}</p>
+                    <p style={{ fontSize: 10, color: 'var(--muted-solid)', fontStyle: 'italic' }}>
+                      No official updates available for this title right now.
+                    </p>
+                  </>
+                ) : null}
+
+                {gameNews.slice(0, 4).map((news) => {
+                  const sourceColor =
+                    news.sourceSlug === 'steam' ? '#66c0f4' :
+                    news.sourceSlug === 'xbox' ? '#5dc21e' :
+                    news.sourceSlug === 'nvidia' ? '#76b900' :
+                    news.sourceSlug === 'epic' ? '#50b5ff' :
+                    news.sourceSlug === 'ubisoft' ? '#4da6ff' :
+                    news.sourceSlug === 'ea' ? '#f5a623' : 'var(--cyan)'
+                  const ago = (() => {
+                    const t = new Date(news.publishedAt).getTime()
+                    if (!t) return ''
+                    const diff = Date.now() - t
+                    const m = Math.floor(diff / 60000)
+                    if (m < 60) return `${Math.max(m, 1)}m ago`
+                    const h = Math.floor(m / 60)
+                    if (h < 24) return `${h}h ago`
+                    const d = Math.floor(h / 24)
+                    if (d < 30) return `${d}d ago`
+                    return new Date(news.publishedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+                  })()
+                  return (
+                    <a
+                      key={news.id}
+                      href={news.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      style={{
+                        display: 'block',
+                        textDecoration: 'none',
+                        padding: '10px 0',
+                        borderTop: '1px solid var(--card-border)',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                        <span style={{
+                          fontSize: 8, fontWeight: 800, padding: '2px 6px', borderRadius: 4,
+                          background: `${sourceColor}20`, color: sourceColor,
+                          textTransform: 'uppercase', letterSpacing: '0.12em'
+                        }}>{news.source}</span>
+                        <span style={{ fontSize: 9, color: 'var(--muted-solid)' }}>{ago}</span>
+                      </div>
+                      <p style={{
+                        fontSize: 12, fontWeight: 600, color: 'var(--ds-text)',
+                        lineHeight: 1.4, margin: 0,
+                        display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden'
+                      }}>
+                        {news.title}
+                      </p>
+                    </a>
+                  )
+                })}
+
+                {gameNews.length > 4 ? (
+                  <Link
+                    to={`/news?source=${gameNews[0]?.sourceSlug || 'steam'}`}
+                    style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 4,
+                      marginTop: 10, color: 'var(--cyan)', textDecoration: 'none',
+                      fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em',
+                      fontFamily: "'Outfit', sans-serif",
+                    }}
+                  >
+                    View all news <Icon name="arrow_forward" size={12} />
+                  </Link>
+                ) : null}
               </div>
             </motion.div>
 

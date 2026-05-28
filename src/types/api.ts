@@ -321,6 +321,30 @@ export interface DealRecord {
   updatedAt?: string
 }
 
+export type NewsSourceSlug = 'steam' | 'xbox' | 'nvidia' | 'epic' | 'ubisoft' | 'ea'
+export type NewsSourceName = 'Steam' | 'Xbox' | 'NVIDIA' | 'Epic Games' | 'Ubisoft' | 'EA'
+
+export interface NewsItem {
+  id: string
+  title: string
+  summary: string
+  source: NewsSourceName
+  sourceSlug: NewsSourceSlug
+  url: string
+  image: string | null
+  publishedAt: string
+  category: string
+  author?: string | null
+  appId?: string | null
+  gameSlug?: string | null
+}
+
+export interface NewsSource {
+  slug: NewsSourceSlug
+  name: NewsSourceName
+  count: number
+}
+
 export interface DealSubscriptionRecord {
   id: string
   userId?: string | null

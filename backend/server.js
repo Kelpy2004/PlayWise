@@ -21,6 +21,7 @@ const newsletterRoutes = require('./routes/newsletter')
 const adminNotificationRoutes = require('./routes/adminNotifications')
 const dealRoutes = require('./routes/deals')
 const adminDealRoutes = require('./routes/adminDeals')
+const newsRoutes = require('./routes/news')
 
 const { env } = require('./lib/env')
 const { connectPrisma, isDatabaseReady } = require('./lib/prisma')
@@ -38,6 +39,7 @@ const { ensureAuthInfrastructure } = require('./utils/authInfrastructure')
 const { buildSitemapXml, buildRobotsTxt } = require('./utils/seo')
 const { getIntegrationStatus } = require('./utils/integrationStatus')
 const { startDealsRefreshLoop } = require('./utils/dealsAggregator')
+const { startNewsWarmup } = require('./utils/newsAggregator')
 
 const app = express()
 const PORT = env.PORT
@@ -140,6 +142,7 @@ app.use('/api/newsletter', newsletterRoutes)
 app.use('/api/admin/notifications', adminNotificationRoutes)
 app.use('/api/deals', dealRoutes)
 app.use('/api/admin/deals', adminDealRoutes)
+app.use('/api/news', newsRoutes)
 
 if (HAS_FRONTEND_BUILD) {
   app.use(express.static(FRONTEND_ROOT))
@@ -157,6 +160,7 @@ app.use(errorHandler)
 startPriceRefreshLoop()
 startNotificationJobs()
 startDealsRefreshLoop()
+startNewsWarmup()
 
 app.listen(PORT, () => {
   logger.info(`PlayWise server running at http://localhost:${PORT}`)

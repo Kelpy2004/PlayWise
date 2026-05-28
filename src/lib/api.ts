@@ -9,6 +9,9 @@ import type {
   ContactResponse,
   DealRecord,
   DealSubscriptionRecord,
+  NewsItem,
+  NewsSource,
+  NewsSourceSlug,
   FavoriteGame,
   HardwareCatalog,
   HardwareSearchSuggestion,
@@ -353,6 +356,21 @@ export const api = {
   ) => request<{ ok: boolean; subscription: DealSubscriptionRecord }>('/deals/subscribe', { method: 'POST', body, token }),
   unsubscribeFromDealAlerts: (body: { email?: string }, token?: string | null) =>
     request<{ ok: boolean; unsubscribed: number }>('/deals/subscribe', { method: 'DELETE', body, token }),
+
+  // News (Steam, Xbox, NVIDIA, Epic, Ubisoft, EA)
+  fetchNews: (params?: { source?: NewsSourceSlug | string; limit?: number }) => {
+    const search = new URLSearchParams()
+    if (params?.source) search.set('source', params.source)
+    if (typeof params?.limit === 'number' && params.limit > 0) search.set('limit', String(Math.floor(params.limit)))
+    const suffix = search.toString() ? `?${search}` : ''
+    return request<{ ok: boolean; count: number; news: NewsItem[] }>(`/news${suffix}`).then((r) => r.news)
+  },
+  fetchNewsSources: () =>
+    request<{ ok: boolean; sources: NewsSource[] }>('/news/sources').then((r) => r.sources),
+  fetchGameNews: (slug: string) =>
+    request<{ ok: boolean; slug: string; title: string | null; count: number; news: NewsItem[] }>(
+      `/news/game/${encodeURIComponent(slug)}`
+    ).then((r) => r.news),
 
   // Admin deal management
   fetchAdminDeals: (params: { page?: number; limit?: number; store?: string; type?: string; source?: string; active?: string; q?: string }, token: string) => {

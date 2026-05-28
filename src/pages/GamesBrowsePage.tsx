@@ -144,7 +144,7 @@ function GameCard({ game }: { game: LibraryGame }) {
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
 
         {/* Store icons — bottom-right of image */}
-        {game.stores.length > 0 && (
+        {game.stores && game.stores.length > 0 && (
           <div className="absolute bottom-2 right-2 flex items-center gap-1">
             {game.stores.slice(0, 3).map(store => (
               <StoreIconBadge key={store} store={store} />

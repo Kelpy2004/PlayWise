@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 
@@ -9,13 +9,13 @@ import Seo from '../components/Seo'
 
 type DealFilter = 'all' | 'free' | 'discount'
 
-const STORE_COLORS: Record<string, string> = {
-  'Epic Games Store': '#0078f2',
-  Steam: '#1b2838',
-  'Ubisoft Store': '#0070ff',
-  Xbox: '#107c10',
-  NVIDIA: '#76b900',
-}
+/* ── Store definitions (order = display order) ── */
+const STORES = [
+  { key: 'Steam',            color: '#1b2838', accent: '#66c0f4', icon: 'sports_esports' },
+  { key: 'Epic Games Store', color: '#0078f2', accent: '#50b5ff', icon: 'storefront' },
+  { key: 'Xbox',             color: '#107c10', accent: '#5dc21e', icon: 'sports_esports' },
+  { key: 'Ubisoft Store',    color: '#0070ff', accent: '#4da6ff', icon: 'stadia_controller' },
+] as const
 
 function formatExpiry(value?: string | null) {
   if (!value) return null
@@ -38,31 +38,21 @@ function formatPrice(amount?: number | null, currency = 'USD') {
   return `${sym}${amount.toFixed(2)}`
 }
 
-function providerLabel(source: string) {
-  const labels: Record<string, string> = {
-    epic: 'Epic Games',
-    steam: 'Steam',
-    nvidia: 'NVIDIA',
-    cheapshark: 'CheapShark',
-    itad: 'IsThereAnyDeal',
-  }
-  return labels[source] || source
-}
-
-function DealCard({ deal }: { deal: DealRecord }) {
+/* ── Deal card ── */
+function DealCard({ deal, storeAccent }: { deal: DealRecord; storeAccent: string }) {
   const expiry = formatExpiry(deal.endsAt)
   const isFree = deal.type === 'FREE_GAME' || deal.type === 'MISSION_FREE'
-  const storeColor = STORE_COLORS[deal.store] || '#333'
 
   return (
     <motion.article
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-      className="group relative flex flex-col overflow-hidden rounded-xl border border-white/10 bg-[#121212] transition-all hover:border-white/20 hover:shadow-lg hover:shadow-cyan/5"
+      className="group relative flex flex-col overflow-hidden rounded-xl border border-white/10 bg-[#121212] transition-all hover:border-white/20 hover:shadow-lg"
+      style={{ '--store-accent': storeAccent } as React.CSSProperties}
     >
       {/* Image */}
-      <div className="relative aspect-[16/9] w-full overflow-hidden bg-white/5">
+      <div className="relative aspect-[16/10] w-full overflow-hidden bg-white/5">
         {deal.imageUrl ? (
           <img
             src={deal.imageUrl}
@@ -101,20 +91,7 @@ function DealCard({ deal }: { deal: DealRecord }) {
 
       {/* Content */}
       <div className="flex flex-1 flex-col p-4">
-        <h3 className="mb-1 text-base font-bold text-white line-clamp-2">{deal.title}</h3>
-
-        {/* Store + source row */}
-        <div className="mb-3 flex items-center gap-2">
-          <span
-            className="rounded px-1.5 py-0.5 text-[10px] font-bold text-white"
-            style={{ backgroundColor: storeColor }}
-          >
-            {deal.store}
-          </span>
-          <span className="text-[10px] text-white/40">
-            via {providerLabel(deal.source)}
-          </span>
-        </div>
+        <h3 className="mb-2 text-[0.92rem] font-bold text-white line-clamp-2 leading-snug">{deal.title}</h3>
 
         {/* Price */}
         <div className="mt-auto flex items-end justify-between">
@@ -136,29 +113,87 @@ function DealCard({ deal }: { deal: DealRecord }) {
             href={deal.url}
             target="_blank"
             rel="noreferrer"
-            className="inline-flex items-center rounded-lg bg-cyan px-3 py-2 text-xs font-black text-white transition-colors hover:bg-cyan/80"
+            className="inline-flex items-center rounded-lg px-3 py-2 text-xs font-black text-white transition-colors"
+            style={{ backgroundColor: storeAccent }}
           >
             {isFree ? 'Claim Now' : 'Get Deal'}
+            <span className="material-symbols-outlined ml-1" style={{ fontSize: '14px' }}>open_in_new</span>
           </a>
           {deal.gameSlug && (
             <Link
               to={`/games/${deal.gameSlug}`}
               className="inline-flex items-center rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-xs font-bold text-white hover:bg-white/10"
             >
-              Game Details
+              Details
             </Link>
           )}
         </div>
       </div>
-
-      {/* Type indicator line */}
-      {deal.type === 'MISSION_FREE' && (
-        <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-purple-500 to-pink-500" />
-      )}
     </motion.article>
   )
 }
 
+/* ── Store section ── */
+function StoreSection({
+  storeName,
+  storeColor,
+  storeAccent,
+  storeIcon,
+  deals,
+}: {
+  storeName: string
+  storeColor: string
+  storeAccent: string
+  storeIcon: string
+  deals: DealRecord[]
+}) {
+  if (!deals.length) return null
+
+  const freeCount = deals.filter(d => d.type === 'FREE_GAME' || d.type === 'MISSION_FREE' || d.dealPrice === 0).length
+  const discountCount = deals.length - freeCount
+
+  return (
+    <section id={`store-${storeName.toLowerCase().replace(/\s+/g, '-')}`} className="mb-12">
+      {/* Store header */}
+      <div className="mb-5 flex items-center gap-3">
+        <div
+          className="flex h-10 w-10 items-center justify-center rounded-xl"
+          style={{ backgroundColor: storeColor }}
+        >
+          <span className="material-symbols-outlined text-white" style={{ fontSize: '20px' }}>{storeIcon}</span>
+        </div>
+        <div className="flex-1">
+          <h2 className="text-xl font-black text-white">{storeName}</h2>
+        </div>
+        <div className="flex gap-2">
+          {freeCount > 0 && (
+            <span className="rounded-full px-2.5 py-0.5 text-[10px] font-black uppercase"
+              style={{ backgroundColor: `${storeAccent}20`, color: storeAccent, border: `1px solid ${storeAccent}40` }}>
+              {freeCount} free
+            </span>
+          )}
+          {discountCount > 0 && (
+            <span className="rounded-full bg-[#ff7351]/15 border border-[#ff7351]/30 px-2.5 py-0.5 text-[10px] font-black uppercase text-[#ff7351]">
+              {discountCount} {discountCount === 1 ? 'deal' : 'deals'}
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Accent line */}
+      <div className="mb-5 h-px w-full" style={{ background: `linear-gradient(to right, ${storeAccent}60, transparent)` }} />
+
+      {/* Cards grid */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        {deals.map((deal) => (
+          <DealCard key={deal.externalId || deal.id} deal={deal} storeAccent={storeAccent} />
+        ))}
+      </div>
+    </section>
+  )
+}
+
+/* ── Page ── */
 export default function DealsPage() {
   const { user, token } = useAuth()
   const [deals, setDeals] = useState<DealRecord[]>([])
@@ -187,14 +222,28 @@ export default function DealsPage() {
     return () => { ignore = true }
   }, [])
 
-  const filtered = deals.filter((d) => {
+  /* Apply type filter */
+  const filtered = useMemo(() => deals.filter((d) => {
     if (filter === 'free') return d.type === 'FREE_GAME' || d.type === 'MISSION_FREE' || d.dealPrice === 0
     if (filter === 'discount') return d.type === 'DISCOUNT' && (d.dealPrice ?? 0) > 0
     return true
-  })
+  }), [deals, filter])
 
-  const freeCount = deals.filter((d) => d.type === 'FREE_GAME' || d.type === 'MISSION_FREE' || d.dealPrice === 0).length
-  const discountCount = deals.filter((d) => d.type === 'DISCOUNT' && (d.dealPrice ?? 0) > 0).length
+  /* Group by store in defined order */
+  const storeGroups = useMemo(() => {
+    const grouped = new Map<string, DealRecord[]>()
+    for (const deal of filtered) {
+      const arr = grouped.get(deal.store) || []
+      arr.push(deal)
+      grouped.set(deal.store, arr)
+    }
+    return STORES
+      .filter(s => grouped.has(s.key))
+      .map(s => ({ ...s, deals: grouped.get(s.key)! }))
+  }, [filtered])
+
+  const freeCount = deals.filter(d => d.type === 'FREE_GAME' || d.type === 'MISSION_FREE' || d.dealPrice === 0).length
+  const discountCount = deals.filter(d => d.type === 'DISCOUNT' && (d.dealPrice ?? 0) > 0).length
 
   async function handleSubscribe(e: React.FormEvent) {
     e.preventDefault()
@@ -218,7 +267,7 @@ export default function DealsPage() {
     <>
       <Seo
         title="Deals & Free Games | PlayWise"
-        description="Free games across Epic, Steam, Ubisoft, Xbox and more. Deep discounts detected in real time."
+        description="Free games and discounts pulled directly from Steam, Epic, Xbox, and Ubisoft stores. No middlemen."
       />
       <section className="mx-auto w-full max-w-[1320px] px-4 py-12 text-white">
         {/* Header */}
@@ -228,8 +277,7 @@ export default function DealsPage() {
             <div>
               <h1 className="text-3xl font-black">Free Games & Deals</h1>
               <p className="mt-2 text-sm text-white/70">
-                Live free game giveaways and deep discounts across Epic Games, Steam, Ubisoft, and Xbox.
-                Updated every 5 minutes.
+                Live prices pulled directly from each store. No third-party data — updated every 5 minutes.
               </p>
             </div>
             <div className="flex gap-2">
@@ -247,35 +295,57 @@ export default function DealsPage() {
           </div>
         </div>
 
-        {/* Filter tabs */}
-        <div className="mb-6 flex flex-wrap items-center gap-2">
-          {([
-            { key: 'all' as const, label: 'All' },
-            { key: 'free' as const, label: 'Free Games' },
-            { key: 'discount' as const, label: 'Discounts' },
-          ]).map((f) => (
-            <button
-              key={f.key}
-              type="button"
-              onClick={() => setFilter(f.key)}
-              className={`rounded-full px-4 py-1.5 text-xs font-bold uppercase tracking-[0.14em] transition-all ${
-                filter === f.key
-                  ? 'bg-cyan text-white'
-                  : 'border border-white/10 bg-white/[0.04] text-white/60 hover:text-white'
-              }`}
-            >
-              {f.label}
-            </button>
-          ))}
+        {/* Store jump nav + filter tabs */}
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
+          {/* Filter tabs */}
+          <div className="flex flex-wrap items-center gap-2">
+            {([
+              { key: 'all' as const, label: 'All' },
+              { key: 'free' as const, label: 'Free Games' },
+              { key: 'discount' as const, label: 'Discounts' },
+            ]).map((f) => (
+              <button
+                key={f.key}
+                type="button"
+                onClick={() => setFilter(f.key)}
+                className={`rounded-full px-4 py-1.5 text-xs font-bold uppercase tracking-[0.14em] transition-all ${
+                  filter === f.key
+                    ? 'bg-cyan text-white'
+                    : 'border border-white/10 bg-white/[0.04] text-white/60 hover:text-white'
+                }`}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Store jump buttons */}
+          {!loading && storeGroups.length > 1 && (
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-white/30 mr-1">Jump to</span>
+              {storeGroups.map(sg => (
+                <button
+                  key={sg.key}
+                  type="button"
+                  onClick={() => document.getElementById(`store-${sg.key.toLowerCase().replace(/\s+/g, '-')}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                  className="rounded-lg px-2.5 py-1 text-[11px] font-bold text-white/80 transition-all hover:text-white"
+                  style={{ backgroundColor: `${sg.color}80`, border: `1px solid ${sg.accent}30` }}
+                >
+                  {sg.key.replace(' Store', '').replace(' Games Store', '')}
+                  <span className="ml-1 text-white/50">{sg.deals.length}</span>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Subscribe banner */}
         {subStatus !== 'done' && (
-          <div className="mb-6 rounded-xl border border-cyan/20 bg-cyan/5 p-4">
+          <div className="mb-8 rounded-xl border border-cyan/20 bg-cyan/5 p-4">
             <div className="flex flex-wrap items-center gap-4">
               <div className="flex-1">
                 <p className="text-sm font-bold text-white">Get notified when games go free or drop below 75% off</p>
-                <p className="text-xs text-white/50 mt-0.5">Instant email alerts across all platforms.</p>
+                <p className="text-xs text-white/50 mt-0.5">Instant email alerts across all stores.</p>
               </div>
               <form onSubmit={handleSubscribe} className="flex gap-2">
                 {!user && (
@@ -303,7 +373,7 @@ export default function DealsPage() {
           </div>
         )}
         {subStatus === 'done' && (
-          <div className="mb-6 rounded-xl border border-[#b1fa50]/20 bg-[#b1fa50]/5 px-4 py-3 text-sm text-[#b1fa50]">
+          <div className="mb-8 rounded-xl border border-[#b1fa50]/20 bg-[#b1fa50]/5 px-4 py-3 text-sm text-[#b1fa50]">
             {subMessage}
           </div>
         )}
@@ -317,7 +387,7 @@ export default function DealsPage() {
 
         {/* Loading */}
         {loading && (
-          <div className="flex items-center gap-3 text-sm text-white/60">
+          <div className="flex items-center gap-3 text-sm text-white/60 py-12">
             <div className="h-4 w-4 animate-spin rounded-full border-2 border-cyan border-t-transparent" />
             Scanning stores for deals...
           </div>
@@ -335,17 +405,22 @@ export default function DealsPage() {
           </div>
         )}
 
-        {/* Deals grid */}
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {filtered.map((deal) => (
-            <DealCard key={deal.externalId || deal.id} deal={deal} />
-          ))}
-        </div>
+        {/* Store sections */}
+        {storeGroups.map(sg => (
+          <StoreSection
+            key={sg.key}
+            storeName={sg.key}
+            storeColor={sg.color}
+            storeAccent={sg.accent}
+            storeIcon={sg.icon}
+            deals={sg.deals}
+          />
+        ))}
 
         {/* Source footer */}
         {!loading && deals.length > 0 && (
-          <p className="mt-8 text-center text-[11px] text-white/30">
-            Data from Epic Games, Steam, Ubisoft, Xbox, and NVIDIA. Prices may vary by region.
+          <p className="mt-4 text-center text-[11px] text-white/30">
+            Prices pulled directly from each store's official API. May vary by region.
           </p>
         )}
       </section>

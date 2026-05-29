@@ -102,7 +102,7 @@ function StoreIconBadge({ store }: { store: string }) {
 
   return (
     <div
-      className="flex items-center justify-center rounded-full bg-black/60 backdrop-blur-sm border border-white/10"
+      className="flex items-center justify-center rounded-full bg-black/60 backdrop-blur-sm border border-[var(--card-border)]"
       style={{ width: 24, height: 24 }}
       title={store}
     >
@@ -124,7 +124,7 @@ function GameCard({ game }: { game: LibraryGame }) {
       className="group flex flex-col gap-2 text-left"
     >
       {/* Image container */}
-      <div className="relative aspect-[460/215] w-full overflow-hidden rounded-md bg-[#161616]">
+      <div className="relative aspect-[460/215] w-full overflow-hidden rounded-md bg-[var(--input-bg)]">
         {img ? (
           <img
             src={img}
@@ -133,7 +133,7 @@ function GameCard({ game }: { game: LibraryGame }) {
             loading="lazy"
           />
         ) : (
-          <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-[#1a1a1a] to-[#111]">
+          <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-[var(--input-bg)] to-[var(--metric-bg)]">
             <span className="text-4xl font-black text-white/[0.06] select-none">
               {game.title.charAt(0).toUpperCase()}
             </span>
@@ -158,7 +158,7 @@ function GameCard({ game }: { game: LibraryGame }) {
             <span className={`rounded px-1.5 py-0.5 text-[10px] font-black shadow-lg ${
               game.averageRating >= 8 ? 'bg-[#76b900]/90 text-black' :
               game.averageRating >= 6 ? 'bg-amber-500/90 text-black' :
-              'bg-black/70 text-white/80 backdrop-blur-sm'
+              'bg-black/70 text-[var(--text-secondary)] backdrop-blur-sm'
             }`}>
               {game.averageRating.toFixed(1)}
             </span>
@@ -170,19 +170,19 @@ function GameCard({ game }: { game: LibraryGame }) {
       <div className="flex flex-col gap-0.5 px-0.5">
         {/* Publisher */}
         {game.publisher && (
-          <span className="text-[11px] leading-tight text-white/35 line-clamp-1">
+          <span className="text-[11px] leading-tight text-[var(--muted)] line-clamp-1">
             {game.publisher}
           </span>
         )}
 
         {/* Title */}
-        <h3 className="text-[13px] font-bold leading-snug text-white/90 line-clamp-1 group-hover:text-white transition-colors">
+        <h3 className="text-[13px] font-bold leading-snug text-[var(--text)] line-clamp-1 group-hover:text-[var(--cyan)] transition-colors">
           {game.title}
         </h3>
 
         {/* Year */}
         {game.year && (
-          <span className="text-[10px] text-white/25">{game.year}</span>
+          <span className="text-[10px] text-[var(--muted)]">{game.year}</span>
         )}
       </div>
     </Link>
@@ -213,21 +213,21 @@ function Pagination({
       <button
         disabled={page <= 1}
         onClick={() => onPageChange(page - 1)}
-        className="rounded-md border border-white/8 bg-white/[0.03] px-3 py-1.5 text-[11px] font-semibold text-white/50 transition hover:bg-white/[0.06] hover:text-white/80 disabled:opacity-25 disabled:cursor-not-allowed"
+        className="rounded-md border border-[var(--card-border)] bg-[var(--card-bg)] px-3 py-1.5 text-[11px] font-semibold text-[var(--muted)] transition hover:bg-[var(--metric-bg)] hover:text-[var(--text-secondary)] disabled:opacity-25 disabled:cursor-not-allowed"
       >
         Prev
       </button>
       {pages.map((p, i) =>
         p === '...' ? (
-          <span key={`dot-${i}`} className="px-1 text-[11px] text-white/20">…</span>
+          <span key={`dot-${i}`} className="px-1 text-[11px] text-[var(--muted)]">…</span>
         ) : (
           <button
             key={p}
             onClick={() => onPageChange(p)}
             className={`rounded-md px-2.5 py-1.5 text-[11px] font-semibold transition ${
               p === page
-                ? 'bg-white text-black'
-                : 'border border-white/8 bg-white/[0.03] text-white/50 hover:bg-white/[0.06] hover:text-white/80'
+                ? 'bg-[var(--text)] text-[var(--deep)]'
+                : 'border border-[var(--card-border)] bg-[var(--card-bg)] text-[var(--muted)] hover:bg-[var(--metric-bg)] hover:text-[var(--text-secondary)]'
             }`}
           >
             {p}
@@ -237,7 +237,7 @@ function Pagination({
       <button
         disabled={page >= totalPages}
         onClick={() => onPageChange(page + 1)}
-        className="rounded-md border border-white/8 bg-white/[0.03] px-3 py-1.5 text-[11px] font-semibold text-white/50 transition hover:bg-white/[0.06] hover:text-white/80 disabled:opacity-25 disabled:cursor-not-allowed"
+        className="rounded-md border border-[var(--card-border)] bg-[var(--card-bg)] px-3 py-1.5 text-[11px] font-semibold text-[var(--muted)] transition hover:bg-[var(--metric-bg)] hover:text-[var(--text-secondary)] disabled:opacity-25 disabled:cursor-not-allowed"
       >
         Next
       </button>
@@ -337,7 +337,7 @@ export default function GamesBrowsePage() {
         title={seoTitle}
         description="Browse thousands of PC games. Filter by store, genre, and more."
       />
-      <section className="min-h-screen bg-black text-white">
+      <section className="min-h-screen bg-[var(--deep)] text-[var(--text)]">
         <div className="mx-auto w-full max-w-[1360px] px-6 py-10 sm:px-8 xl:px-10">
 
           {/* ── Header ── */}
@@ -347,11 +347,11 @@ export default function GamesBrowsePage() {
             transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
             className="mb-7"
           >
-            <h1 className="text-[22px] font-bold tracking-tight text-white">
+            <h1 className="text-[22px] font-bold tracking-tight text-[var(--text)]">
               {currentStore || 'Games'}
-              {currentGenre && <span className="text-white/30 font-normal"> / {currentGenre}</span>}
+              {currentGenre && <span className="text-[var(--muted)] font-normal"> / {currentGenre}</span>}
             </h1>
-            <p className="mt-1 text-[11px] text-white/30">
+            <p className="mt-1 text-[11px] text-[var(--muted)]">
               {pagination.total.toLocaleString()} titles
               {' · '}
               Page {pagination.page} of {pagination.totalPages || 1}
@@ -363,14 +363,14 @@ export default function GamesBrowsePage() {
 
             {/* Search */}
             <div className="relative min-w-[220px] lg:flex-1 lg:max-w-xs">
-              <span className="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-white/20" style={{ fontSize: '16px' }}>search</span>
+              <span className="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--muted)]" style={{ fontSize: '16px' }}>search</span>
               <input
                 ref={searchRef}
                 type="text"
                 placeholder="Search games…"
                 defaultValue={currentQuery}
                 onChange={(e) => handleSearch(e.target.value)}
-                className="w-full rounded border border-white/8 bg-white/[0.03] py-2 pl-8 pr-3 text-[12px] text-white placeholder:text-white/20 focus:border-white/20 focus:outline-none transition"
+                className="w-full rounded border border-[var(--card-border)] bg-[var(--card-bg)] py-2 pl-8 pr-3 text-[12px] text-[var(--text)] placeholder:text-[var(--muted)] focus:border-[var(--cyan)] focus:outline-none transition"
               />
             </div>
 
@@ -379,7 +379,7 @@ export default function GamesBrowsePage() {
               <button
                 onClick={() => updateParams({ store: '' })}
                 className={`rounded px-2.5 py-1.5 text-[10px] font-semibold transition ${
-                  !currentStore ? 'bg-white text-black' : 'bg-white/[0.04] text-white/40 hover:text-white/70'
+                  !currentStore ? 'bg-[var(--text)] text-[var(--deep)]' : 'bg-[var(--card-bg)] text-[var(--muted)] hover:text-[var(--text-secondary)]'
                 }`}
               >
                 All
@@ -392,8 +392,8 @@ export default function GamesBrowsePage() {
                     onClick={() => updateParams({ store: sc.name === currentStore ? '' : sc.name })}
                     className={`inline-flex items-center gap-1 rounded px-2.5 py-1.5 text-[10px] font-semibold transition ${
                       currentStore === sc.name
-                        ? 'bg-white text-black'
-                        : 'bg-white/[0.04] text-white/40 hover:text-white/70'
+                        ? 'bg-[var(--text)] text-[var(--deep)]'
+                        : 'bg-[var(--card-bg)] text-[var(--muted)] hover:text-[var(--text-secondary)]'
                     }`}
                   >
                     {label}
@@ -408,7 +408,7 @@ export default function GamesBrowsePage() {
               <select
                 value={currentGenre}
                 onChange={(e) => updateParams({ genre: e.target.value })}
-                className="rounded border border-white/8 bg-white/[0.03] px-2.5 py-1.5 text-[10px] font-semibold text-white/50 focus:border-white/20 focus:outline-none appearance-none cursor-pointer"
+                className="rounded border border-[var(--card-border)] bg-[var(--card-bg)] px-2.5 py-1.5 text-[10px] font-semibold text-[var(--muted)] focus:border-[var(--cyan)] focus:outline-none appearance-none cursor-pointer"
               >
                 <option value="">All Genres</option>
                 {availableGenres.map(g => <option key={g} value={g}>{g}</option>)}
@@ -423,8 +423,8 @@ export default function GamesBrowsePage() {
                   onClick={() => updateParams({ sort: opt.key })}
                   className={`rounded px-2.5 py-1.5 text-[10px] font-semibold transition ${
                     currentSort === opt.key
-                      ? 'bg-white/10 text-white'
-                      : 'text-white/30 hover:text-white/60'
+                      ? 'bg-[var(--metric-bg)] text-[var(--text)]'
+                      : 'text-[var(--muted)] hover:text-[var(--text-secondary)]'
                   }`}
                 >
                   {opt.label}
@@ -439,7 +439,7 @@ export default function GamesBrowsePage() {
               {currentQuery && (
                 <button
                   onClick={() => { updateParams({ q: '' }); if (searchRef.current) searchRef.current.value = '' }}
-                  className="inline-flex items-center gap-1 rounded-full bg-white/5 border border-white/10 px-2.5 py-0.5 text-[10px] text-white/60"
+                  className="inline-flex items-center gap-1 rounded-full bg-[var(--card-bg)] border border-[var(--card-border)] px-2.5 py-0.5 text-[10px] text-[var(--text-secondary)]"
                 >
                   "{currentQuery}" <span className="opacity-40">✕</span>
                 </button>
@@ -447,7 +447,7 @@ export default function GamesBrowsePage() {
               {currentStore && (
                 <button
                   onClick={() => updateParams({ store: '' })}
-                  className="inline-flex items-center gap-1 rounded-full bg-white/5 border border-white/10 px-2.5 py-0.5 text-[10px] text-white/60"
+                  className="inline-flex items-center gap-1 rounded-full bg-[var(--card-bg)] border border-[var(--card-border)] px-2.5 py-0.5 text-[10px] text-[var(--text-secondary)]"
                 >
                   {currentStore} <span className="opacity-40">✕</span>
                 </button>
@@ -455,14 +455,14 @@ export default function GamesBrowsePage() {
               {currentGenre && (
                 <button
                   onClick={() => updateParams({ genre: '' })}
-                  className="inline-flex items-center gap-1 rounded-full bg-white/5 border border-white/10 px-2.5 py-0.5 text-[10px] text-white/60"
+                  className="inline-flex items-center gap-1 rounded-full bg-[var(--card-bg)] border border-[var(--card-border)] px-2.5 py-0.5 text-[10px] text-[var(--text-secondary)]"
                 >
                   {currentGenre} <span className="opacity-40">✕</span>
                 </button>
               )}
               <button
                 onClick={() => { setSearchParams({}, { replace: true }); if (searchRef.current) searchRef.current.value = '' }}
-                className="text-[10px] text-white/20 hover:text-white/50 underline ml-1"
+                className="text-[10px] text-[var(--muted)] hover:text-[var(--muted)] underline ml-1"
               >
                 Clear all
               </button>
@@ -472,8 +472,8 @@ export default function GamesBrowsePage() {
           {/* ── Loading ── */}
           {loading && (
             <div className="flex items-center gap-3 py-24 justify-center">
-              <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/50 border-t-transparent" />
-              <span className="text-xs text-white/30">Loading games…</span>
+              <div className="h-4 w-4 animate-spin rounded-full border-2 border-[var(--card-border)]0 border-t-transparent" />
+              <span className="text-xs text-[var(--muted)]">Loading games…</span>
             </div>
           )}
 
@@ -487,13 +487,13 @@ export default function GamesBrowsePage() {
           {/* ── Empty ── */}
           {!loading && !error && games.length === 0 && (
             <div className="px-6 py-24 text-center">
-              <p className="text-sm font-semibold text-white/50 mb-1">No games found</p>
-              <p className="text-xs text-white/25 mb-6">
+              <p className="text-sm font-semibold text-[var(--muted)] mb-1">No games found</p>
+              <p className="text-xs text-[var(--muted)] mb-6">
                 {currentQuery ? `No results for "${currentQuery}".` : 'Try a different filter.'}
               </p>
               <button
                 onClick={() => { setSearchParams({}, { replace: true }); if (searchRef.current) searchRef.current.value = '' }}
-                className="rounded bg-white px-5 py-2 text-xs font-bold text-black"
+                className="rounded bg-[var(--text)] px-5 py-2 text-xs font-bold text-[var(--deep)]"
               >
                 Reset
               </button>
@@ -533,7 +533,7 @@ export default function GamesBrowsePage() {
 
           {/* ── Footer ── */}
           {!loading && games.length > 0 && (
-            <p className="mt-10 text-center text-[10px] text-white/15">
+            <p className="mt-10 text-center text-[10px] text-[var(--muted)]">
               Game data powered by IGDB &amp; NVIDIA GeForce NOW. Cover art belongs to their respective publishers.
             </p>
           )}

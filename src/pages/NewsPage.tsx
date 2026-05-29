@@ -67,11 +67,11 @@ function SourceFilters({
         onClick={() => onSelect('all')}
         className={`rounded-full border px-4 py-1.5 text-[12px] font-bold uppercase tracking-wider transition ${
           active === 'all'
-            ? 'border-white/80 bg-white/[0.08] text-white'
-            : 'border-white/10 bg-white/[0.02] text-white/60 hover:border-white/20 hover:text-white'
+            ? 'border-[var(--text)] bg-[var(--metric-bg)] text-[var(--text)]'
+            : 'border-[var(--card-border)] bg-[var(--card-bg)] text-[var(--text-secondary)] hover:border-[var(--card-border)] hover:text-[var(--text)]'
         }`}
       >
-        All <span className="ml-1 text-white/40">{totalCount}</span>
+        All <span className="ml-1 text-[var(--muted)]">{totalCount}</span>
       </button>
       {SOURCE_ORDER.map((slug) => {
         const src = sources.find((s) => s.slug === slug)
@@ -84,13 +84,13 @@ function SourceFilters({
             onClick={() => onSelect(slug)}
             className={`rounded-full border px-4 py-1.5 text-[12px] font-bold uppercase tracking-wider transition ${
               isActive
-                ? 'border-transparent text-white'
-                : 'border-white/10 bg-white/[0.02] text-white/60 hover:border-white/20 hover:text-white'
+                ? 'border-transparent text-white shadow-md'
+                : 'border-[var(--card-border)] bg-[var(--card-bg)] text-[var(--text-secondary)] hover:border-[var(--card-border)] hover:text-[var(--text)]'
             }`}
             style={isActive ? { background: style.bg, borderColor: style.accent } : undefined}
           >
             {style.name}
-            {src ? <span className="ml-1 text-white/50">{src.count}</span> : null}
+            {src ? <span className="ml-1 text-[var(--muted)]">{src.count}</span> : null}
           </button>
         )
       })}
@@ -107,9 +107,9 @@ function FeaturedNewsCard({ item }: { item: NewsItem }) {
       href={item.url}
       target="_blank"
       rel="noreferrer"
-      className="group relative block overflow-hidden rounded-2xl border border-white/10 bg-[#0c0c0e] transition-all hover:border-white/25 hover:shadow-[0_8px_40px_rgba(0,0,0,0.4)]"
+      className="group relative block overflow-hidden rounded-2xl border border-[var(--card-border)] bg-[var(--card-bg)] transition-all hover:border-[var(--cyan)] hover:shadow-[0_8px_40px_rgba(0,0,0,0.4)]"
     >
-      <div className="relative aspect-[16/9] w-full overflow-hidden bg-[#161616]">
+      <div className="relative aspect-[16/9] w-full overflow-hidden bg-[var(--input-bg)]">
         {item.image ? (
           <img
             src={item.image}
@@ -118,7 +118,7 @@ function FeaturedNewsCard({ item }: { item: NewsItem }) {
             className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-[1.04]"
           />
         ) : (
-          <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-[#1a1a1a] to-[#111]">
+          <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-[var(--input-bg)] to-[var(--metric-bg)]">
             <span className="text-7xl font-black text-white/[0.06] select-none">{getInitial(item.title)}</span>
           </div>
         )}
@@ -134,15 +134,15 @@ function FeaturedNewsCard({ item }: { item: NewsItem }) {
         </div>
 
         <div className="absolute inset-x-0 bottom-0 p-6">
-          <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-white/60 mb-2">
+          <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-[var(--text-secondary)] mb-2">
             {formatRelativeTime(item.publishedAt)}
-            {item.author ? <span className="text-white/35"> · {item.author}</span> : null}
+            {item.author ? <span className="text-[var(--muted)]"> · {item.author}</span> : null}
           </p>
-          <h3 className="text-[clamp(1.3rem,2vw,1.6rem)] font-extrabold leading-tight text-white line-clamp-3 group-hover:text-white">
+          <h3 className="text-[clamp(1.3rem,2vw,1.6rem)] font-extrabold leading-tight text-[var(--text)] line-clamp-3 group-hover:text-[var(--text)]">
             {item.title}
           </h3>
           {item.summary ? (
-            <p className="mt-2 line-clamp-2 text-[14px] leading-relaxed text-white/70">{item.summary}</p>
+            <p className="mt-2 line-clamp-2 text-[14px] leading-relaxed text-[var(--text-secondary)]">{item.summary}</p>
           ) : null}
         </div>
       </div>
@@ -159,9 +159,9 @@ function NewsCard({ item, compact = false }: { item: NewsItem; compact?: boolean
       href={item.url}
       target="_blank"
       rel="noreferrer"
-      className="group flex flex-col gap-3 rounded-xl border border-white/8 bg-[#0e0e10] p-3 transition-all hover:border-white/20 hover:bg-[#131317]"
+      className="group flex flex-col gap-3 rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] p-3 transition-all hover:border-[var(--card-border)] hover:bg-[var(--metric-bg)]"
     >
-      <div className={`relative w-full overflow-hidden rounded-lg bg-[#161616] ${compact ? 'aspect-[16/9]' : 'aspect-[16/10]'}`}>
+      <div className={`relative w-full overflow-hidden rounded-lg bg-[var(--input-bg)] ${compact ? 'aspect-[16/9]' : 'aspect-[16/10]'}`}>
         {item.image ? (
           <img
             src={item.image}
@@ -170,7 +170,7 @@ function NewsCard({ item, compact = false }: { item: NewsItem; compact?: boolean
             className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.04]"
           />
         ) : (
-          <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-[#1a1a1a] to-[#0d0d0d]">
+          <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-[var(--input-bg)] to-[var(--metric-bg)]">
             <span className="text-5xl font-black text-white/[0.06] select-none">{getInitial(item.title)}</span>
           </div>
         )}
@@ -186,14 +186,14 @@ function NewsCard({ item, compact = false }: { item: NewsItem; compact?: boolean
       </div>
 
       <div className="flex flex-col gap-1.5 px-1 pb-1">
-        <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-white/40">
+        <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-[var(--muted)]">
           {formatRelativeTime(item.publishedAt)}
         </p>
-        <h3 className={`font-bold leading-snug text-white/90 transition-colors group-hover:text-white ${compact ? 'text-[13px] line-clamp-2' : 'text-[14px] line-clamp-3'}`}>
+        <h3 className={`font-bold leading-snug text-[var(--text)] transition-colors group-hover:text-[var(--text)] ${compact ? 'text-[13px] line-clamp-2' : 'text-[14px] line-clamp-3'}`}>
           {item.title}
         </h3>
         {!compact && item.summary ? (
-          <p className="line-clamp-2 text-[12px] leading-relaxed text-white/55">{item.summary}</p>
+          <p className="line-clamp-2 text-[12px] leading-relaxed text-[var(--text-secondary)]">{item.summary}</p>
         ) : null}
       </div>
     </a>
@@ -204,12 +204,12 @@ function NewsCard({ item, compact = false }: { item: NewsItem; compact?: boolean
 
 function SkeletonCard() {
   return (
-    <div className="flex flex-col gap-3 rounded-xl border border-white/5 bg-[#0e0e10] p-3 animate-pulse">
-      <div className="aspect-[16/10] w-full rounded-lg bg-white/5" />
+    <div className="flex flex-col gap-3 rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] p-3 animate-pulse">
+      <div className="aspect-[16/10] w-full rounded-lg bg-[var(--card-bg)]" />
       <div className="px-1 space-y-2">
-        <div className="h-2 w-16 rounded bg-white/5" />
-        <div className="h-3 w-full rounded bg-white/5" />
-        <div className="h-3 w-3/4 rounded bg-white/5" />
+        <div className="h-2 w-16 rounded bg-[var(--card-bg)]" />
+        <div className="h-3 w-full rounded bg-[var(--card-bg)]" />
+        <div className="h-3 w-3/4 rounded bg-[var(--card-bg)]" />
       </div>
     </div>
   )
@@ -285,18 +285,18 @@ export default function NewsPage() {
         description="Latest gaming news, patch notes, free games, and updates from Steam, Xbox, NVIDIA, Epic Games, Ubisoft, and EA — all in one feed."
       />
 
-      <section className="min-h-screen bg-black text-white">
+      <section className="min-h-screen bg-[var(--deep)] text-[var(--text)]">
         <div className="mx-auto w-full max-w-[1360px] px-6 py-10 sm:px-8 xl:px-10">
           {/* Header */}
           <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <p className="mb-2 text-[11px] font-black uppercase tracking-[0.22em] text-white/40">Industry feed</p>
+              <p className="mb-2 text-[11px] font-black uppercase tracking-[0.22em] text-[var(--muted)]">Industry feed</p>
               <h1 className="text-[clamp(2rem,4vw,3.2rem)] font-black tracking-tight">Game Industry News</h1>
-              <p className="mt-2 max-w-2xl text-[14px] text-white/55">
+              <p className="mt-2 max-w-2xl text-[14px] text-[var(--text-secondary)]">
                 Headlines straight from the source — Steam, Xbox Wire, NVIDIA GeForce blog, Epic Games Store, Ubisoft, and EA. Updated every 30 minutes.
               </p>
             </div>
-            <div className="text-right text-[12px] text-white/45">
+            <div className="text-right text-[12px] text-[var(--muted)]">
               {loading ? 'Loading…' : `${filtered.length} articles · ${sources.length} sources`}
             </div>
           </div>
@@ -309,9 +309,9 @@ export default function NewsPage() {
                 onChange={(e) => setSearch(e.target.value)}
                 type="search"
                 placeholder="Search headlines…"
-                className="w-full rounded-full border border-white/10 bg-white/[0.03] py-2.5 pl-10 pr-4 text-[13px] text-white placeholder-white/35 outline-none transition focus:border-white/30 focus:bg-white/[0.05]"
+                className="w-full rounded-full border border-[var(--card-border)] bg-[var(--card-bg)] py-2.5 pl-10 pr-4 text-[13px] text-[var(--text)] placeholder-[var(--muted)] outline-none transition focus:border-[var(--cyan)] focus:bg-[var(--card-bg)]"
               />
-              <svg viewBox="0 0 24 24" fill="none" className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-white/40">
+              <svg viewBox="0 0 24 24" fill="none" className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted)]">
                 <circle cx="11" cy="11" r="7" stroke="currentColor" strokeWidth="2" />
                 <path d="m20 20-3-3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
               </svg>
@@ -335,7 +335,7 @@ export default function NewsPage() {
 
           {/* Empty state */}
           {!loading && !error && filtered.length === 0 ? (
-            <div className="rounded-xl border border-white/10 bg-white/[0.02] p-10 text-center text-white/55">
+            <div className="rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] p-10 text-center text-[var(--text-secondary)]">
               <p className="text-lg font-bold">No news matches your filters.</p>
               <p className="mt-2 text-sm">Try changing the source or clearing your search.</p>
             </div>
@@ -387,7 +387,7 @@ export default function NewsPage() {
                       <div className="flex items-center gap-3">
                         <span className="block h-6 w-1.5 rounded-full" style={{ background: style.accent }} />
                         <div>
-                          <p className="text-[10px] font-black uppercase tracking-[0.22em] text-white/40">
+                          <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[var(--muted)]">
                             From {style.name}
                           </p>
                           <h2 className="text-[20px] font-extrabold tracking-tight">{style.name} News</h2>
@@ -396,7 +396,7 @@ export default function NewsPage() {
                       <button
                         type="button"
                         onClick={() => setActive(slug)}
-                        className="text-[11px] font-bold uppercase tracking-[0.15em] text-white/40 transition hover:text-white"
+                        className="text-[11px] font-bold uppercase tracking-[0.15em] text-[var(--muted)] transition hover:text-[var(--text)]"
                       >
                         See all {items.length} →
                       </button>

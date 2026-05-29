@@ -201,13 +201,15 @@ router.get(
     let orderClause
     switch (sort) {
       case 'rating':
-        orderClause = '"averageRating" DESC NULLS LAST, title ASC'
+        // IMDB-ranked games first (in IMDB rating order), then by IGDB rating
+        orderClause = '"imdbRatingRank" ASC NULLS LAST, "averageRating" DESC NULLS LAST, title ASC'
         break
       case 'newest':
         orderClause = '"releaseTimestamp" DESC NULLS LAST, title ASC'
         break
       case 'popular':
-        orderClause = '"popularityScore" DESC NULLS LAST, "averageRating" DESC NULLS LAST, title ASC'
+        // IMDB-ranked games first (in IMDB popularity order), then by IGDB popularity
+        orderClause = '"imdbPopularityRank" ASC NULLS LAST, "popularityScore" DESC NULLS LAST, "averageRating" DESC NULLS LAST, title ASC'
         break
       case 'title':
       default:
@@ -222,6 +224,7 @@ router.get(
       SELECT slug, title, year, "heroTag", genres, stores, platforms,
              "averageRating", "popularityScore", image, banner,
              "catalogBuckets", "releaseTimestamp",
+             "imdbRating", "imdbRatingRank", "imdbPopularityRank",
              payload->>'publisher' AS publisher
       FROM "Game"
       WHERE ${where}

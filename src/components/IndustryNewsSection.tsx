@@ -120,7 +120,7 @@ function MediumCard({ item }: { item: NewsItem }) {
         <p className="text-[9px] font-bold uppercase tracking-[0.15em] text-[var(--muted)]">
           {relativeTime(item.publishedAt)}
         </p>
-        <h4 className="text-[13px] font-bold leading-snug text-[var(--text)] line-clamp-3 group-hover:text-[var(--text)] transition-colors">
+        <h4 className="text-[13px] font-bold leading-snug text-[var(--text)] line-clamp-3 break-words group-hover:text-[var(--text)] transition-colors">
           {item.title}
         </h4>
       </div>
@@ -139,17 +139,17 @@ function CompactCard({ item }: { item: NewsItem }) {
       className="group flex gap-3 rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] p-3.5 transition-all hover:border-[var(--card-border)] hover:bg-[var(--metric-bg)]"
     >
       <span className="mt-1 block h-full w-1 flex-shrink-0 rounded-full" style={{ background: accent }} />
-      <div className="flex flex-1 flex-col gap-1">
+      <div className="flex min-w-0 flex-1 flex-col gap-1">
         <div className="flex items-center gap-2 text-[9px] font-bold uppercase tracking-[0.15em]">
           <span style={{ color: accent }}>{SOURCE_ACCENT[item.sourceSlug]?.name}</span>
           <span className="text-[var(--muted)]">·</span>
           <span className="text-[var(--muted)]">{relativeTime(item.publishedAt)}</span>
         </div>
-        <h4 className="text-[13px] font-bold leading-snug text-[var(--text)] line-clamp-2 group-hover:text-[var(--text)] transition-colors">
+        <h4 className="text-[13px] font-bold leading-snug text-[var(--text)] line-clamp-2 break-words group-hover:text-[var(--text)] transition-colors">
           {item.title}
         </h4>
         {item.summary ? (
-          <p className="mt-0.5 line-clamp-2 text-[11px] leading-relaxed text-[var(--muted)]">
+          <p className="mt-0.5 line-clamp-2 break-words text-[11px] leading-relaxed text-[var(--muted)]">
             {item.summary}
           </p>
         ) : null}

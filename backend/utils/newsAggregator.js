@@ -50,6 +50,15 @@ function stripHtml(html) {
     .replace(/<style[\s\S]*?<\/style>/gi, '')
     .replace(/<script[\s\S]*?<\/script>/gi, '')
     .replace(/<[^>]+>/g, ' ')
+    // Steam community announcement placeholders, plus any URL/path right after them
+    // e.g. `{STEAM_CLAN_IMAGE}/43372748/8e2596f.jpg` or `{STEAM_CLAN_LOC_IMAGE}/554111/...png`
+    .replace(/\{STEAM_[A-Z_]+\}\S*/g, ' ')
+    // Steam BBCode tags: [h1], [/h1], [b], [list], [*], [url=...], [img], etc.
+    .replace(/\[\/?[a-z][a-z0-9]*(?:=[^\]]*)?\]/gi, ' ')
+    // Steam patch notes use literal `\` as a section/bullet marker (`\Added ...`, `\Ancient...`)
+    .replace(/\\(?=[A-Za-z])/g, ' ')
+    // Literal escape sequences that snuck through as text
+    .replace(/\\[nrt]/g, ' ')
     .replace(/&nbsp;/g, ' ')
     .replace(/&amp;/g, '&')
     .replace(/&lt;/g, '<')
@@ -57,6 +66,8 @@ function stripHtml(html) {
     .replace(/&quot;/g, '"')
     .replace(/&#39;/g, "'")
     .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(parseInt(code, 10)))
+    // Unicode replacement character from broken encoding
+    .replace(/�/g, '')
     .replace(/\s+/g, ' ')
     .trim()
 }

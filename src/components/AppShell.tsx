@@ -348,9 +348,6 @@ export default function AppShell() {
             <button type="button" className="text-sm font-medium text-[var(--muted)] transition-colors hover:text-[var(--text)]" onClick={() => navigate('/deals')}>
               Deals
             </button>
-            <button type="button" className="text-sm font-medium text-[var(--muted)] transition-colors hover:text-[var(--text)]" onClick={() => navigate('/games')}>
-              Store
-            </button>
             <button type="button" className="text-sm font-medium text-[var(--muted)] transition-colors hover:text-[var(--text)]" onClick={() => navigate('/news')}>
               News
             </button>

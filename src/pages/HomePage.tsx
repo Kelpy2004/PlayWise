@@ -22,12 +22,31 @@ import PetalsLayer from '../components/PetalsLayer'
 import type { GameRecord } from '../types/catalog'
 import type { TournamentRecord } from '../types/api'
 
-// Module-level flag — survives React re-renders / route navigations
-// but resets on full page reload (F5 / Ctrl-R), so the intro replays.
-let introHasPlayedThisLoad = false
+// Intro plays once per fresh browser session. sessionStorage survives
+// F5 refresh and SPA navigation but clears when the tab/browser closes,
+// so the next fresh open replays it.
+const INTRO_FLAG_KEY = 'playwise:intro-played'
+
+function hasIntroAlreadyPlayed(): boolean {
+  if (typeof window === 'undefined') return false
+  try {
+    return window.sessionStorage.getItem(INTRO_FLAG_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
+function markIntroPlayed(): void {
+  if (typeof window === 'undefined') return
+  try {
+    window.sessionStorage.setItem(INTRO_FLAG_KEY, '1')
+  } catch {
+    /* sessionStorage blocked (private mode, etc.) — just play intro again */
+  }
+}
 
 export default function HomePage() {
-  const [introPlayed, setIntroPlayed] = useState(() => introHasPlayedThisLoad)
+  const [introPlayed, setIntroPlayed] = useState(hasIntroAlreadyPlayed)
   const [siteRevealed, setSiteRevealed] = useState(introPlayed)
   const { token } = useAuth()
   const navigate = useNavigate()
@@ -76,7 +95,7 @@ export default function HomePage() {
   // Do NOT set introPlayed here — that would unmount CinematicIntro mid-flight.
   const handleIntroReveal = useCallback(() => {
     setSiteRevealed(true)
-    introHasPlayedThisLoad = true
+    markIntroPlayed()
   }, [])
 
   // Called after the full intro animation (morph, dissolve, cleanup) finishes.

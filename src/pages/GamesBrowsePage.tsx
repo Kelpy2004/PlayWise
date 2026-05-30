@@ -83,7 +83,7 @@ const SORT_OPTIONS = [
   { key: 'newest',  label: 'Newest' },
 ] as const
 
-const ITEMS_PER_PAGE = 36
+const ITEMS_PER_PAGE = 48
 
 type LibraryGame = {
   slug: string; title: string; year: number | null; heroTag: string | null
@@ -116,15 +116,16 @@ function StoreIconBadge({ store }: { store: string }) {
 /* ─────────────────── Game card (NVIDIA layout) ─────────────────── */
 
 function GameCard({ game }: { game: LibraryGame }) {
-  const img = game.banner || game.image
+  // Prefer the official portrait cover (image). Fall back to landscape banner.
+  const img = game.image || game.banner
 
   return (
     <Link
       to={`/games/${game.slug}`}
       className="group flex flex-col gap-2 text-left"
     >
-      {/* Image container */}
-      <div className="relative aspect-[460/215] w-full overflow-hidden rounded-md bg-[var(--input-bg)]">
+      {/* Image container — portrait 3:4 to match Steam library / IGDB cover shape */}
+      <div className="relative aspect-[3/4] w-full overflow-hidden rounded-md bg-[var(--input-bg)]">
         {img ? (
           <img
             src={img}
@@ -506,7 +507,7 @@ export default function GamesBrowsePage() {
               initial="hidden"
               animate="visible"
               variants={{ hidden: {}, visible: { transition: { staggerChildren: 0.015 } } }}
-              className="grid gap-x-5 gap-y-8 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
+              className="grid gap-x-4 gap-y-7 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6"
             >
               {games.map(game => (
                 <motion.div

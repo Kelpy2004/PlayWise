@@ -1347,7 +1347,7 @@ export default function GamePage() {
               {relatedGames.slice(0, 4).map(g => (
                 <Link key={g.slug} to={`/games/${g.slug}`} style={{ textDecoration: 'none' }}>
                   <motion.div whileHover={{ x: 4 }} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: 8, borderRadius: 10, cursor: 'pointer' }}>
-                    <div style={{ width: 36, height: 36, borderRadius: 8, background: 'var(--metric-bg)', border: '1px solid var(--card-border)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden' }}>
+                    <div style={{ width: 38, height: 50, borderRadius: 6, background: 'var(--metric-bg)', border: '1px solid var(--card-border)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden' }}>
                       {g.image ? <img src={g.image} alt={g.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <Icon name="videogame_asset" size={14} style={{ color: 'var(--muted-solid)' }} />}
                     </div>
                     <div>

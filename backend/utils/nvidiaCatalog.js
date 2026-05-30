@@ -76,8 +76,10 @@ function transformNvidiaGame(entry) {
     supportedPlatforms: ['PC (Microsoft Windows)'],
     stores,
     averageRating: null,
-    image: steamImage(steamAppId, 'header'),
-    banner: steamImage(steamAppId, 'capsule'),
+    // image = portrait cover art (matches IGDB t_cover_big shape)
+    // banner = landscape header used for hero/backdrop
+    image: steamImage(steamAppId, 'library'),
+    banner: steamImage(steamAppId, 'header'),
     publisher: entry.publisher || null,
     steamUrl: entry.steamUrl || null,
     nvidiaId: entry.id,
@@ -167,7 +169,12 @@ async function syncNvidiaToDatabase() {
         : [...currentBuckets, gfnBucket]
 
       const needsStoreUpdate = newStores.length !== currentStores.length || newBuckets.length !== currentBuckets.length
-      const needsImage = !existing.image && nvGame.image
+      // Replace old landscape Steam header URLs with the new portrait library cover.
+      // Leave IGDB covers (which are already portrait t_cover_big) untouched.
+      const hasOldLandscape = typeof existing.image === 'string'
+        && existing.image.includes('cdn.akamai.steamstatic.com')
+        && /\/(header|capsule_\d+x\d+)\.jpg/.test(existing.image)
+      const needsImage = (!existing.image || hasOldLandscape) && nvGame.image
 
       if (needsStoreUpdate || needsImage) {
         const data = { slug: existing.slug, stores: newStores, catalogBuckets: newBuckets }

@@ -45,6 +45,12 @@ The goal is simple: reduce the time players spend jumping between store pages, s
 └── vite.config.ts           # Vite configuration
 ```
 
+## Documentation
+
+- [Architecture](docs/ARCHITECTURE.md) explains the frontend, backend, data, and deployment shape.
+- [API overview](docs/API_OVERVIEW.md) maps route groups to product workflows.
+- [Environment](docs/ENVIRONMENT.md) lists the local and deployment configuration checklist.
+
 ## Local Setup
 
 Install frontend dependencies:

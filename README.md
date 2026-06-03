@@ -94,6 +94,7 @@ npm run dev:backend
 
 ```bash
 npm run build
+npm run preview
 npm run typecheck
 npm --prefix backend run db:generate
 npm --prefix backend run db:push

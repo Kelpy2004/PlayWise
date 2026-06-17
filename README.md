@@ -1,7 +1,7 @@
 # PlayWise
 
 PlayWise is a game decision-support platform that helps players decide what to buy, download, save, or join. It brings game discovery, price tracking, hardware compatibility, wishlist activity, community comments, tournament registration discovery, and alerts into one workflow.\
-No more site hopping.
+No more site hopping. Save your time and never miss a deal.
 
 The goal is simple: reduce the time players spend jumping between store pages, specs pages, reviews, and event sites before deciding whether a game is worth their time and money.
 

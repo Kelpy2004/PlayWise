@@ -2,10 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 
-import { api } from '../lib/api'
 import type { GameRecord } from '../types/catalog'
-import type { TournamentRecord } from '../types/api'
-import { formatGameLabel } from '../lib/tournaments'
 
 const RECENT_KEY = 'playwise.recentSearches'
 const MAX_RECENT = 5
@@ -36,14 +33,12 @@ function HighlightMatch({ text, query }: { text: string; query: string }) {
 type SearchItem =
   | { kind: 'recent'; text: string }
   | { kind: 'game'; game: GameRecord }
-  | { kind: 'tournament'; tournament: TournamentRecord }
   | { kind: 'viewAll' }
 
 export default function GlobalSearch({ games, theme }: { games: GameRecord[]; theme: string }) {
   const [query, setQuery] = useState('')
   const [debounced, setDebounced] = useState('')
   const [open, setOpen] = useState(false)
-  const [tournaments, setTournaments] = useState<TournamentRecord[]>([])
   const [idx, setIdx] = useState(-1)
   const [recents, setRecents] = useState<string[]>([])
   const boxRef = useRef<HTMLDivElement>(null)
@@ -52,21 +47,12 @@ export default function GlobalSearch({ games, theme }: { games: GameRecord[]; th
   const location = useLocation()
 
   const [phaseIdx, setPhaseIdx] = useState(0)
-  const phrases = useMemo(() => ['Search games...', 'Search tournaments...', 'Search deals...'], [])
+  const phrases = useMemo(() => ['Search games...', 'Search deals...'], [])
 
   useEffect(() => {
     const id = setInterval(() => setPhaseIdx((i) => (i + 1) % phrases.length), 2500)
     return () => clearInterval(id)
   }, [phrases])
-
-  useEffect(() => {
-    api
-      .fetchTournaments({ limit: 200 })
-      .then((t) => {
-        if (Array.isArray(t)) setTournaments(t)
-      })
-      .catch(() => {})
-  }, [])
 
   useEffect(() => {
     try {
@@ -141,27 +127,13 @@ export default function GlobalSearch({ games, theme }: { games: GameRecord[]; th
       .map((x) => x.g)
   }, [games, debounced])
 
-  const tournamentHits = useMemo(() => {
-    if (!debounced) return []
-    const q = debounced.toLowerCase()
-    return tournaments
-      .filter(
-        (t) =>
-          t.title.toLowerCase().includes(q) ||
-          (t.gameSlug && formatGameLabel(t.gameSlug).toLowerCase().includes(q)),
-      )
-      .sort((a, b) => (a.status === 'LIVE_NOW' ? 0 : 1) - (b.status === 'LIVE_NOW' ? 0 : 1))
-      .slice(0, 4)
-  }, [tournaments, debounced])
-
   const items = useMemo<SearchItem[]>(() => {
     if (!debounced) return recents.map((text) => ({ kind: 'recent' as const, text }))
     const list: SearchItem[] = []
     for (const g of gameHits) list.push({ kind: 'game', game: g })
-    for (const t of tournamentHits) list.push({ kind: 'tournament', tournament: t })
     if (list.length > 0) list.push({ kind: 'viewAll' })
     return list
-  }, [debounced, gameHits, tournamentHits, recents])
+  }, [debounced, gameHits, recents])
 
   function saveRecent(term: string) {
     const trimmed = term.trim()
@@ -196,9 +168,6 @@ export default function GlobalSearch({ games, theme }: { games: GameRecord[]; th
         break
       case 'game':
         go(`/games/${item.game.slug}`, item.game.title)
-        break
-      case 'tournament':
-        go(`/tournaments${item.tournament.gameSlug ? `?game=${item.tournament.gameSlug}` : ''}`, item.tournament.title)
         break
       case 'viewAll':
         go(`/games?q=${encodeURIComponent(debounced)}`, debounced)
@@ -377,50 +346,8 @@ export default function GlobalSearch({ games, theme }: { games: GameRecord[]; th
                   </div>
                 )}
 
-                {/* Tournaments */}
-                {tournamentHits.length > 0 && (
-                  <div className={`p-2 ${gameHits.length > 0 ? 'border-t border-[var(--border)]' : ''}`}>
-                    <p className="px-2 pb-1 text-[10px] font-black uppercase tracking-[0.15em] text-[var(--muted)]">
-                      Tournaments
-                    </p>
-                    {tournamentHits.map((t, i) => {
-                      const fi = gameHits.length + i
-                      const live = t.status === 'LIVE_NOW'
-                      return (
-                        <div
-                          key={t.id || t.slug}
-                          className={`flex items-center gap-3 rounded-lg px-2 py-2 cursor-pointer transition-colors ${idx === fi ? 'bg-cyan/10' : 'hover:bg-white/[0.04]'}`}
-                          onClick={() => handleSelect({ kind: 'tournament', tournament: t })}
-                          role="option"
-                          aria-selected={idx === fi}
-                        >
-                          <div
-                            className={`h-7 w-7 rounded-lg flex items-center justify-center shrink-0 ${live ? 'bg-[var(--magenta)]/15' : 'bg-cyan/10'}`}
-                          >
-                            <span
-                              className="material-symbols-outlined text-[14px]"
-                              style={{ color: live ? 'var(--magenta)' : 'var(--cyan)' }}
-                            >
-                              {live ? 'stream' : 'trophy'}
-                            </span>
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <p className="text-xs font-semibold text-[var(--text)] truncate">
-                              <HighlightMatch text={t.title} query={debounced} />
-                            </p>
-                            <p className="text-[10px] text-[var(--muted)] truncate">
-                              {t.gameSlug && formatGameLabel(t.gameSlug)}
-                              {live && <span className="ml-1 text-[var(--magenta)] font-bold">· LIVE</span>}
-                            </p>
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                )}
-
                 {/* No results */}
-                {gameHits.length === 0 && tournamentHits.length === 0 && (
+                {gameHits.length === 0 && (
                   <div className="p-6 text-center">
                     <p className="text-xs font-semibold text-[var(--muted)]">No results for &ldquo;{debounced}&rdquo;</p>
                     <p className="mt-1 text-[10px] text-[var(--muted)] opacity-60">Try a different search term</p>
@@ -428,15 +355,15 @@ export default function GlobalSearch({ games, theme }: { games: GameRecord[]; th
                 )}
 
                 {/* View all */}
-                {(gameHits.length > 0 || tournamentHits.length > 0) && (
+                {gameHits.length > 0 && (
                   <div className="border-t border-[var(--border)] p-2">
                     <div
                       className={`flex items-center gap-2 rounded-lg px-2 py-2 cursor-pointer transition-colors ${
-                        idx === gameHits.length + tournamentHits.length ? 'bg-cyan/10' : 'hover:bg-white/[0.04]'
+                        idx === gameHits.length ? 'bg-cyan/10' : 'hover:bg-white/[0.04]'
                       }`}
                       onClick={() => go(`/games?q=${encodeURIComponent(debounced)}`, debounced)}
                       role="option"
-                      aria-selected={idx === gameHits.length + tournamentHits.length}
+                      aria-selected={idx === gameHits.length}
                     >
                       <svg viewBox="0 0 16 16" fill="none" className="h-4 w-4 shrink-0 text-cyan">
                         <circle cx="7" cy="7" r="4.25" stroke="currentColor" strokeWidth="1.5" />

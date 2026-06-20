@@ -1,7 +1,16 @@
 import { useEffect, useRef } from 'react';
 import { useTheme } from '../context/ThemeContext';
 
-export default function Hero({ gameCount = 12400 }: { gameCount?: number }) {
+interface HeroProps {
+  gameCount?: number
+  dealCount?: number
+  freeCount?: number
+  storeCount?: number
+  stores?: string[]
+  tournamentCount?: number
+}
+
+export default function Hero({ gameCount = 0, dealCount = 0, freeCount = 0, storeCount = 0, stores = [], tournamentCount = 0 }: HeroProps) {
   const { theme } = useTheme();
   const heroRef = useRef(null);
   const heroVisualRef = useRef(null);
@@ -84,7 +93,7 @@ export default function Hero({ gameCount = 12400 }: { gameCount?: number }) {
           style={{ opacity: 0, animation: 'slideUp 0.7s 0.2s forwards' }}
         >
           <span className="w-1.5 h-1.5 bg-cyan rounded-full animate-pulse-dot" />
-          Tracking {gameCount.toLocaleString()} games &middot; deals refresh every 5 min
+          {gameCount > 0 ? `Tracking ${gameCount.toLocaleString()} games` : 'Loading catalog'} &middot; {dealCount > 0 ? `${dealCount} live deals` : 'deals refresh every 5 min'}
         </div>
 
         <h1
@@ -120,16 +129,16 @@ export default function Hero({ gameCount = 12400 }: { gameCount?: number }) {
           style={{ opacity: 0, animation: 'slideUp 0.8s 0.8s forwards' }}
         >
           <div>
-            <div className="text-[2rem] font-extrabold font-mono tracking-tighter text-cyan">{gameCount.toLocaleString()}</div>
+            <div className="text-[2rem] font-extrabold font-mono tracking-tighter text-cyan">{gameCount > 0 ? gameCount.toLocaleString() : '...'}</div>
             <div className="text-[0.72rem] text-muted uppercase tracking-[0.1em] font-semibold">Games in catalog</div>
           </div>
           <div>
-            <div className="text-[2rem] font-extrabold font-mono tracking-tighter text-amber">4</div>
-            <div className="text-[0.72rem] text-muted uppercase tracking-[0.1em] font-semibold">Store sources</div>
+            <div className="text-[2rem] font-extrabold font-mono tracking-tighter text-amber">{dealCount > 0 ? dealCount : '...'}</div>
+            <div className="text-[0.72rem] text-muted uppercase tracking-[0.1em] font-semibold">Live deals</div>
           </div>
           <div>
-            <div className="text-[2rem] font-extrabold font-mono tracking-tighter text-green">100%</div>
-            <div className="text-[0.72rem] text-muted uppercase tracking-[0.1em] font-semibold">Free to use</div>
+            <div className="text-[2rem] font-extrabold font-mono tracking-tighter text-green">{storeCount > 0 ? storeCount : '...'}</div>
+            <div className="text-[0.72rem] text-muted uppercase tracking-[0.1em] font-semibold">Store sources</div>
           </div>
         </div>
       </div>

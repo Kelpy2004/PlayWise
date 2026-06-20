@@ -6,7 +6,7 @@ const {
   upsertRuntimeDealSubscription,
   removeRuntimeDealSubscription
 } = require('../utils/runtimeStore')
-const { optionalAuth } = require('../middleware/auth')
+const { optionalAuth, requireAuth } = require('../middleware/auth')
 
 const router = Router()
 
@@ -75,10 +75,10 @@ router.get('/subscribe', optionalAuth, async (req, res, next) => {
 })
 
 // POST /api/deals/subscribe — subscribe to deal alerts
-router.post('/subscribe', optionalAuth, async (req, res, next) => {
+router.post('/subscribe', requireAuth, async (req, res, next) => {
   try {
-    const userId = req.user?.id
-    const email = String(req.body.email || req.user?.email || '').trim().toLowerCase()
+    const userId = req.user.id
+    const email = String(req.body.email || req.user.email || '').trim().toLowerCase()
     if (!email) return res.status(400).json({ ok: false, error: 'Email is required' })
 
     const minDiscountPct = Math.max(0, Math.min(100, Number(req.body.minDiscountPct) || 75))
@@ -128,11 +128,11 @@ router.post('/subscribe', optionalAuth, async (req, res, next) => {
 })
 
 // DELETE /api/deals/subscribe — unsubscribe from deal alerts
-router.delete('/subscribe', optionalAuth, async (req, res, next) => {
+router.delete('/subscribe', requireAuth, async (req, res, next) => {
   try {
-    const userId = req.user?.id
-    const email = String(req.body.email || req.user?.email || '').trim().toLowerCase()
-    if (!userId && !email) return res.status(400).json({ ok: false, error: 'Authentication or email required' })
+    const userId = req.user.id
+    const email = String(req.body.email || req.user.email || '').trim().toLowerCase()
+    if (!email) return res.status(400).json({ ok: false, error: 'Email is required' })
 
     if (isDatabaseReady()) {
       const prisma = getPrisma()

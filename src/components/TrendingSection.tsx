@@ -167,7 +167,7 @@ export default function TrendingSection() {
                   {deal.store}
                   {deal.originalPrice != null && deal.originalPrice > 0 && !isFree && (
                     <span className="ml-auto line-through text-[0.7rem] opacity-50">
-                      ${deal.originalPrice.toFixed(2)}
+                      {deal.currency === 'INR' ? '₹' : deal.currency === 'EUR' ? '€' : deal.currency === 'GBP' ? '£' : '$'}{deal.originalPrice.toFixed(2)}
                     </span>
                   )}
                 </div>

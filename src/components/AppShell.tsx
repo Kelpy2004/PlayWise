@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 
@@ -11,15 +11,7 @@ import type { GameRecord } from '../types/catalog'
 import SiteAssistant from './SiteAssistant'
 import Logo from './Logo'
 import Footer from './Footer'
-
-function SearchMark() {
-  return (
-    <svg viewBox="0 0 16 16" fill="none" aria-hidden="true" className="h-4 w-4">
-      <circle cx="7" cy="7" r="4.25" stroke="currentColor" strokeWidth="1.5" />
-      <path d="M10.4 10.4 14 14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-    </svg>
-  )
-}
+import GlobalSearch from './GlobalSearch'
 
 function ShellLink({
   to,
@@ -48,14 +40,12 @@ function menuGameScore(game: GameRecord) {
 }
 
 export default function AppShell() {
-  const [searchText, setSearchText] = useState('')
-  const [searchWordIndex, setSearchWordIndex] = useState(0)
   const [isGamesMenuOpen, setIsGamesMenuOpen] = useState(false)
   const { user, isLoading, logout, token } = useAuth()
   const { theme, toggleTheme } = useTheme()
   const location = useLocation()
   const navigate = useNavigate()
-  
+
   const isGamePage = location.pathname.startsWith('/games/')
   const gamesMenuTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -69,7 +59,6 @@ export default function AppShell() {
     gamesMenuTimer.current = setTimeout(() => setIsGamesMenuOpen(false), 180)
   }, [])
   
-  const searchWords = useMemo(() => ['Games', 'Library', 'Tournaments', 'Prices'], [])
   const [catalogGames, setCatalogGames] = useState<GameRecord[]>(() => getCachedCatalogSnapshot() || getAllGames())
   const browseCategories = useMemo(() => ['Featured', 'New Releases', 'Top Rated', 'Free to Play'], [])
   const browsePlatforms = useMemo(() => ['PC', 'Xbox', 'PlayStation', 'Nintendo Switch', 'Virtual reality', 'Mobile'], [])
@@ -81,7 +70,6 @@ export default function AppShell() {
     () => [...catalogGames].sort((left, right) => (right.popularityScore || 0) - (left.popularityScore || 0)).slice(0, 3),
     [catalogGames]
   )
-  const searchPlaceholder = useMemo(() => `Search ${searchWords[searchWordIndex] || 'games'}`, [searchWordIndex, searchWords])
 
   useEffect(() => {
     let ignore = false
@@ -99,18 +87,6 @@ export default function AppShell() {
     return () => { ignore = true }
   }, [])
 
-  useEffect(() => {
-    const params = new URLSearchParams(location.search)
-    setSearchText(params.get('q') || '')
-  }, [location.search])
-
-  useEffect(() => {
-    const intervalId = window.setInterval(() => {
-      setSearchWordIndex((current) => (current + 1) % searchWords.length)
-    }, 2200)
-
-    return () => window.clearInterval(intervalId)
-  }, [searchWords])
 
   useEffect(() => {
     void trackEvent(
@@ -159,30 +135,6 @@ export default function AppShell() {
     )
   }
 
-  function handleSearchSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    updateHomeSearch(searchText, false)
-
-    if (searchText.trim()) {
-      void trackEvent(
-        {
-          category: 'discovery',
-          action: 'navbar_search_submit',
-          label: searchText.trim()
-        },
-        token
-      )
-    }
-  }
-
-  function handleSearchChange(event: ChangeEvent<HTMLInputElement>) {
-    const nextValue = event.target.value
-    setSearchText(nextValue)
-
-    if (location.pathname === '/games') {
-      updateHomeSearch(nextValue, true)
-    }
-  }
 
   function handleSectionJump(sectionId: string) {
     const section = document.getElementById(sectionId)
@@ -342,7 +294,7 @@ export default function AppShell() {
               )}
               </AnimatePresence>
             </div>
-            <button type="button" className="text-sm font-medium text-[var(--muted)] transition-colors hover:text-[var(--text)]" onClick={() => handleSectionJump('tournaments')}>
+            <button type="button" className="text-sm font-medium text-[var(--muted)] transition-colors hover:text-[var(--text)]" onClick={() => navigate('/tournaments')}>
               Tournaments
             </button>
             <button type="button" className="text-sm font-medium text-[var(--muted)] transition-colors hover:text-[var(--text)]" onClick={() => navigate('/deals')}>
@@ -391,18 +343,7 @@ export default function AppShell() {
               />
             </div>
 
-            <form className="hidden items-center gap-2 2xl:flex" onSubmit={handleSearchSubmit}>
-              <div className="flex items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--panel)] px-3 py-2 text-[var(--muted)] transition-all duration-300 hover:border-cyan/25 hover:text-[var(--text)] focus-within:border-cyan/40 focus-within:shadow-[0_0_20px_rgba(0,212,255,0.1)]">
-                <input
-                  type="search"
-                  value={searchText}
-                  onChange={handleSearchChange}
-                  placeholder={searchPlaceholder}
-                  className="w-28 border-none bg-transparent p-0 font-mono text-xs uppercase tracking-[0.14em] text-[var(--text)] outline-none placeholder:text-[var(--muted)] focus:ring-0 2xl:w-40"
-                />
-                <SearchMark />
-              </div>
-            </form>
+            <GlobalSearch games={catalogGames} theme={theme} />
 
             {isLoading ? (
               <span className="rounded-lg border border-[var(--border)] px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">

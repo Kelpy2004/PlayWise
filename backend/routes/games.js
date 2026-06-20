@@ -162,14 +162,82 @@ router.get(
   })
 )
 
+/* ── In-memory library fallback (no DB) ── */
+function libraryFromMemory(allGames, { q, store, genre, sort, page, limit }) {
+  const qLower = q.toLowerCase()
+  let filtered = allGames.filter((g) => {
+    if (qLower && !buildSearchText(g).includes(qLower)) return false
+    const stores = Array.isArray(g.stores) ? g.stores : []
+    if (store && !stores.some((s) => s.toLowerCase() === store.toLowerCase())) return false
+    const genres = Array.isArray(g.genres) ? g.genres : (Array.isArray(g.genre) ? g.genre : [])
+    if (genre && !genres.some((gn) => gn.toLowerCase() === genre.toLowerCase())) return false
+    return true
+  })
+
+  const collator = new Intl.Collator('en', { sensitivity: 'base' })
+  switch (sort) {
+    case 'rating':
+      filtered.sort((a, b) => (b.averageRating || 0) - (a.averageRating || 0) || collator.compare(a.title, b.title))
+      break
+    case 'newest':
+      filtered.sort((a, b) => {
+        const ta = a.releaseTimestamp ? new Date(a.releaseTimestamp).getTime() : 0
+        const tb = b.releaseTimestamp ? new Date(b.releaseTimestamp).getTime() : 0
+        return tb - ta || collator.compare(a.title, b.title)
+      })
+      break
+    case 'popular':
+      filtered.sort((a, b) => (b.popularityScore || 0) - (a.popularityScore || 0) || collator.compare(a.title, b.title))
+      break
+    default:
+      filtered.sort((a, b) => collator.compare(a.title, b.title))
+      break
+  }
+
+  const total = filtered.length
+  const skip = (page - 1) * limit
+  const paged = filtered.slice(skip, skip + limit)
+
+  const genreSet = new Set()
+  const storeMap = new Map()
+  for (const g of allGames) {
+    const gn = Array.isArray(g.genres) ? g.genres : (Array.isArray(g.genre) ? g.genre : [])
+    gn.forEach((v) => genreSet.add(v))
+    const st = Array.isArray(g.stores) ? g.stores : []
+    st.forEach((v) => storeMap.set(v, (storeMap.get(v) || 0) + 1))
+  }
+
+  return {
+    games: paged.map((g) => ({
+      slug: g.slug,
+      title: g.title,
+      year: g.year || null,
+      heroTag: g.heroTag || null,
+      genres: Array.isArray(g.genres) ? g.genres : (Array.isArray(g.genre) ? g.genre : []),
+      stores: Array.isArray(g.stores) ? g.stores : [],
+      platforms: Array.isArray(g.supportedPlatforms) ? g.supportedPlatforms : (Array.isArray(g.platform) ? g.platform : []),
+      averageRating: g.averageRating || null,
+      popularityScore: g.popularityScore || null,
+      image: g.image || null,
+      banner: g.banner || null,
+      catalogBuckets: Array.isArray(g.catalogBuckets) ? g.catalogBuckets : [],
+      releaseTimestamp: g.releaseTimestamp || null,
+      publisher: g.publisher || null
+    })),
+    pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+    filters: {
+      genres: [...genreSet].sort(),
+      stores: [...storeMap.entries()]
+        .sort((a, b) => b[1] - a[1])
+        .map(([name, count]) => ({ name, count }))
+    }
+  }
+}
+
 /* ── Paginated library endpoint (server-side filtering) ── */
 router.get(
   '/library',
   asyncHandler(async (req, res) => {
-    if (!isDatabaseReady()) {
-      return res.status(503).json({ message: 'Database not available' })
-    }
-
     const page = Math.max(1, parseInt(req.query.page) || 1)
     const limit = Math.min(60, Math.max(1, parseInt(req.query.limit) || 36))
     const skip = (page - 1) * limit
@@ -177,6 +245,13 @@ router.get(
     const store = String(req.query.store || '').trim()
     const genre = String(req.query.genre || '').trim()
     const sort = String(req.query.sort || 'title').trim()
+
+    if (!isDatabaseReady()) {
+      const allGames = await loadGames()
+      const result = libraryFromMemory(allGames, { q, store, genre, sort, page, limit })
+      res.set('Cache-Control', 'public, max-age=30, stale-while-revalidate=120')
+      return res.json(result)
+    }
 
     const prisma = getPrisma()
 
@@ -201,14 +276,12 @@ router.get(
     let orderClause
     switch (sort) {
       case 'rating':
-        // IMDB-ranked games first (in IMDB rating order), then by IGDB rating
         orderClause = '"imdbRatingRank" ASC NULLS LAST, "averageRating" DESC NULLS LAST, title ASC'
         break
       case 'newest':
         orderClause = '"releaseTimestamp" DESC NULLS LAST, title ASC'
         break
       case 'popular':
-        // IMDB-ranked games first (in IMDB popularity order), then by IGDB popularity
         orderClause = '"imdbPopularityRank" ASC NULLS LAST, "popularityScore" DESC NULLS LAST, "averageRating" DESC NULLS LAST, title ASC'
         break
       case 'title':

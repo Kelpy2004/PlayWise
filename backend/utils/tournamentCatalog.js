@@ -3,7 +3,7 @@ const { getPrisma, isDatabaseReady } = require('../lib/prisma')
 const { logger } = require('../lib/logger')
 const { loadProviderTournaments } = require('./tournamentProvider')
 const { loadFaceitTournaments } = require('./faceitProvider')
-const { loadBattlefyTournaments } = require('./battlefyProvider')
+const { loadPandaScoreTournaments } = require('./pandaScoreProvider')
 
 function inferTournamentStatus(tournament, now = new Date()) {
   const start = new Date(tournament.startsAt)
@@ -70,10 +70,10 @@ async function syncProviderTournaments(prisma, providerTournaments) {
 async function loadAllProviderTournaments(options = {}) {
   const providerOpts = { gameQuery: options.gameQuery || null, limit: options.limit }
 
-  const [startgg, faceit, battlefy] = await Promise.allSettled([
+  const [startgg, faceit, pandascore] = await Promise.allSettled([
     loadProviderTournaments(providerOpts),
     loadFaceitTournaments(providerOpts),
-    loadBattlefyTournaments(providerOpts)
+    loadPandaScoreTournaments(providerOpts)
   ])
 
   const all = []
@@ -83,8 +83,8 @@ async function loadAllProviderTournaments(options = {}) {
   if (faceit.status === 'fulfilled') all.push(...faceit.value)
   else logger.debug({ error: faceit.reason }, 'FACEIT provider failed')
 
-  if (battlefy.status === 'fulfilled') all.push(...battlefy.value)
-  else logger.debug({ error: battlefy.reason }, 'Battlefy provider failed')
+  if (pandascore.status === 'fulfilled') all.push(...pandascore.value)
+  else logger.debug({ error: pandascore.reason }, 'PandaScore provider failed')
 
   // Deduplicate by slug
   const seen = new Set()
@@ -104,7 +104,7 @@ async function loadTournaments(options = {}) {
     limit: options.limit
   })
 
-  if (!isDatabaseReady()) {
+  const localFallback = () => {
     const localTournaments = seedTournaments
       .map((entry) => ({
         ...entry,
@@ -119,45 +119,63 @@ async function loadTournaments(options = {}) {
     return mergeTournaments(providerTournaments, localTournaments)
   }
 
-  const prisma = getPrisma()
-  await syncProviderTournaments(prisma, providerTournaments)
-  const providerSlugs = providerTournaments.map((entry) => entry.slug).filter(Boolean)
-
-  const rows = await prisma.tournament.findMany({
-    where: normalizedQuery
-      ? {
-          OR: [
-            { title: { contains: queryText, mode: 'insensitive' } },
-            { gameSlug: { contains: normalizedQuery, mode: 'insensitive' } },
-            { gameSlug: { contains: queryText, mode: 'insensitive' } },
-            ...(providerSlugs.length ? [{ slug: { in: providerSlugs } }] : [])
-          ]
-        }
-      : undefined,
-    orderBy: [{ startsAt: 'asc' }, { createdAt: 'asc' }],
-    take: Math.max(10, Math.min(150, Number(options.limit) || 80))
-  })
-
-  const now = new Date()
-  const updates = []
-  const tournaments = rows.map((row) => {
-    const inferred = inferTournamentStatus(row, now)
-    if (row.status !== inferred) {
-      updates.push(
-        prisma.tournament.update({
-          where: { id: row.id },
-          data: { status: inferred }
-        })
-      )
-    }
-    return formatTournamentRow(row, inferred)
-  })
-
-  if (updates.length) {
-    await prisma.$transaction(updates)
+  if (!isDatabaseReady()) {
+    return localFallback()
   }
 
-  return tournaments
+  try {
+    const prisma = getPrisma()
+    await syncProviderTournaments(prisma, providerTournaments)
+    const providerSlugs = providerTournaments.map((entry) => entry.slug).filter(Boolean)
+
+    const rows = await prisma.tournament.findMany({
+      where: normalizedQuery
+        ? {
+            OR: [
+              { title: { contains: queryText, mode: 'insensitive' } },
+              { gameSlug: { contains: normalizedQuery, mode: 'insensitive' } },
+              { gameSlug: { contains: queryText, mode: 'insensitive' } },
+              ...(providerSlugs.length ? [{ slug: { in: providerSlugs } }] : [])
+            ]
+          }
+        : undefined,
+      orderBy: [{ startsAt: 'desc' }],
+      take: Math.max(10, Math.min(300, Number(options.limit) || 80))
+    })
+
+    const now = new Date()
+    const updates = []
+    const tournaments = rows.map((row) => {
+      const inferred = inferTournamentStatus(row, now)
+      if (row.status !== inferred) {
+        updates.push(
+          prisma.tournament.update({
+            where: { id: row.id },
+            data: { status: inferred }
+          })
+        )
+      }
+      return formatTournamentRow(row, inferred)
+    })
+
+    if (updates.length) {
+      await prisma.$transaction(updates)
+    }
+
+    const STATUS_PRIORITY = { LIVE_NOW: 0, UPCOMING: 1, ENDED: 2 }
+    tournaments.sort((a, b) => {
+      const pa = STATUS_PRIORITY[a.status] ?? 2
+      const pb = STATUS_PRIORITY[b.status] ?? 2
+      if (pa !== pb) return pa - pb
+      return new Date(a.startsAt) - new Date(b.startsAt)
+    })
+
+    const requestedLimit = Number(options.limit) || 80
+    return tournaments.slice(0, requestedLimit)
+  } catch (error) {
+    logger.warn({ error: error.message }, 'Tournament DB query failed, falling back to providers + seed data')
+    return localFallback()
+  }
 }
 
 function mergeTournaments(primary, fallback) {

@@ -71,33 +71,38 @@ async function runTournamentNotificationCycle() {
         take: 500
       })
 
+      if (!subscriptions.length) return
+
+      const tournamentIds = tournaments.map((t) => t.id).filter(Boolean)
+      const subEmails = [...new Set(subscriptions.map((s) => s.email))]
+
+      const existingDeliveries = tournamentIds.length && subEmails.length
+        ? await prisma.notificationDelivery.findMany({
+            where: {
+              type: { in: ['TOURNAMENT_SOON', 'TOURNAMENT_LIVE'] },
+              status: 'SENT',
+              recipientEmail: { in: subEmails },
+              tournamentId: { in: tournamentIds }
+            },
+            select: { type: true, recipientEmail: true, tournamentId: true }
+          })
+        : []
+
+      const sentKeys = new Set(existingDeliveries.map(
+        (d) => `${d.type}::${d.recipientEmail}::${d.tournamentId}`
+      ))
+
       for (const subscription of subscriptions) {
         for (const tournament of tournaments) {
           if (!subscriptionMatchesTournament(subscription, tournament)) continue
 
           const status = inferTournamentStatus(tournament, now)
           const isSoon = status === 'UPCOMING' && isWithinSoonWindow(tournament.startsAt, now, soonWindowMinutes)
-          const alreadySentNew = await prisma.notificationDelivery.findFirst({
-            where: {
-              type: 'TOURNAMENT_SOON',
-              recipientEmail: subscription.email,
-              tournamentId: tournament.id,
-              status: 'SENT'
-            },
-            select: { id: true }
-          })
 
-          const alreadySentLive = await prisma.notificationDelivery.findFirst({
-            where: {
-              type: 'TOURNAMENT_LIVE',
-              recipientEmail: subscription.email,
-              tournamentId: tournament.id,
-              status: 'SENT'
-            },
-            select: { id: true }
-          })
+          const alreadySentSoon = sentKeys.has(`TOURNAMENT_SOON::${subscription.email}::${tournament.id}`)
+          const alreadySentLive = sentKeys.has(`TOURNAMENT_LIVE::${subscription.email}::${tournament.id}`)
 
-          const shouldSendNewListing = isSoon && !alreadySentNew
+          const shouldSendNewListing = isSoon && !alreadySentSoon
           const shouldSendLive = status === 'LIVE_NOW' && !alreadySentLive
 
           if (!shouldSendNewListing && !shouldSendLive) continue
@@ -118,6 +123,7 @@ async function runTournamentNotificationCycle() {
                 reason: 'NEW_LISTING'
               }
             })
+            sentKeys.add(`TOURNAMENT_SOON::${subscription.email}::${tournament.id}`)
           }
 
           if (shouldSendLive) {
@@ -134,6 +140,7 @@ async function runTournamentNotificationCycle() {
                 registrationUrl: tournament?.metadata?.registrationUrl || null
               }
             })
+            sentKeys.add(`TOURNAMENT_LIVE::${subscription.email}::${tournament.id}`)
           }
 
           await prisma.tournamentSubscription.update({

@@ -25,6 +25,7 @@ function getIntegrationStatus() {
       startgg: isConfigured(env.STARTGG_API_TOKEN),
       faceit: isConfigured(env.FACEIT_API_KEY),
       battlefy: true,
+      pandascore: isConfigured(env.PANDASCORE_API_TOKEN),
       limit: env.STARTGG_TOURNAMENT_LIMIT
     },
     deals: {

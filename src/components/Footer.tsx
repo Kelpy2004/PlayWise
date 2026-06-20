@@ -1,9 +1,24 @@
+import { Link } from 'react-router-dom';
 import Logo from './Logo';
 
-const FOOTER_LINKS = {
-  Product: ['Game Browser', 'Price Tracker', 'Tournaments', 'PC Compatibility'],
-  Company: ['About', 'Blog', 'Careers', 'Contact'],
-  Legal: ['Privacy', 'Terms', 'Cookie Policy'],
+const FOOTER_LINKS: Record<string, { label: string; to: string }[]> = {
+  Product: [
+    { label: 'Game Browser', to: '/games' },
+    { label: 'Price Tracker', to: '/deals' },
+    { label: 'Tournaments', to: '/tournaments' },
+    { label: 'PC Compatibility', to: '/games' },
+  ],
+  Company: [
+    { label: 'About', to: '#' },
+    { label: 'Blog', to: '#' },
+    { label: 'Careers', to: '#' },
+    { label: 'Contact', to: '#' },
+  ],
+  Legal: [
+    { label: 'Privacy', to: '#' },
+    { label: 'Terms', to: '#' },
+    { label: 'Cookie Policy', to: '#' },
+  ],
 };
 
 export default function Footer() {
@@ -25,11 +40,17 @@ export default function Footer() {
         {Object.entries(FOOTER_LINKS).map(([title, links]) => (
           <div key={title}>
             <div className="text-[0.72rem] font-extrabold uppercase tracking-[0.16em] mb-4">{title}</div>
-            {links.map(link => (
-              <a key={link} href="#" className="block text-muted text-[0.88rem] py-1 hover:text-cyan transition-colors duration-200">
-                {link}
-              </a>
-            ))}
+            {links.map(link =>
+              link.to.startsWith('/') ? (
+                <Link key={link.label} to={link.to} className="block text-muted text-[0.88rem] py-1 hover:text-cyan transition-colors duration-200">
+                  {link.label}
+                </Link>
+              ) : (
+                <a key={link.label} href={link.to} className="block text-muted text-[0.88rem] py-1 hover:text-cyan transition-colors duration-200">
+                  {link.label}
+                </a>
+              )
+            )}
           </div>
         ))}
       </div>

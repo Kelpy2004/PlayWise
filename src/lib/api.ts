@@ -396,6 +396,9 @@ export const api = {
   purgeOldSourceDeals: (token: string) =>
     request<{ ok: boolean; deleted: number; sources: string[] }>('/admin/deals/purge-old-sources', { method: 'POST', token }),
 
+  fetchStats: () =>
+    request<{ gameCount: number; dealCount: number; freeCount: number; storeCount: number; stores: string[]; tournamentCount: number }>('/stats'),
+
   // Game library (paginated, server-side filtering)
   fetchLibrary: (params?: {
     page?: number; limit?: number; q?: string; store?: string; genre?: string; sort?: string

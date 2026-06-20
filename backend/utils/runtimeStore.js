@@ -573,6 +573,27 @@ function removeRuntimeDealSubscription(userId, subscriptionId) {
   saveRuntimeStore()
 }
 
+function resetRuntimeStoreForTests() {
+  store.users = []
+  store.comments = new Map()
+  store.gameReactions = new Map()
+  store.commentReactions = new Map()
+  store.contacts = []
+  store.favorites = new Map()
+  store.savedHardwareProfiles = new Map()
+  store.priceAlerts = new Map()
+  store.emailVerificationTokens = []
+  store.newsletterSubscribers = []
+  store.telemetryEvents = []
+  store.recommendationSnapshots = []
+  store.runtimeErrors = []
+  store.tournaments = []
+  store.tournamentSubscriptions = new Map()
+  store.notificationDeliveries = []
+  store.deals = []
+  store.dealSubscriptions = new Map()
+}
+
 module.exports = {
   addDemoUser,
   addRuntimeComment,
@@ -618,5 +639,6 @@ module.exports = {
   getRuntimeDealSubscriptions,
   getAllRuntimeDealSubscriptions,
   upsertRuntimeDealSubscription,
-  removeRuntimeDealSubscription
+  removeRuntimeDealSubscription,
+  resetRuntimeStoreForTests
 }

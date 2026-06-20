@@ -16,7 +16,15 @@ const GAME_ID_MAP = {
   'rocket-league': 'rocket_league',
   'rainbow-six-siege': 'r6siege',
   pubg: 'pubg',
-  'apex-legends': 'apex_legends'
+  'apex-legends': 'apex_legends',
+  fortnite: 'fortnite',
+  'call-of-duty': 'cod',
+  cod: 'cod',
+  halo: 'halo_infinite',
+  'halo-infinite': 'halo_infinite',
+  'starcraft-2': 'sc2',
+  sc2: 'sc2',
+  hearthstone: 'hearthstone'
 }
 
 // Reverse map for normalizing game slugs from FACEIT names
@@ -30,7 +38,12 @@ const FACEIT_TO_SLUG = {
   rocket_league: 'rocket-league',
   r6siege: 'rainbow-six-siege',
   pubg: 'pubg',
-  apex_legends: 'apex-legends'
+  apex_legends: 'apex-legends',
+  fortnite: 'fortnite',
+  cod: 'call-of-duty',
+  halo_infinite: 'halo-infinite',
+  sc2: 'starcraft-2',
+  hearthstone: 'hearthstone'
 }
 
 function inferStatus(startsAt, endsAt) {

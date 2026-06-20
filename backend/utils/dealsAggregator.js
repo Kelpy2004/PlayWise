@@ -7,6 +7,10 @@ let dealsCache = { data: [], updatedAt: 0 }
 let refreshTimer = null
 
 // ──────────────────────────── STEAM (direct official API — no key needed) ────────────────────────────
+const STEAM_COUNTRY = (env.ITAD_COUNTRY || 'US').toLowerCase()
+const COUNTRY_CURRENCY = { us: 'USD', in: 'INR', gb: 'GBP', ca: 'CAD', au: 'AUD', de: 'EUR', fr: 'EUR', it: 'EUR', es: 'EUR', nl: 'EUR', br: 'BRL', jp: 'JPY', ru: 'RUB', cn: 'CNY', kr: 'KRW', mx: 'MXN', tr: 'TRY', pl: 'PLN', ar: 'ARS' }
+const STEAM_CURRENCY = COUNTRY_CURRENCY[STEAM_COUNTRY] || 'USD'
+
 function parseSteamItem(item, minDiscountPct, tag) {
   const discountPct = item?.discount_percent || 0
   const isFree = item?.final_price === 0 && discountPct === 100
@@ -21,7 +25,7 @@ function parseSteamItem(item, minDiscountPct, tag) {
     originalPrice: item?.original_price ? item.original_price / 100 : null,
     dealPrice: item?.final_price ? item.final_price / 100 : 0,
     discountPct,
-    currency: 'USD',
+    currency: STEAM_CURRENCY,
     url: `https://store.steampowered.com/app/${item?.id || ''}`,
     imageUrl: item?.large_capsule_image || item?.header_image || null,
     startsAt: null,
@@ -37,7 +41,7 @@ function parseSteamItem(item, minDiscountPct, tag) {
 async function fetchSteamDeals(minDiscountPct) {
   try {
     const response = await fetch(
-      'https://store.steampowered.com/api/featuredcategories?cc=us',
+      `https://store.steampowered.com/api/featuredcategories?cc=${STEAM_COUNTRY}`,
       { headers: { Accept: 'application/json', 'User-Agent': 'PlayWise/1.0' } }
     )
     if (!response.ok) return []
@@ -69,6 +73,58 @@ async function fetchSteamDeals(minDiscountPct) {
     return deals
   } catch (error) {
     logger.debug({ error }, 'Steam deals fetch failed (non-critical)')
+    return []
+  }
+}
+
+// ──────────────────────────── CHEAPSHARK STEAM DEALS (covers deals missing from featured list) ────────────────────────────
+async function fetchCheapSharkSteamDeals(minDiscountPct) {
+  try {
+    const url = `https://www.cheapshark.com/api/1.0/deals?storeID=1&upperPrice=50&pageSize=60&sortBy=Savings&onSale=1`
+    const response = await fetch(url, {
+      headers: { Accept: 'application/json', 'User-Agent': 'PlayWise/1.0' },
+      signal: AbortSignal.timeout(10000)
+    })
+    if (!response.ok) return []
+
+    const items = await response.json()
+    if (!Array.isArray(items)) return []
+
+    const deals = []
+    for (const item of items) {
+      const discountPct = Math.round(Number(item.savings) || 0)
+      const salePrice = Number(item.salePrice)
+      const normalPrice = Number(item.normalPrice)
+      const isFree = salePrice === 0 && discountPct === 100
+      if (!isFree && discountPct < minDiscountPct) continue
+
+      const title = String(item.title || '').trim()
+      if (!title) continue
+
+      deals.push({
+        externalId: `steam-cs-${item.steamAppID || item.dealID || ''}`,
+        type: isFree ? 'FREE_GAME' : 'DISCOUNT',
+        title,
+        gameSlug: title.toLowerCase().replace(/[^a-z0-9]+/g, '-') || null,
+        store: 'Steam',
+        originalPrice: Number.isFinite(normalPrice) ? normalPrice : null,
+        dealPrice: isFree ? 0 : (Number.isFinite(salePrice) ? salePrice : 0),
+        discountPct,
+        currency: 'USD',
+        url: item.steamAppID ? `https://store.steampowered.com/app/${item.steamAppID}` : `https://www.cheapshark.com/redirect?dealID=${encodeURIComponent(item.dealID)}`,
+        imageUrl: item.thumb || null,
+        startsAt: null,
+        endsAt: null,
+        source: 'steam',
+        metadata: { steamAppId: item.steamAppID || null, cheapSharkDealId: item.dealID, tag: 'cheapshark' },
+        isActive: true
+      })
+    }
+
+    logger.info({ count: deals.length }, 'CheapShark Steam deals fetched')
+    return deals
+  } catch (error) {
+    logger.debug({ error }, 'CheapShark Steam deals fetch failed (non-critical)')
     return []
   }
 }
@@ -477,8 +533,9 @@ function dedupeDeals(deals) {
 async function refreshDeals() {
   const minPct = env.DEALS_MIN_DISCOUNT_PCT || 75
 
-  const [steamDeals, epicDeals, xboxDeals, ubisoftDeals] = await Promise.allSettled([
+  const [steamDeals, cheapSharkDeals, epicDeals, xboxDeals, ubisoftDeals] = await Promise.allSettled([
     fetchSteamDeals(minPct),
+    fetchCheapSharkSteamDeals(minPct),
     fetchEpicDeals(),
     fetchXboxDeals(),
     fetchUbisoftDeals()
@@ -486,6 +543,7 @@ async function refreshDeals() {
 
   const autoDeals = dedupeDeals([
     ...(steamDeals.status === 'fulfilled' ? steamDeals.value : []),
+    ...(cheapSharkDeals.status === 'fulfilled' ? cheapSharkDeals.value : []),
     ...(epicDeals.status === 'fulfilled' ? epicDeals.value : []),
     ...(xboxDeals.status === 'fulfilled' ? xboxDeals.value : []),
     ...(ubisoftDeals.status === 'fulfilled' ? ubisoftDeals.value : [])

@@ -54,6 +54,7 @@ export default function HomePage() {
   // Load live data from API
   const [catalogGames, setCatalogGames] = useState<GameRecord[]>(() => getAllGames())
   const [tournaments, setTournaments] = useState<TournamentRecord[]>([])
+  const [stats, setStats] = useState({ gameCount: 0, dealCount: 0, freeCount: 0, storeCount: 0, stores: [] as string[], tournamentCount: 0 })
   const [newsletterEmail, setNewsletterEmail] = useState('')
   const [newsletterStatus, setNewsletterStatus] = useState({ tone: 'info', message: '' })
 
@@ -75,6 +76,13 @@ export default function HomePage() {
         if (!ignore && Array.isArray(tourns)) {
           setTournaments(tourns)
         }
+      } catch {
+        // keep defaults
+      }
+
+      try {
+        const s = await api.fetchStats()
+        if (!ignore && s) setStats(s)
       } catch {
         // keep defaults
       }
@@ -149,8 +157,15 @@ export default function HomePage() {
         <MountainsLayer />
         <PetalsLayer />
 
-        {/* Hero with live game count */}
-        <Hero gameCount={catalogGames.length} />
+        {/* Hero with live stats */}
+        <Hero
+          gameCount={stats.gameCount || catalogGames.length}
+          dealCount={stats.dealCount}
+          freeCount={stats.freeCount}
+          storeCount={stats.storeCount}
+          stores={stats.stores}
+          tournamentCount={stats.tournamentCount}
+        />
 
         {/* Trending — live deals from API */}
         <TrendingSection />

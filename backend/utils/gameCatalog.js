@@ -290,8 +290,15 @@ async function ensureGamesSeeded() {
   }
 }
 
+function getCachedGameCount() {
+  if (Array.isArray(mergedCatalogCache) && mergedCatalogCache.length) return mergedCatalogCache.length
+  if (Array.isArray(sharedCatalogCache) && sharedCatalogCache.length) return sharedCatalogCache.length
+  return 0
+}
+
 module.exports = {
   ensureGamesSeeded,
+  getCachedGameCount,
   loadGames,
   syncExpandedCatalogToDatabase
 }

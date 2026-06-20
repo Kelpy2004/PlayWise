@@ -42,7 +42,7 @@ export default function FeaturesSection() {
         <h2 className="text-[clamp(2rem,4vw,3.2rem)] font-extrabold tracking-tight leading-tight mb-4">
           Everything gamers need.<br /><span className="text-cyan">Nothing they don't.</span>
         </h2>
-        <p className="text-muted text-[1.05rem] max-w-[520px]">Four direct store connections, zero middlemen.</p>
+        <p className="text-muted text-[1.05rem] max-w-[520px]">Direct store connections, zero middlemen.</p>
       </div>
 
       <div ref={gridRef} className="reveal grid grid-cols-12 auto-rows-[minmax(200px,auto)] gap-4 mt-12" style={{ transitionDelay: '0.15s' }}>

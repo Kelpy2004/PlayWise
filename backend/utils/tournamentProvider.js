@@ -18,7 +18,22 @@ const GAME_SLUG_ALIASES = {
   warzone: 'call-of-duty-modern-warfare',
   'rainbow-six-siege': 'rainbow-six-siege',
   'rainbow-6-siege': 'rainbow-six-siege',
-  overwatch: 'overwatch'
+  overwatch: 'overwatch',
+  fortnite: 'fortnite',
+  'street-fighter-6': 'street-fighter-6',
+  'street-fighter': 'street-fighter-6',
+  sf6: 'street-fighter-6',
+  'tekken-8': 'tekken-8',
+  tekken: 'tekken-8',
+  'ea-sports-fc': 'ea-sports-fc',
+  'fc-25': 'ea-sports-fc',
+  'fc-26': 'ea-sports-fc',
+  halo: 'halo-infinite',
+  'halo-infinite': 'halo-infinite',
+  starcraft: 'starcraft-2',
+  'starcraft-2': 'starcraft-2',
+  sc2: 'starcraft-2',
+  hearthstone: 'hearthstone'
 }
 
 function normalizeText(value) {

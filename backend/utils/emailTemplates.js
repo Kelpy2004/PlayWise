@@ -1,3 +1,11 @@
+const { env } = require('../lib/env')
+
+function siteUrl(path) {
+  const origin = (env.APP_ORIGIN || 'https://playwise.gg').replace(/\/+$/, '')
+  if (!path || path.startsWith('http')) return path || origin
+  return origin + (path.startsWith('/') ? path : `/${path}`)
+}
+
 function escapeHtml(value) {
   return String(value ?? '')
     .replace(/&/g, '&amp;')
@@ -50,7 +58,7 @@ function priceAlertEmail({ gameTitle, gameSlug, currentPrice, targetPrice, reaso
       'Open PlayWise to review live stores and timing signals.'
     ],
     ctaLabel: 'Open game page',
-    ctaUrl: `/games/${gameSlug}`,
+    ctaUrl: siteUrl(`/games/${gameSlug}`),
     footerNote: 'You can disable this alert anytime from your PlayWise account.'
   })
 }
@@ -65,7 +73,7 @@ function tournamentSoonEmail({ tournamentTitle, startsAt, gameSlug }) {
       'Jump in now to register, warm up, and review your setup.'
     ],
     ctaLabel: 'Open PlayWise',
-    ctaUrl: gameSlug ? `/games/${gameSlug}` : '/games'
+    ctaUrl: siteUrl(gameSlug ? `/games/${gameSlug}` : '/games')
   })
 }
 
@@ -76,7 +84,7 @@ function tournamentLiveEmail({ tournamentTitle, gameSlug }) {
     intro: 'A tournament you subscribed to is now live.',
     bodyLines: ['Open PlayWise to check details and join quickly.'],
     ctaLabel: 'Open live tournament',
-    ctaUrl: gameSlug ? `/games/${gameSlug}` : '/games'
+    ctaUrl: siteUrl(gameSlug ? `/games/${gameSlug}` : '/games')
   })
 }
 
@@ -87,7 +95,7 @@ function newsletterCampaignEmail({ heading, intro, lines = [] }) {
     intro,
     bodyLines: lines,
     ctaLabel: 'Visit PlayWise',
-    ctaUrl: '/games'
+    ctaUrl: siteUrl('/games')
   })
 }
 
@@ -147,7 +155,7 @@ function dealAlertEmail({ freeGames = [], discounts = [], totalFree = 0, totalDi
     intro: 'Free games or deep discounts have been spotted across platforms you care about.',
     bodyLines,
     ctaLabel: 'View All Deals',
-    ctaUrl: '/deals',
+    ctaUrl: siteUrl('/deals'),
     footerNote: 'You are receiving this because you subscribed to deal alerts on PlayWise.'
   })
 }

@@ -22,9 +22,10 @@ const adminNotificationRoutes = require('./routes/adminNotifications')
 const dealRoutes = require('./routes/deals')
 const adminDealRoutes = require('./routes/adminDeals')
 const newsRoutes = require('./routes/news')
+const analyticsRoutes = require('./routes/analytics')
 
 const { env } = require('./lib/env')
-const { connectPrisma, isDatabaseReady } = require('./lib/prisma')
+const { connectPrisma, isDatabaseReady, getPrisma } = require('./lib/prisma')
 const { hasPostgresUrl, pingPostgres } = require('./lib/postgres')
 const { httpLogger, logger } = require('./lib/logger')
 const { initSentry, isSentryEnabled } = require('./lib/sentry')
@@ -38,7 +39,7 @@ const { startNotificationJobs } = require('./utils/notificationScheduler')
 const { ensureAuthInfrastructure } = require('./utils/authInfrastructure')
 const { buildSitemapXml, buildRobotsTxt } = require('./utils/seo')
 const { getIntegrationStatus } = require('./utils/integrationStatus')
-const { startDealsRefreshLoop } = require('./utils/dealsAggregator')
+const { startDealsRefreshLoop, getDealsCache } = require('./utils/dealsAggregator')
 const { startNewsWarmup } = require('./utils/newsAggregator')
 
 const app = express()
@@ -71,6 +72,7 @@ async function connectDatabase() {
     await ensureHardwareSeeded()
     await ensureTournamentsSeeded()
     logger.info('PostgreSQL connected successfully and seeds are ready.')
+    refreshStatsCache()
   } catch (error) {
     logger.error({ error }, 'Database connection failed. App will keep running in demo mode.')
   }
@@ -112,6 +114,43 @@ app.get('/api/health', async (_req, res) => {
   })
 })
 
+const statsCache = { gameCount: 0, tournamentCount: 0 }
+
+app.get('/api/stats', (_req, res) => {
+  const dealsData = getDealsCache().data || []
+  const stores = [...new Set(dealsData.map((d) => d.store).filter(Boolean))]
+
+  const { getCachedGameCount } = require('./utils/gameCatalog')
+  const gameCount = statsCache.gameCount || getCachedGameCount()
+
+  res.json({
+    gameCount,
+    dealCount: dealsData.length,
+    freeCount: dealsData.filter((d) => d.type === 'FREE_GAME' || d.dealPrice === 0).length,
+    storeCount: stores.length,
+    stores,
+    tournamentCount: statsCache.tournamentCount
+  })
+})
+
+async function refreshStatsCache() {
+  try {
+    const { loadGames } = require('./utils/gameCatalog')
+    const games = await Promise.race([loadGames(), new Promise((_, r) => setTimeout(() => r(), 5000))])
+    if (Array.isArray(games) && games.length) statsCache.gameCount = games.length
+  } catch {
+    const { getCachedGameCount } = require('./utils/gameCatalog')
+    const cached = getCachedGameCount()
+    if (cached > statsCache.gameCount) statsCache.gameCount = cached
+  }
+  try {
+    const { loadTournaments } = require('./utils/tournamentCatalog')
+    const t = await Promise.race([loadTournaments(), new Promise((_, r) => setTimeout(() => r(), 5000))])
+    if (Array.isArray(t)) statsCache.tournamentCount = t.length
+  } catch { /* keep previous value */ }
+}
+setInterval(() => { void refreshStatsCache() }, 60_000).unref()
+
 app.get('/api/health/integrations', (_req, res) => {
   res.json({
     ok: true,
@@ -143,6 +182,7 @@ app.use('/api/admin/notifications', adminNotificationRoutes)
 app.use('/api/deals', dealRoutes)
 app.use('/api/admin/deals', adminDealRoutes)
 app.use('/api/news', newsRoutes)
+app.use('/api/analytics', analyticsRoutes)
 
 if (HAS_FRONTEND_BUILD) {
   app.use(express.static(FRONTEND_ROOT))
@@ -161,9 +201,14 @@ startPriceRefreshLoop()
 startNotificationJobs()
 startDealsRefreshLoop()
 startNewsWarmup()
+setTimeout(() => { void refreshStatsCache() }, 10_000)
 
 app.listen(PORT, () => {
   logger.info(`PlayWise server running at http://localhost:${PORT}`)
+})
+
+process.on('unhandledRejection', (reason) => {
+  logger.error({ error: reason instanceof Error ? reason.message : reason }, 'Unhandled promise rejection (non-fatal)')
 })
 
 void connectDatabase()

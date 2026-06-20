@@ -18,7 +18,22 @@ const GAME_NAME_MAP = {
   fortnite: 'Fortnite',
   'rocket-league': 'Rocket League',
   'rainbow-six-siege': 'Rainbow Six Siege',
-  pubg: 'PUBG: BATTLEGROUNDS'
+  pubg: 'PUBG: BATTLEGROUNDS',
+  'street-fighter-6': 'Street Fighter 6',
+  sf6: 'Street Fighter 6',
+  'tekken-8': 'Tekken 8',
+  tekken: 'Tekken 8',
+  'call-of-duty': 'Call of Duty',
+  cod: 'Call of Duty',
+  halo: 'Halo Infinite',
+  'halo-infinite': 'Halo Infinite',
+  'starcraft-2': 'StarCraft II',
+  starcraft: 'StarCraft II',
+  sc2: 'StarCraft II',
+  hearthstone: 'Hearthstone',
+  'ea-sports-fc': 'EA Sports FC',
+  'fc-25': 'EA Sports FC',
+  'fc-26': 'EA Sports FC'
 }
 
 function normalizeSlug(name) {

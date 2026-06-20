@@ -53,7 +53,10 @@ const envSchema = z.object({
   DEALS_CACHE_MS: z.coerce.number().default(1000 * 60 * 30),
   DEALS_JOB_INTERVAL_MS: z.coerce.number().default(5 * 60 * 1000),
   DEALS_MIN_DISCOUNT_PCT: z.coerce.number().default(75),
-  FACEIT_API_KEY: z.string().optional()
+  FACEIT_API_KEY: z.string().optional(),
+  PANDASCORE_API_TOKEN: z.string().optional(),
+  CHALLENGERMODE_APP_ID: z.string().optional(),
+  CHALLENGERMODE_REFRESH_KEY: z.string().optional()
 })
 
 const env = envSchema.parse(process.env)

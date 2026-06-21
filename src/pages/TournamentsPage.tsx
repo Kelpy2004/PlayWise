@@ -396,7 +396,7 @@ export default function TournamentsPage() {
         setSubBusy(false)
       }
     },
-    [token, subs],
+    [token, subs, setSubBusy, setSubs],
   )
 
   /* ── overview: game chips ── */

@@ -30,7 +30,7 @@ export default function Seo({
 }: SeoProps) {
   const normalizedUrl = normalizeUrl(url)
   const normalizedImage = normalizeUrl(image || undefined)
-  const safeDescription = description?.trim() || 'PlayWise helps you decide what to play with smarter game insights.'
+  const safeDescription = description?.trim() || 'One dashboard for every game deal, live tournament, and price drop across Steam, Epic, Xbox, and Ubisoft.'
 
   return (
     <Helmet>

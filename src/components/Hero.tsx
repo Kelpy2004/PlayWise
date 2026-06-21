@@ -1,5 +1,4 @@
 import { useEffect, useRef } from 'react';
-import { useTheme } from '../context/ThemeContext';
 
 interface HeroProps {
   gameCount?: number
@@ -10,15 +9,14 @@ interface HeroProps {
   tournamentCount?: number
 }
 
-export default function Hero({ gameCount = 0, dealCount = 0, freeCount = 0, storeCount = 0, stores = [], tournamentCount = 0 }: HeroProps) {
-  const { theme } = useTheme();
-  const heroRef = useRef(null);
-  const heroVisualRef = useRef(null);
-  const celestialRef = useRef(null);
-  const orbRefs = useRef([]);
+export default function Hero({ gameCount = 0, dealCount = 0, freeCount: _freeCount = 0, storeCount = 0, stores: _stores = [], tournamentCount: _tournamentCount = 0 }: HeroProps) {
+  const heroRef = useRef<HTMLElement>(null);
+  const heroVisualRef = useRef<HTMLDivElement>(null);
+  const celestialRef = useRef<HTMLDivElement>(null);
+  const orbRefs = useRef<(HTMLDivElement | null)[]>([]);
 
   useEffect(() => {
-    const handleMouseMove = (e) => {
+    const handleMouseMove = (e: MouseEvent) => {
       const mx = (e.clientX / window.innerWidth - 0.5) * 2;
       const my = (e.clientY / window.innerHeight - 0.5) * 2;
 

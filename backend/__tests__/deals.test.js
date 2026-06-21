@@ -66,15 +66,15 @@ describe('GET /api/deals/news', () => {
 })
 
 describe('POST /api/deals/subscribe', () => {
-  it('requires authentication or email', async () => {
+  it('requires authentication', async () => {
     const res = await request(app)
       .post('/api/deals/subscribe')
       .send({})
 
-    expect(res.status).toBe(400)
+    expect(res.status).toBe(401)
   })
 
-  it('creates subscription with email', async () => {
+  it('rejects unauthenticated request even with email', async () => {
     const res = await request(app)
       .post('/api/deals/subscribe')
       .send({
@@ -84,10 +84,7 @@ describe('POST /api/deals/subscribe', () => {
         notifyDiscounts: true
       })
 
-    expect(res.status).toBe(201)
-    expect(res.body).toHaveProperty('ok', true)
-    expect(res.body).toHaveProperty('subscription')
-    expect(res.body.subscription.email).toBe('deals@playwise.dev')
+    expect(res.status).toBe(401)
   })
 })
 

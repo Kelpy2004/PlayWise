@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { useScrollReveal } from '../hooks/useScrollReveal';
 import { useTilt3D } from '../hooks/useTilt3D';
 
@@ -79,7 +79,7 @@ function ValueTrackingCard() {
   const chartRef = useRef(null);
   const tilt = useTilt3D(10);
 
-  const gMinX = 8, gMaxX = 188, gRange = 180;
+  const gMinX = 8, gRange = 180;
   const cx = gMinX + (percent / 100) * gRange;
 
   // Find segment

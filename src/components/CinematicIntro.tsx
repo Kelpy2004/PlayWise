@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useMemo } from 'react';
+import { useEffect, useRef, useMemo } from 'react';
 
 const GAMING_TABS = [
   { pos: 'tab-pos-tl', color: '#66c0f4', icon: 'cloud', name: 'Steam', tx: 'calc(50vw - 90px)', ty: 'calc(50vh - 55px)', rot: '-12deg' },
@@ -11,23 +11,23 @@ const GAMING_TABS = [
   { pos: 'tab-pos-mr', color: '#eb0029', icon: 'bolt', name: 'Riot Games', tx: 'calc(-50vw)', ty: '0px', rot: '-14deg' },
 ];
 
-function sleep(ms) {
+function sleep(ms: number) {
   return new Promise(r => setTimeout(r, ms));
 }
 
 export default function CinematicIntro({ onComplete, onDone }: { onComplete?: () => void; onDone?: () => void }) {
-  const overlayRef = useRef(null);
-  const glassTabRef = useRef(null);
-  const cursorOrbRef = useRef(null);
-  const shockwaveRef = useRef(null);
-  const tabRefs = useRef([]);
-  const typeAreaRef = useRef(null);
-  const typeLine1Ref = useRef(null);
-  const typeLine2Ref = useRef(null);
-  const typeLine3Ref = useRef(null);
-  const typed1Ref = useRef(null);
-  const typed2Ref = useRef(null);
-  const typed3Ref = useRef(null);
+  const overlayRef = useRef<HTMLDivElement>(null);
+  const glassTabRef = useRef<HTMLDivElement>(null);
+  const cursorOrbRef = useRef<HTMLDivElement>(null);
+  const shockwaveRef = useRef<HTMLDivElement>(null);
+  const tabRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const typeAreaRef = useRef<HTMLDivElement>(null);
+  const typeLine1Ref = useRef<HTMLDivElement>(null);
+  const typeLine2Ref = useRef<HTMLDivElement>(null);
+  const typeLine3Ref = useRef<HTMLDivElement>(null);
+  const typed1Ref = useRef<HTMLSpanElement>(null);
+  const typed2Ref = useRef<HTMLSpanElement>(null);
+  const typed3Ref = useRef<HTMLSpanElement>(null);
 
   // Generate particles
   const particles = useMemo(() => {
@@ -47,7 +47,7 @@ export default function CinematicIntro({ onComplete, onDone }: { onComplete?: ()
     const overlay = overlayRef.current;
     if (!overlay) return;
 
-    const handleMouseMove = (e) => {
+    const handleMouseMove = (e: MouseEvent) => {
       const glassTab = glassTabRef.current;
       if (!glassTab || glassTab.style.opacity === '0') return;
       const mx = (e.clientX / window.innerWidth - 0.5) * 2;
@@ -105,6 +105,7 @@ export default function CinematicIntro({ onComplete, onDone }: { onComplete?: ()
       await sleep(900);
       if (cancelled) return;
       const typeArea = typeAreaRef.current;
+      if (!typeArea) return;
       cursorOrb.classList.add('visible');
       const tabRect = glassTab.getBoundingClientRect();
       const areaRect = typeArea.getBoundingClientRect();
@@ -121,22 +122,22 @@ export default function CinematicIntro({ onComplete, onDone }: { onComplete?: ()
       // Line 1: smash in
       await sleep(100);
       if (cancelled) return;
-      typed1Ref.current.textContent = 'ONE SCREEN';
-      typeLine1Ref.current.classList.add('reveal-line-1');
+      if (typed1Ref.current) typed1Ref.current.textContent = 'ONE SCREEN';
+      if (typeLine1Ref.current) typeLine1Ref.current.classList.add('reveal-line-1');
 
       await sleep(400);
       if (cancelled) return;
 
       // Line 2: sweep left
-      typed2Ref.current.textContent = 'EVERY PRICE — EVERY DEAL.';
-      typeLine2Ref.current.classList.add('reveal-line-2');
+      if (typed2Ref.current) typed2Ref.current.textContent = 'EVERY PRICE — EVERY DEAL.';
+      if (typeLine2Ref.current) typeLine2Ref.current.classList.add('reveal-line-2');
 
       await sleep(350);
       if (cancelled) return;
 
       // Line 3: sweep right
-      typed3Ref.current.textContent = 'EVERY TOURNAMENT.';
-      typeLine3Ref.current.classList.add('reveal-line-3');
+      if (typed3Ref.current) typed3Ref.current.textContent = 'EVERY TOURNAMENT.';
+      if (typeLine3Ref.current) typeLine3Ref.current.classList.add('reveal-line-3');
 
       // Glow pulse
       await sleep(300);
@@ -146,7 +147,7 @@ export default function CinematicIntro({ onComplete, onDone }: { onComplete?: ()
       // Blinking cursor
       const finalCursor = document.createElement('span');
       finalCursor.className = 'type-cursor';
-      typed3Ref.current.appendChild(finalCursor);
+      if (typed3Ref.current) typed3Ref.current.appendChild(finalCursor);
 
       // Hold
       await sleep(700);

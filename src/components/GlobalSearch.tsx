@@ -58,7 +58,7 @@ export default function GlobalSearch({ games, theme }: { games: GameRecord[]; th
     try {
       const raw = localStorage.getItem(RECENT_KEY)
       if (raw) setRecents(JSON.parse(raw))
-    } catch {}
+    } catch { /* ignored */ }
   }, [])
 
   useEffect(() => {
@@ -142,7 +142,7 @@ export default function GlobalSearch({ games, theme }: { games: GameRecord[]; th
     setRecents(next)
     try {
       localStorage.setItem(RECENT_KEY, JSON.stringify(next))
-    } catch {}
+    } catch { /* ignored */ }
   }
 
   function removeRecent(term: string) {
@@ -150,7 +150,7 @@ export default function GlobalSearch({ games, theme }: { games: GameRecord[]; th
     setRecents(next)
     try {
       localStorage.setItem(RECENT_KEY, JSON.stringify(next))
-    } catch {}
+    } catch { /* ignored */ }
   }
 
   function go(path: string, term: string) {

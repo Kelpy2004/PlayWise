@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useCallback, useEffect } from 'react';
 
-const ThemeContext = createContext();
+const ThemeContext = createContext<{ theme: string; toggleTheme: () => void }>({ theme: 'dark', toggleTheme: () => {} });
 
 function getInitialTheme() {
   if (typeof window === 'undefined') return 'dark';

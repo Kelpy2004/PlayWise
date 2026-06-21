@@ -136,16 +136,6 @@ export default function AppShell() {
   }
 
 
-  function handleSectionJump(sectionId: string) {
-    const section = document.getElementById(sectionId)
-
-    if (location.pathname === '/' && section) {
-      section.scrollIntoView({ behavior: 'smooth', block: 'start' })
-      return
-    }
-
-    navigate({ pathname: '/', hash: sectionId })
-  }
 
   function handleCatalogBrowse(query = '') {
     setIsGamesMenuOpen(false)

@@ -28,7 +28,9 @@ const MOCK_GAMES = [
 
 const gameCatalog = require('../utils/gameCatalog')
 const originalLoadGames = gameCatalog.loadGames
+const originalLoadGameBySlug = gameCatalog.loadGameBySlug
 gameCatalog.loadGames = async () => MOCK_GAMES
+gameCatalog.loadGameBySlug = async (slug) => MOCK_GAMES.find((g) => g.slug === slug) || null
 
 let app
 
@@ -40,6 +42,7 @@ beforeAll(() => {
 
 afterAll(() => {
   gameCatalog.loadGames = originalLoadGames
+  gameCatalog.loadGameBySlug = originalLoadGameBySlug
 })
 
 describe('GET /api/games', () => {

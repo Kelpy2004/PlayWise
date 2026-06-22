@@ -296,7 +296,13 @@ export default function GamesBrowsePage() {
           throw new Error('Library endpoint not available yet. The backend needs to be redeployed.')
         }
         setGames(result.games)
-        setPagination(result.pagination || { page: 1, limit: ITEMS_PER_PAGE, total: 0, totalPages: 0 })
+        const p = result.pagination
+        setPagination({
+          page: p?.page ?? 1,
+          limit: p?.limit ?? ITEMS_PER_PAGE,
+          total: p?.total ?? 0,
+          totalPages: p?.totalPages ?? 0,
+        })
         if (result.filters?.genres?.length) setAvailableGenres(result.filters.genres)
         if (result.filters?.stores?.length) setStoreCounts(result.filters.stores)
       } catch (err) {

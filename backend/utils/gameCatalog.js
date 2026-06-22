@@ -298,6 +298,19 @@ async function ensureGamesSeeded() {
   }
 }
 
+async function loadGameBySlug(slug) {
+  if (!slug) return null
+
+  if (isDatabaseReady()) {
+    const prisma = getPrisma()
+    const row = await prisma.game.findFirst({ where: { slug } })
+    if (row) return mapDbGameToCatalog(row)
+  }
+
+  const catalog = await loadGames()
+  return catalog.find((g) => g.slug === slug || g.originalSlug === slug) || null
+}
+
 function getCachedGameCount() {
   if (Array.isArray(mergedCatalogCache) && mergedCatalogCache.length) return mergedCatalogCache.length
   if (Array.isArray(sharedCatalogCache) && sharedCatalogCache.length) return sharedCatalogCache.length
@@ -307,6 +320,7 @@ function getCachedGameCount() {
 module.exports = {
   ensureGamesSeeded,
   getCachedGameCount,
+  loadGameBySlug,
   loadGames,
   syncExpandedCatalogToDatabase
 }

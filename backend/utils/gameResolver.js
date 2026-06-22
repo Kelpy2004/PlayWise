@@ -1,4 +1,4 @@
-const { loadGames } = require('./gameCatalog')
+const { loadGameBySlug } = require('./gameCatalog')
 const { getTopRatedGameBySlug } = require('./igdbCatalog')
 
 function uniqueStrings(values) {
@@ -23,10 +23,7 @@ async function resolveGameIdentity(slug) {
     }
   }
 
-  const catalog = await loadGames()
-  const catalogGame =
-    catalog.find((entry) => entry.slug === requestedSlug || entry.originalSlug === requestedSlug) || null
-  const game = catalogGame || (await getTopRatedGameBySlug(requestedSlug))
+  const game = (await loadGameBySlug(requestedSlug)) || (await getTopRatedGameBySlug(requestedSlug))
   const aliases = uniqueStrings([requestedSlug, game?.slug, game?.originalSlug])
 
   return {

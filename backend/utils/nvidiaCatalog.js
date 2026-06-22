@@ -140,7 +140,7 @@ async function syncNvidiaToDatabase() {
   const prisma = getPrisma()
 
   const existingGames = await prisma.game.findMany({
-    select: { slug: true, title: true, stores: true, catalogBuckets: true, image: true, banner: true, payload: true }
+    select: { slug: true, title: true, stores: true, catalogBuckets: true, image: true, banner: true }
   })
 
   const titleIndex = new Map()

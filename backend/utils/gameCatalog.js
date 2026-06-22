@@ -257,6 +257,14 @@ async function loadGames() {
 
   const prisma = getPrisma()
   const dbGames = await prisma.game.findMany({
+    select: {
+      slug: true, title: true, year: true, heroTag: true, description: true,
+      catalogSource: true, catalogBuckets: true, popularityScore: true,
+      releaseTimestamp: true, externalRatingCount: true, genres: true,
+      platforms: true, supportedPlatforms: true, stores: true,
+      averageRating: true, image: true, banner: true,
+      imdbRating: true, imdbRatingRank: true, imdbPopularityRank: true,
+    },
     orderBy: [{ popularityScore: 'desc' }, { averageRating: 'desc' }, { title: 'asc' }],
     take: Math.max(3000, Number(env.IGDB_TOP_GAMES_LIMIT) || 500)
   })

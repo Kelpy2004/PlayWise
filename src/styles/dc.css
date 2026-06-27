@@ -48,6 +48,8 @@ html[data-theme="light"] .pw {
 @keyframes pw-rise2    { from{opacity:0;transform:translateY(16px);} to{opacity:1;transform:none;} }
 @keyframes pw-urg      { 0%,100%{box-shadow:0 0 0 0 rgba(255,46,110,0);} 50%{box-shadow:0 0 0 4px rgba(255,46,110,.10);} }
 .pw .tcardin { animation:pw-rise2 .43s var(--ease,cubic-bezier(.16,1,.3,1)) backwards; }
+@keyframes pw-modalin { from{opacity:0;transform:translateY(16px) scale(.97);} to{opacity:1;transform:none;} }
+.pw .pwfield:focus-within { border-color:var(--bd,#f6f4ff)!important; }
 .pw .reg:hover, .pw .srcchip:hover { transform:translateY(-1px); }
 
 /* ---- Reveal (one-shot after intro, exactly like the design) ---------------*/

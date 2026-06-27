@@ -1,396 +1,257 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
-import { motion, AnimatePresence } from 'framer-motion'
+import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 
 import { useAuth } from '../context/AuthContext'
 import { useTheme } from '../context/ThemeContext'
-import { getAllGames } from '../lib/catalog'
-import { api, getCachedCatalogSnapshot } from '../lib/api'
+import { ShellContext, DIR_LABELS, DIR_VEL, useShell, type Direction } from '../context/ShellContext'
 import { trackEvent } from '../lib/telemetry'
-import type { GameRecord } from '../types/catalog'
-import SiteAssistant from './SiteAssistant'
-import Logo from './Logo'
-import Footer from './Footer'
-import GlobalSearch from './GlobalSearch'
+import IntroLoader from './shell/IntroLoader'
+import AskPlayWise from './shell/AskPlayWise'
 
-function ShellLink({
-  to,
-  children
-}: {
-  to: string
-  children: string
-}) {
+const INTRO_FLAG = 'pw.intro.played'
+
+const TICKER_ITEMS: Array<{ label: string; color: string; text: string }> = [
+  { label: '−85%', color: 'var(--lime)', text: 'Cyberpunk 2077 · Steam' },
+  { label: 'FREE', color: 'var(--cyan)', text: 'Fall Guys · Epic' },
+  { label: '−40%', color: 'var(--amber)', text: 'Elden Ring · GOG' },
+  { label: 'LIVE', color: 'var(--pink)', text: 'Valorant Champions' },
+  { label: '−60%', color: 'var(--lime)', text: "Baldur's Gate 3 · GOG" },
+  { label: '−75%', color: 'var(--cyan)', text: 'Hades II · Steam' },
+  { label: 'NEW', color: 'var(--amber)', text: 'NVIDIA driver 566' },
+]
+
+function DecorBg() {
   return (
-    <NavLink
-      to={to}
-      className={({ isActive }) =>
-        [
-          'relative px-2 py-1 text-sm font-medium tracking-wide transition-colors',
-          isActive ? 'text-cyan' : 'text-[var(--muted)] hover:text-[var(--text)]'
-        ].join(' ')
-      }
-    >
-      {children}
-    </NavLink>
+    <div aria-hidden style={{ position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none', overflow: 'hidden' }}>
+      <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(var(--line) 1.2px,transparent 1.4px)', backgroundSize: '24px 24px', opacity: 0.55, maskImage: 'radial-gradient(ellipse 100% 70% at 50% 0%,#000,transparent 80%)', WebkitMaskImage: 'radial-gradient(ellipse 100% 70% at 50% 0%,#000,transparent 80%)' }} />
+      <div style={{ position: 'absolute', top: '8%', right: -90, width: 340, height: 340, border: '2px solid var(--vio)', borderRadius: 42, opacity: 0.18, transform: 'rotate(18deg)' }} />
+      <div style={{ position: 'absolute', bottom: '12%', left: -70, width: 240, height: 240, border: '2px solid var(--cyan)', borderRadius: '50%', opacity: 0.16 }} />
+      <div style={{ position: 'absolute', top: '42%', left: '46%', width: 120, height: 120, border: '2px solid var(--pink)', opacity: 0.14, transform: 'rotate(24deg)' }} />
+    </div>
   )
 }
 
-function menuGameScore(game: GameRecord) {
-  return typeof game.averageRating === 'number' ? game.averageRating : game.valueRating?.score || 0
+function NavBtn({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <button className="navlink" onClick={onClick} style={{ font: 'inherit', fontSize: 14, fontWeight: 600, color: 'var(--tx2,#aaa3c6)', background: 'none', border: 'none', cursor: 'pointer', padding: '9px 11px', borderRadius: 8 }}>
+      {label}
+    </button>
+  )
+}
+
+function Logo({ size = 22 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 48 48">
+      <defs>
+        <linearGradient id="pwLogoGrad" x1="0" y1="0" x2="48" y2="48" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#ff2e6e" />
+          <stop offset=".5" stopColor="#a24dff" />
+          <stop offset="1" stopColor="#1fd7ff" />
+        </linearGradient>
+      </defs>
+      <path d="M19 15 L34 24 L19 33 Z" fill="url(#pwLogoGrad)" />
+    </svg>
+  )
+}
+
+function Header() {
+  const navigate = useNavigate()
+  const location = useLocation()
+  const { theme, toggleTheme } = useTheme()
+  const { user, logout, token } = useAuth()
+  const headerRef = useRef<HTMLElement>(null)
+  const searchRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    const onScroll = () => {
+      const h = headerRef.current
+      if (h) h.style.boxShadow = window.scrollY > 12 ? '0 12px 30px -14px rgba(0,0,0,.7)' : 'none'
+    }
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [])
+
+  const goSearch = (q: string) => {
+    const trimmed = q.trim()
+    navigate({ pathname: '/games', search: trimmed ? `?q=${encodeURIComponent(trimmed)}` : '' })
+  }
+  const openAuth = (path: '/login' | '/register') =>
+    navigate(path, { state: { backgroundLocation: location, from: `${location.pathname}${location.search}` } })
+
+  return (
+    <header ref={headerRef} style={{ position: 'sticky', top: 0, zIndex: 200, display: 'flex', alignItems: 'center', gap: 16, padding: '14px 26px', background: 'var(--bg,#0b0a12)', transition: 'box-shadow .3s ease' }}>
+      <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 3, background: 'var(--grad)' }} />
+      <button onClick={() => { navigate('/'); window.scrollTo({ top: 0, behavior: 'smooth' }) }} style={{ display: 'flex', alignItems: 'center', gap: 11, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+        <span style={{ width: 42, height: 42, borderRadius: 13, background: 'var(--card,#1a1630)', border: '2.5px solid var(--bd,#f6f4ff)', boxShadow: '3px 3px 0 var(--vio)', display: 'grid', placeItems: 'center' }}>
+          <Logo />
+        </span>
+        <span style={{ fontFamily: 'var(--fd)', fontSize: 20, fontWeight: 800, letterSpacing: '-.03em', color: 'var(--tx,#f6f4ff)' }}>
+          Play<span style={{ background: 'var(--grad)', WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent' }}>Wise</span>
+        </span>
+      </button>
+
+      <nav style={{ display: 'flex', alignItems: 'center', gap: 2, marginLeft: 10 }}>
+        <NavBtn label="All Games" onClick={() => navigate('/games')} />
+        <NavBtn label="Tournaments" onClick={() => navigate('/tournaments')} />
+        <NavBtn label="Deals" onClick={() => navigate('/deals')} />
+        <NavBtn label="News" onClick={() => navigate('/news')} />
+      </nav>
+
+      <div style={{ flex: 1 }} />
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 9, background: 'var(--card,#1a1630)', border: '2px solid var(--line2,#3a3460)', borderRadius: 11, padding: '8px 13px', width: 212 }}>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--tx3,#736c92)" strokeWidth="2.4"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.2-3.2" /></svg>
+        <input
+          ref={searchRef}
+          onKeyDown={(e) => { if (e.key === 'Enter') goSearch((e.target as HTMLInputElement).value) }}
+          placeholder="Search games"
+          style={{ background: 'none', border: 'none', outline: 'none', color: 'var(--tx,#f6f4ff)', font: 'inherit', fontSize: 13.5, width: '100%' }}
+        />
+      </div>
+
+      <button className="press" onClick={toggleTheme} title="Toggle theme" aria-label="Toggle theme" style={{ width: 42, height: 42, flexShrink: 0, display: 'grid', placeItems: 'center', background: 'var(--card,#1a1630)', border: '2px solid var(--bd,#f6f4ff)', borderRadius: 11, cursor: 'pointer', color: 'var(--tx,#f6f4ff)', boxShadow: '2px 2px 0 var(--hard)', transition: 'transform .1s,box-shadow .1s' }}>
+        {theme === 'dark' ? (
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 13.5A8 8 0 1 1 10.5 4a6.3 6.3 0 0 0 9.5 9.5Z" /></svg>
+        ) : (
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><circle cx="12" cy="12" r="4.2" /><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5 5l1.4 1.4M17.6 17.6 19 19M19 5l-1.4 1.4M6.4 17.6 5 19" /></svg>
+        )}
+      </button>
+
+      {user ? (
+        <>
+          <span style={{ font: 'inherit', fontSize: 13.5, fontWeight: 700, color: 'var(--tx,#f6f4ff)', background: 'var(--card,#1a1630)', border: '2px solid var(--line2,#3a3460)', borderRadius: 11, padding: '9px 15px' }}>{user.username}</span>
+          <button className="press" onClick={() => { void trackEvent({ category: 'auth', action: 'logout', label: user.username }, token); logout() }} style={{ font: 'inherit', fontSize: 13.5, fontWeight: 700, color: 'var(--tx,#f6f4ff)', background: 'var(--card,#1a1630)', border: '2px solid var(--bd,#f6f4ff)', borderRadius: 11, padding: '9px 15px', cursor: 'pointer', boxShadow: '2px 2px 0 var(--hard)', transition: 'transform .1s,box-shadow .1s' }}>Log out</button>
+        </>
+      ) : (
+        <>
+          <button className="press" onClick={() => openAuth('/login')} style={{ font: 'inherit', fontSize: 13.5, fontWeight: 700, color: 'var(--tx,#f6f4ff)', background: 'var(--card,#1a1630)', border: '2px solid var(--bd,#f6f4ff)', borderRadius: 11, padding: '9px 15px', cursor: 'pointer', boxShadow: '2px 2px 0 var(--hard)', transition: 'transform .1s,box-shadow .1s' }}>Log in</button>
+          <button className="press" onClick={() => openAuth('/register')} style={{ font: 'inherit', fontSize: 13.5, fontWeight: 800, color: '#0b0a12', background: 'var(--lime)', border: '2px solid var(--bd,#f6f4ff)', borderRadius: 11, padding: '9px 16px', cursor: 'pointer', boxShadow: '3px 3px 0 var(--hard)', transition: 'transform .1s,box-shadow .1s' }}>Sign up</button>
+        </>
+      )}
+    </header>
+  )
+}
+
+function LiveTicker() {
+  const row = [...TICKER_ITEMS, ...TICKER_ITEMS]
+  return (
+    <div style={{ position: 'relative', zIndex: 5, display: 'flex', alignItems: 'stretch', borderTop: '2px solid var(--line)', borderBottom: '2px solid var(--line)', background: 'var(--panel,#120f1f)', overflow: 'hidden' }}>
+      <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 8, background: 'var(--pink)', color: '#fff', fontFamily: 'var(--fm)', fontWeight: 700, fontSize: 12, letterSpacing: '.1em', padding: '11px 16px', borderRight: '2px solid var(--line)' }}>
+        <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#fff', animation: 'pw-blink 1.2s ease-in-out infinite' }} />LIVE
+      </div>
+      <div style={{ overflow: 'hidden', flex: 1, display: 'flex', alignItems: 'center' }}>
+        <div style={{ display: 'inline-flex', gap: 30, whiteSpace: 'nowrap', animation: 'pw-marquee 30s linear infinite', fontFamily: 'var(--fm)', fontSize: 13, fontWeight: 500, paddingLeft: 24, color: 'var(--tx2)' }}>
+          {row.map((it, i) => (
+            <span key={i}><b style={{ color: it.color }}>{it.label}</b> {it.text}</span>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function Footer() {
+  const { toast } = useShell()
+  const chip = { font: 'inherit', fontSize: 13, fontWeight: 600, color: 'var(--tx2,#aaa3c6)', background: 'var(--card,#1a1630)', border: '2px solid var(--line2,#3a3460)', borderRadius: 9, padding: '8px 13px', cursor: 'pointer', transition: 'transform .15s,border-color .15s,color .15s' } as const
+  return (
+    <footer style={{ position: 'relative', zIndex: 1, marginTop: 110, borderTop: '2px solid var(--line)', background: 'var(--panel,#120f1f)' }}>
+      <div style={{ maxWidth: 1200, margin: '0 auto', padding: '44px 26px', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 24, justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 13 }}>
+          <span style={{ width: 46, height: 46, borderRadius: 14, background: 'var(--card,#1a1630)', border: '2.5px solid var(--bd,#f6f4ff)', boxShadow: '3px 3px 0 var(--pink)', display: 'grid', placeItems: 'center' }}><Logo size={24} /></span>
+          <div>
+            <div style={{ fontFamily: 'var(--fd)', fontSize: 19, fontWeight: 800, letterSpacing: '-.02em' }}>Play<span style={{ background: 'var(--grad)', WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent' }}>Wise</span></div>
+            <div style={{ fontSize: 13.5, color: 'var(--tx2,#aaa3c6)', marginTop: 2 }}>We're here for you.</div>
+          </div>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {['Privacy', 'Terms', 'Cookie Policy'].map((l) => (
+            <button key={l} className="chip" onClick={() => toast(`${l} — coming soon`)} style={chip}>{l}</button>
+          ))}
+        </div>
+      </div>
+      <div style={{ borderTop: '2px solid var(--line)', textAlign: 'center', padding: '18px 26px', fontFamily: 'var(--fm)', fontSize: 11.5, color: 'var(--tx3,#736c92)', letterSpacing: '.04em' }}>© 2026 PLAYWISE · ALL DEALS REFRESHED LIVE</div>
+    </footer>
+  )
+}
+
+function MotionSwitcher() {
+  const { direction, setDirection, toast } = useShell()
+  const dirs: Direction[] = ['cinematic', 'arcade', 'liquid']
+  return (
+    <div style={{ position: 'fixed', left: 22, bottom: 22, zIndex: 500 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 7, background: 'var(--card,#1a1630)', border: '2.5px solid var(--bd,#f6f4ff)', borderRadius: 14, padding: 7, boxShadow: '4px 4px 0 var(--hard)' }}>
+        <span style={{ fontFamily: 'var(--fm)', fontSize: 10, fontWeight: 700, letterSpacing: '.1em', color: 'var(--tx3,#736c92)', padding: '0 4px 0 6px' }}>MOTION</span>
+        {dirs.map((d) => {
+          const on = d === direction
+          return (
+            <button key={d} onClick={() => { setDirection(d); toast(`Motion: ${DIR_LABELS[d]}`) }} style={{ fontFamily: 'var(--fd)', fontSize: 12, fontWeight: 700, border: 'none', cursor: 'pointer', borderRadius: 9, padding: '7px 11px', background: on ? 'var(--vio)' : 'transparent', color: on ? '#fff' : 'var(--tx2,#aaa3c6)' }}>{DIR_LABELS[d]}</button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+function Toaster({ msg }: { msg: { text: string; key: number } }) {
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!msg.text) return
+    const t = ref.current
+    if (!t) return
+    t.style.opacity = '1'
+    t.style.transform = 'translateX(-50%) translateY(0)'
+    const id = window.setTimeout(() => {
+      if (t) {
+        t.style.opacity = '0'
+        t.style.transform = 'translateX(-50%) translateY(30px)'
+      }
+    }, 2200)
+    return () => window.clearTimeout(id)
+  }, [msg])
+  return (
+    <div ref={ref} style={{ position: 'fixed', left: '50%', bottom: 32, transform: 'translateX(-50%) translateY(30px)', zIndex: 600, opacity: 0, pointerEvents: 'none', transition: 'all .35s cubic-bezier(.16,1,.3,1)', background: 'var(--card,#1a1630)', border: '2.5px solid var(--bd,#f6f4ff)', color: 'var(--tx,#f6f4ff)', fontSize: 14, fontWeight: 600, padding: '12px 19px', borderRadius: 13, boxShadow: '5px 5px 0 var(--hard)' }}>
+      {msg.text}
+    </div>
+  )
 }
 
 export default function AppShell() {
-  const [isGamesMenuOpen, setIsGamesMenuOpen] = useState(false)
-  const { user, isLoading, logout, token } = useAuth()
-  const { theme, toggleTheme } = useTheme()
-  const location = useLocation()
-  const navigate = useNavigate()
+  const [direction, setDirection] = useState<Direction>('cinematic')
+  const initialPlayed = typeof window !== 'undefined' && window.sessionStorage.getItem(INTRO_FLAG) === '1'
+  const [ready, setReady] = useState(initialPlayed)
+  const [playIntro] = useState(!initialPlayed)
+  const [toastState, setToastState] = useState<{ text: string; key: number }>({ text: '', key: 0 })
 
-  const isGamePage = location.pathname.startsWith('/games/')
-  const gamesMenuTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  const openGamesMenu = useCallback(() => {
-    if (gamesMenuTimer.current) { clearTimeout(gamesMenuTimer.current); gamesMenuTimer.current = null }
-    setIsGamesMenuOpen(true)
+  const toast = useCallback((text: string) => setToastState((s) => ({ text, key: s.key + 1 })), [])
+  const handleIntroDone = useCallback(() => {
+    try {
+      window.sessionStorage.setItem(INTRO_FLAG, '1')
+    } catch {
+      /* ignore */
+    }
+    setReady(true)
   }, [])
 
-  const scheduleCloseGamesMenu = useCallback(() => {
-    if (gamesMenuTimer.current) clearTimeout(gamesMenuTimer.current)
-    gamesMenuTimer.current = setTimeout(() => setIsGamesMenuOpen(false), 180)
-  }, [])
-  
-  const [catalogGames, setCatalogGames] = useState<GameRecord[]>(() => getCachedCatalogSnapshot() || getAllGames())
-  const browseCategories = useMemo(() => ['Featured', 'New Releases', 'Top Rated', 'Free to Play'], [])
-  const browsePlatforms = useMemo(() => ['PC', 'Xbox', 'PlayStation', 'Nintendo Switch', 'Virtual reality', 'Mobile'], [])
-  const topMenuGames = useMemo(
-    () => [...catalogGames].sort((left, right) => menuGameScore(right) - menuGameScore(left)).slice(0, 10),
-    [catalogGames]
+  const value = useMemo(
+    () => ({ direction, setDirection, velFactor: DIR_VEL[direction], ready, toast }),
+    [direction, ready, toast]
   )
-  const popularMenuGames = useMemo(
-    () => [...catalogGames].sort((left, right) => (right.popularityScore || 0) - (left.popularityScore || 0)).slice(0, 3),
-    [catalogGames]
-  )
-
-  useEffect(() => {
-    let ignore = false
-    async function loadCatalogForNavbar() {
-      try {
-        const response = await api.fetchGames()
-        if (!ignore && Array.isArray(response) && response.length) {
-          setCatalogGames(response)
-        }
-      } catch {
-        // Keep local fallback catalog.
-      }
-    }
-    void loadCatalogForNavbar()
-    return () => { ignore = true }
-  }, [])
-
-
-  useEffect(() => {
-    void trackEvent(
-      {
-        category: 'navigation',
-        action: 'page_view',
-        label: location.pathname,
-        meta: { search: location.search, hash: location.hash }
-      },
-      token
-    )
-  }, [location.hash, location.pathname, location.search, token])
-
-  useEffect(() => {
-    if (!location.hash) {
-      return undefined
-    }
-
-    const sectionId = location.hash.replace('#', '')
-    const frameId = window.requestAnimationFrame(() => {
-      const section = document.getElementById(sectionId)
-      section?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-    })
-
-    return () => window.cancelAnimationFrame(frameId)
-  }, [location.hash, location.pathname])
-
-  useEffect(() => {
-    setIsGamesMenuOpen(false)
-  }, [location.hash, location.pathname, location.search])
-
-  function updateHomeSearch(value: string, replace = true) {
-    const params = new URLSearchParams()
-    const trimmed = value.trim()
-
-    if (trimmed) {
-      params.set('q', trimmed)
-    }
-
-    navigate(
-      {
-        pathname: '/games',
-        search: params.toString() ? `?${params.toString()}` : ''
-      },
-      { replace }
-    )
-  }
-
-
-
-  function handleCatalogBrowse(query = '') {
-    setIsGamesMenuOpen(false)
-    updateHomeSearch(query, false)
-  }
-
-  function handleMenuGameOpen(slug: string) {
-    setIsGamesMenuOpen(false)
-    navigate(`/games/${slug}`)
-  }
 
   return (
-    <div className="min-h-screen overflow-x-clip text-[var(--text)] transition-colors" style={{ background: 'var(--deep)', transitionDuration: 'var(--transition-theme)' }}>
-      <header
-        className="fixed inset-x-0 top-0 z-[100] border-b backdrop-blur-[24px] saturate-[1.6] transition-all"
-        style={{
-          borderColor: theme === 'dark' ? 'rgba(0,212,255,0.15)' : 'rgba(0,136,187,0.12)',
-          background: theme === 'dark' ? 'rgba(14,14,14,0.8)' : 'rgba(250,247,242,0.88)',
-          boxShadow: theme === 'dark' ? '0 0 40px rgba(0,212,255,0.08)' : '0 4px 24px rgba(0,0,0,0.06)',
-          transitionDuration: 'var(--transition-theme)',
-        }}
-      >
-        <div className="mx-auto flex h-20 w-full max-w-[1920px] items-center gap-3 px-4 sm:gap-4 sm:px-6 xl:px-8">
-          <NavLink to="/" className="flex shrink-0 items-center gap-[10px]">
-            <div className="w-9 h-9 rounded-[9px] grid place-items-center overflow-hidden shadow-[0_0_16px_rgba(0,180,255,0.2)]" style={{ background: theme === 'dark' ? '#0a1628' : '#e8f4ff' }}>
-              <Logo size={28} />
-            </div>
-            <span className="font-extrabold text-[1.35rem] tracking-tight text-[var(--text)]">
-              Play<span className="text-cyan">Wise</span>
-            </span>
-          </NavLink>
-
-          <nav className="hidden min-w-0 flex-1 items-center gap-5 pl-6 xl:gap-7 lg:flex">
-            <div className="relative flex h-20 items-center" onMouseEnter={openGamesMenu} onMouseLeave={scheduleCloseGamesMenu}>
-              <button
-                type="button"
-                className="flex items-center gap-1 border-b-2 border-cyan pb-1 text-sm font-semibold text-cyan"
-                onClick={() => setIsGamesMenuOpen((current) => !current)}
-              >
-                Games
-                <span className="material-symbols-outlined text-base">{isGamesMenuOpen ? 'keyboard_arrow_up' : 'keyboard_arrow_down'}</span>
-              </button>
-              <AnimatePresence>
-              {isGamesMenuOpen && (
-              <motion.div
-                initial={{ opacity: 0, y: 12, scale: 0.97 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: 8, scale: 0.98 }}
-                transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
-                onMouseEnter={openGamesMenu}
-                onMouseLeave={scheduleCloseGamesMenu}
-                className="fixed left-1/2 top-20 z-50 w-[min(95vw,1040px)] -translate-x-1/2 rounded-[26px] border border-cyan/18 p-6 backdrop-blur-2xl xl:absolute xl:left-0 xl:top-full xl:w-[1040px] xl:translate-x-0"
-                style={{
-                  background: theme === 'dark' ? 'rgba(17,17,17,0.9)' : 'rgba(250,247,242,0.95)',
-                  boxShadow: theme === 'dark'
-                    ? '0 28px 80px rgba(0,0,0,0.55), 0 0 60px rgba(0,212,255,0.04)'
-                    : '0 28px 80px rgba(0,0,0,0.12), 0 0 30px rgba(0,212,255,0.02)',
-                }}
-              >
-                <div className="grid grid-cols-1 gap-6 xl:grid-cols-[220px_240px_1fr]">
-                  <div className="space-y-7">
-                    <div className="space-y-3">
-                      <p className="border-b border-[var(--border)] pb-3 text-[10px] font-black uppercase tracking-[0.22em] text-cyan">Browse by category</p>
-                      {browseCategories.map((category) => (
-                        <button key={category} type="button" className="block text-left text-sm text-[var(--muted)] transition-colors hover:text-[var(--text)]" onClick={() => handleCatalogBrowse(category.toLowerCase())}>
-                          {category}
-                        </button>
-                      ))}
-                    </div>
-                    <div className="space-y-3">
-                      <p className="border-b border-[var(--border)] pb-3 text-[10px] font-black uppercase tracking-[0.22em] text-cyan">Browse by platform</p>
-                      {browsePlatforms.map((platform) => (
-                        <button key={platform} type="button" className="block text-left text-sm text-[var(--muted)] transition-colors hover:text-[var(--text)]" onClick={() => handleCatalogBrowse(platform.toLowerCase())}>
-                          {platform}
-                        </button>
-                      ))}
-                    </div>
-                    <button
-                      type="button"
-                      className="rounded-full bg-cyan px-5 py-3 text-xs font-black uppercase tracking-[0.2em] text-white transition-transform hover:-translate-y-0.5"
-                      onClick={() => handleCatalogBrowse('')}
-                    >
-                      View all games
-                    </button>
-                  </div>
-
-                  <div className="space-y-5">
-                    <div className="space-y-3">
-                      <p className="border-b border-[var(--border)] pb-3 text-[10px] font-black uppercase tracking-[0.22em] text-cyan">Browse by game</p>
-                      <div className="grid gap-2">
-                        {topMenuGames.map((game) => (
-                          <button key={game.slug} type="button" className="text-left text-sm text-[var(--muted)] transition-colors hover:text-[var(--text)]" onClick={() => handleMenuGameOpen(game.slug)}>
-                            {game.title}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                    <div className="grid gap-2 pt-2">
-                      <button type="button" className="flex items-center gap-2 text-left text-sm font-semibold text-[var(--text)] transition-colors hover:text-cyan" onClick={() => navigate('/games?view=wishlist')}>
-                        <span className="material-symbols-outlined text-sm">favorite</span>
-                        Wishlist
-                      </button>
-                      <button type="button" className="text-left text-sm text-[var(--muted)] transition-colors hover:text-[var(--text)]" onClick={() => navigate('/games')}>
-                        Library
-                      </button>
-                      <button type="button" className="text-left text-sm text-[var(--muted)] transition-colors hover:text-[var(--text)]" onClick={() => navigate('/games?sort=popular')}>
-                        Recommendations
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between border-b border-[var(--border)] pb-3">
-                      <p className="text-[10px] font-black uppercase tracking-[0.22em] text-cyan">Most popular</p>
-                      <button type="button" className="text-[10px] font-black uppercase tracking-[0.18em] text-[var(--muted)] transition-colors hover:text-[var(--text)]" onClick={() => navigate('/games?sort=popular')}>
-                        View all
-                      </button>
-                    </div>
-                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                      {popularMenuGames.map((game) => (
-                        <button
-                          key={game.slug}
-                          type="button"
-                          className="overflow-hidden rounded-[18px] bg-white/[0.03] text-left transition-transform hover:-translate-y-1"
-                          onClick={() => handleMenuGameOpen(game.slug)}
-                        >
-                          <div
-                            className="aspect-[1.02] bg-no-repeat"
-                            style={{
-                              backgroundImage: `linear-gradient(180deg, rgba(12,12,12,0.06), rgba(12,12,12,0.45)), url('${game.image || game.banner || ''}')`,
-                              backgroundSize: 'contain',
-                              backgroundPosition: 'center',
-                              backgroundColor: 'rgba(9, 14, 9, 0.85)'
-                            }}
-                          />
-                          <div className="p-3">
-                            <p className="line-clamp-2 text-sm font-semibold text-[var(--text)]">{game.title}</p>
-                            <p className="mt-1 text-[11px] text-[var(--muted)]">{(game.platform || game.supportedPlatforms || ['PlayWise']).slice(0, 1).join('')}</p>
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </motion.div>
-              )}
-              </AnimatePresence>
-            </div>
-            <button type="button" className="text-sm font-medium text-[var(--muted)] transition-colors hover:text-[var(--text)]" onClick={() => navigate('/tournaments')}>
-              Tournaments
-            </button>
-            <button type="button" className="text-sm font-medium text-[var(--muted)] transition-colors hover:text-[var(--text)]" onClick={() => navigate('/deals')}>
-              Deals
-            </button>
-            <button type="button" className="text-sm font-medium text-[var(--muted)] transition-colors hover:text-[var(--text)]" onClick={() => navigate('/news')}>
-              News
-            </button>
-            <button type="button" className="text-sm font-medium text-[var(--muted)] transition-colors hover:text-[var(--text)]" onClick={() => navigate('/games?view=wishlist')}>
-              Library
-            </button>
-            {user?.role === 'admin' ? <ShellLink to="/admin/hardware">Admin</ShellLink> : null}
-          </nav>
-
-          <div className="ml-auto flex shrink-0 items-center justify-end gap-2 sm:gap-3">
-            {/* Dark / Light theme toggle */}
-            <div
-              onClick={toggleTheme}
-              role="button"
-              aria-label="Toggle theme"
-              title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
-              className="relative w-14 h-7 rounded-full cursor-pointer overflow-hidden border transition-all"
-              style={{
-                background: theme === 'dark' ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.06)',
-                borderColor: theme === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(120,90,40,0.15)',
-                transitionDuration: 'var(--transition-theme)',
-              }}
-            >
-              {/* Stars (dark mode) */}
-              <div className="absolute inset-0 transition-opacity duration-500" style={{ opacity: theme === 'dark' ? 1 : 0 }}>
-                <span className="absolute w-[1.5px] h-[1.5px] bg-white rounded-full" style={{ top: '6px', left: '36px' }} />
-                <span className="absolute w-0.5 h-0.5 bg-white rounded-full" style={{ top: '14px', left: '42px' }} />
-                <span className="absolute w-[1px] h-[1px] bg-white rounded-full" style={{ top: '20px', left: '34px' }} />
-              </div>
-              {/* Knob (moon / sun) */}
-              <div
-                className="absolute top-[3px] w-[22px] h-[22px] rounded-full z-[2] transition-all duration-500"
-                style={{
-                  transitionTimingFunction: 'cubic-bezier(0.68,-0.55,0.265,1.55)',
-                  left: theme === 'dark' ? '3px' : '31px',
-                  background: theme === 'dark' ? '#c8dcff' : '#ffd54f',
-                  boxShadow: theme === 'dark'
-                    ? '0 0 12px rgba(200,220,255,0.6), inset -3px -1px 0 rgba(100,120,160,0.4)'
-                    : '0 0 16px rgba(255,213,79,0.7)',
-                }}
-              />
-            </div>
-
-            <GlobalSearch games={catalogGames} theme={theme} />
-
-            {isLoading ? (
-              <span className="rounded-lg border border-[var(--border)] px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">
-                Restoring
-              </span>
-            ) : user ? (
-              <>
-                <span className="hidden rounded-lg border border-cyan/15 bg-[var(--panel)] px-4 py-2 text-xs font-semibold uppercase tracking-[0.14em] text-[var(--muted)] sm:inline-flex">
-                  {user.username}
-                </span>
-                <button
-                  type="button"
-                  className="rounded-lg border border-[var(--border)] px-4 py-2 text-xs font-semibold text-[var(--muted)] transition-colors hover:text-[var(--text)]"
-                  onClick={() => {
-                    void trackEvent({ category: 'auth', action: 'logout', label: user.username }, token)
-                    logout()
-                  }}
-                >
-                  Logout
-                </button>
-              </>
-            ) : (
-              <>
-                <NavLink
-                  to="/register"
-                  state={{
-                    backgroundLocation: location,
-                    from: `${location.pathname}${location.search}${location.hash}`
-                  }}
-                  className="whitespace-nowrap rounded-lg bg-cyan px-4 py-2 text-xs font-black text-white shadow-[0_0_24px_rgba(0,212,255,0.22)] transition-transform hover:-translate-y-0.5 sm:px-5"
-                >
-                  Join Pro
-                </NavLink>
-                <NavLink
-                  to="/login"
-                  state={{
-                    backgroundLocation: location,
-                    from: `${location.pathname}${location.search}${location.hash}`
-                  }}
-                  className="whitespace-nowrap rounded-lg px-3 py-2 text-xs font-semibold text-[var(--muted)] transition-colors hover:text-[var(--text)] sm:px-4"
-                >
-                  Login
-                </NavLink>
-              </>
-            )}
-          </div>
-        </div>
-      </header>
-
-      <main className="pt-20">
-        <Outlet />
-      </main>
-
-      <SiteAssistant />
-
-      {/* Footer — hide on individual game pages */}
-      {isGamePage ? null : <Footer />}
-    </div>
+    <ShellContext.Provider value={value}>
+      <div className="pw" data-direction={direction} data-ready={ready ? '1' : undefined} style={{ position: 'relative', minHeight: '100vh', overflowX: 'clip' }}>
+        <DecorBg />
+        {playIntro && <IntroLoader onDone={handleIntroDone} />}
+        <Header />
+        <LiveTicker />
+        <main style={{ position: 'relative', zIndex: 1 }}>
+          <Outlet />
+        </main>
+        <Footer />
+        <MotionSwitcher />
+        <AskPlayWise />
+        <Toaster msg={toastState} />
+      </div>
+    </ShellContext.Provider>
   )
 }

@@ -11,3 +11,6 @@ backend/data/runtime-store.json
 .vercel
 .env*.local
 .claude/
+
+# Claude Design source export (reference only, re-exportable)
+design/

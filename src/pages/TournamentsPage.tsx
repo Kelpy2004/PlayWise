@@ -1,677 +1,401 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
-import { motion } from 'framer-motion'
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 
 import { api } from '../lib/api'
-import type { TournamentRecord, TournamentSubscriptionRecord } from '../types/api'
-import { useAuth } from '../context/AuthContext'
-import Seo from '../components/Seo'
+import { useShell } from '../context/ShellContext'
 import {
-  formatGameLabel,
-  PROVIDERS,
-  providerMeta,
-  resolveExternalUrl,
-  extractPrize,
-  extractParticipants,
-  extractRegion,
-} from '../lib/tournaments'
+  CORE_GAMES,
+  FILTER_DEFS,
+  GAMES,
+  SOURCE_KEYS,
+  SRC,
+  enrich,
+  fmtLeft,
+  generated,
+  mapReal,
+  type TItem,
+} from '../lib/tournamentData'
 
-/* ── helpers ── */
+const TRACK_KEY = 'playwise-tourny-tracked'
 
-function formatDateTime(value: string) {
-  const parsed = new Date(value)
-  if (Number.isNaN(parsed.getTime())) return value
-  return parsed.toLocaleString('en-IN', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
+function withVar(style: CSSProperties, name: string, val: string): CSSProperties {
+  return { ...style, [name]: val } as CSSProperties
 }
 
-function statusBadgeClass(status: TournamentRecord['status']) {
-  if (status === 'LIVE_NOW')
-    return 'bg-[var(--magenta)]/15 text-[var(--magenta)] border border-[var(--magenta)]/30 shadow-[0_0_12px_rgba(255,115,81,0.15)]'
-  if (status === 'UPCOMING') return 'bg-cyan/15 text-cyan border border-cyan/30'
-  return 'bg-white/8 text-muted border border-border'
-}
+const card = { background: 'var(--card,#1a1630)', border: '2.5px solid var(--bd,#f6f4ff)' } as const
 
-function gameAccent(slug: string) {
-  const CAT: Record<string, string> = {
-    'counter-strike-2': 'var(--amber)',
-    valorant: 'var(--magenta)',
-    'dota-2': 'var(--magenta)',
-    'league-of-legends': 'var(--amber)',
-    overwatch: 'var(--amber)',
-    'rocket-league': 'var(--cyan)',
-    'street-fighter-6': 'var(--magenta)',
-    'tekken-8': 'var(--cyan)',
-    'super-smash-bros-ultimate': 'var(--magenta)',
-    'super-smash-bros-melee': 'var(--magenta)',
-    'guilty-gear-strive': 'var(--magenta)',
-    'mortal-kombat-1': 'var(--amber)',
+export default function TournamentsPage() {
+  const { toast } = useShell()
+  const baseRef = useRef(Date.now())
+  const [dataset, setDataset] = useState<TItem[]>(() => generated())
+  const [activeGame, setActiveGame] = useState('valorant')
+  const [query, setQuery] = useState('')
+  const [sources, setSources] = useState<string[]>([...SOURCE_KEYS])
+  const [view, setView] = useState<'grid' | 'list'>('grid')
+  const [openMenu, setOpenMenu] = useState<string | null>(null)
+  const [showMore, setShowMore] = useState(false)
+  const [alertOpen, setAlertOpen] = useState(false)
+  const [f, setF] = useState<{ date: string; fee: string; region: string }>({ date: 'all', fee: 'all', region: 'all' })
+  const [tracked, setTracked] = useState<string[]>(['valorant', 'cs2'])
+  const [alertsOn, setAlertsOn] = useState<Record<string, boolean>>({ valorant: true, cs2: true })
+  const [now, setNow] = useState(Date.now())
+
+  useEffect(() => {
+    let ignore = false
+    void (async () => {
+      try {
+        const t = await api.fetchTournaments({ limit: 60 })
+        if (!ignore && t.length) {
+          const mapped = mapReal(t, baseRef.current)
+          // Only switch to real data if it covers the active game; otherwise keep representative.
+          if (mapped.length >= 3) setDataset(mapped)
+        }
+      } catch {
+        /* keep representative */
+      }
+    })()
+    try {
+      const saved = JSON.parse(localStorage.getItem(TRACK_KEY) || 'null')
+      if (saved && Array.isArray(saved.list)) { setTracked(saved.list); if (saved.on) setAlertsOn(saved.on) }
+    } catch {
+      /* ignore */
+    }
+    return () => { ignore = true }
+  }, [])
+
+  useEffect(() => {
+    const id = window.setInterval(() => setNow(Date.now()), 1000)
+    return () => window.clearInterval(id)
+  }, [])
+
+  useEffect(() => {
+    if (!openMenu) return
+    const onDown = (e: MouseEvent) => {
+      if (!(e.target as HTMLElement).closest('[data-menuwrap]')) setOpenMenu(null)
+    }
+    document.addEventListener('pointerdown', onDown)
+    return () => document.removeEventListener('pointerdown', onDown)
+  }, [openMenu])
+
+  // ensure active game stays valid for the dataset
+  const dsGames = useMemo(() => new Set(dataset.map((t) => t.gameSlug)), [dataset])
+  useEffect(() => {
+    if (!dsGames.has(activeGame)) {
+      const first = dataset[0]?.gameSlug
+      if (first) setActiveGame(first)
+    }
+  }, [dsGames, activeGame, dataset])
+
+  const counts = useMemo(() => {
+    const c: Record<string, number> = {}
+    dataset.forEach((t) => { c[t.gameSlug] = (c[t.gameSlug] || 0) + 1 })
+    return c
+  }, [dataset])
+
+  const rosterGames = useMemo(() => {
+    // games that exist in the dataset, in roster order, then any extras
+    const inData = GAMES.filter((g) => counts[g.slug])
+    const known = new Set(inData.map((g) => g.slug))
+    const extras = [...dsGames].filter((s) => !known.has(s)).map((s) => ({ slug: s, name: s, abbr: s.slice(0, 3).toUpperCase(), accent: '#a24dff' }))
+    return [...inData, ...extras]
+  }, [counts, dsGames])
+
+  const q = query.trim().toLowerCase()
+  const railGames = rosterGames
+    .filter((_g, i) => showMore || i < CORE_GAMES)
+    .filter((g) => !q || g.name.toLowerCase().includes(q) || g.abbr.toLowerCase().includes(q))
+    .map((g) => ({ ...g, count: counts[g.slug] || 0 }))
+
+  const ag = rosterGames.find((g) => g.slug === activeGame) || rosterGames[0] || GAMES[0]
+  const agItems = useMemo(() => dataset.filter((t) => t.gameSlug === activeGame), [dataset, activeGame])
+
+  const filtered = useMemo(() => {
+    let arr = agItems.filter((t) => sources.includes(t.src))
+    if (f.date !== 'all') {
+      const lim = { '48h': 48, week: 168, month: 720 }[f.date] || 99999
+      arr = arr.filter((t) => t.status === 'live' || (t.dlH > 0 && t.dlH <= lim))
+    }
+    if (f.fee === 'free') arr = arr.filter((t) => t.fee === 0)
+    else if (f.fee === 'paid') arr = arr.filter((t) => t.fee > 0)
+    if (f.region !== 'all') arr = arr.filter((t) => t.region === f.region)
+    return [...arr].sort((a, b) => {
+      if ((a.status === 'live') !== (b.status === 'live')) return a.status === 'live' ? -1 : 1
+      return a.dlH - b.dlH
+    })
+  }, [agItems, sources, f])
+
+  const cards = useMemo(() => filtered.map((t) => enrich(t, baseRef.current)), [filtered])
+  const activePlatforms = new Set(agItems.map((t) => t.src)).size
+  const closingSoon = agItems.filter((t) => t.status !== 'live' && t.dlH > 0 && t.dlH < 48).length
+  const liveCount = dataset.filter((t) => t.status === 'live').length
+  const upcomingCount = dataset.length - liveCount
+  const cardKey = `${activeGame}|${view}|${sources.join(',')}|${f.date}|${f.fee}|${f.region}`
+
+  const persistTracked = (list: string[], on: Record<string, boolean>) => {
+    try { localStorage.setItem(TRACK_KEY, JSON.stringify({ list, on })) } catch { /* ignore */ }
   }
-  return CAT[slug] || 'var(--cyan)'
-}
+  const addTrack = (slug: string) => {
+    if (tracked.includes(slug)) return
+    const list = [...tracked, slug]
+    const on = { ...alertsOn, [slug]: true }
+    setTracked(list); setAlertsOn(on); persistTracked(list, on)
+    const g = GAMES.find((x) => x.slug === slug)
+    toast(`Added ${g ? g.name : 'game'} to Tourny Alert List`)
+  }
+  const removeTracked = (slug: string) => { const list = tracked.filter((x) => x !== slug); setTracked(list); persistTracked(list, alertsOn) }
+  const toggleAlertOn = (slug: string) => { const on = { ...alertsOn, [slug]: alertsOn[slug] === false }; setAlertsOn(on); persistTracked(tracked, on); toast(on[slug] ? 'Alerts on' : 'Alerts muted') }
+  const resetFilters = () => { setSources([...SOURCE_KEYS]); setF({ date: 'all', fee: 'all', region: 'all' }); setOpenMenu(null); toast('Filters reset') }
 
-const fadeUp = {
-  hidden: { opacity: 0, y: 20 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.4, ease: [0.16, 1, 0.3, 1] } },
-}
-
-/* ── tournament card ── */
-
-function TournamentCard({ entry, showProvider = true }: { entry: TournamentRecord; showProvider?: boolean }) {
-  const externalUrl = resolveExternalUrl(entry)
-  const provider = typeof entry.metadata?.provider === 'string' ? entry.metadata.provider : ''
-  const pm = providerMeta(provider)
-  const prize = extractPrize(entry.metadata)
-  const participants = extractParticipants(entry.metadata)
-  const region = extractRegion(entry.metadata)
-  const isLive = entry.status === 'LIVE_NOW'
+  const deadlineText = (deadlineAt: number, status: string) => {
+    if (status === 'live') return 'Live now'
+    const ms = deadlineAt - now
+    if (ms <= 0) return 'Reg closed'
+    return fmtLeft(ms)
+  }
 
   return (
-    <motion.article
-      variants={fadeUp}
-      className="rounded-[var(--radius)] border border-border bg-panel p-5 transition-all hover:border-cyan/20 hover:-translate-y-[2px] hover:shadow-[0_12px_32px_rgba(0,0,0,0.2)]"
-    >
-      {/* Status + provider row */}
-      <div className="mb-3 flex items-center gap-2">
-        <span
-          className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wider ${statusBadgeClass(entry.status)}`}
-        >
-          {isLive && <span className="h-1.5 w-1.5 rounded-full bg-[var(--magenta)] animate-pulse" />}
-          {entry.status.replace('_', ' ')}
-        </span>
-        {showProvider && provider && (
-          <span
-            className="rounded px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider bg-white/[0.06] text-muted border border-border"
-          >
-            {pm.label}
-          </span>
-        )}
-      </div>
+    <div id="top">
+      {/* Headline */}
+      <section style={{ maxWidth: 1340, margin: '0 auto', padding: '40px 26px 0', display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', justifyContent: 'space-between', gap: 28 }}>
+        <div style={{ minWidth: 300, flex: '1 1 540px' }}>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontFamily: 'var(--fm)', fontSize: 12, fontWeight: 700, letterSpacing: '.14em', color: 'var(--cyan)' }}><span style={{ width: 18, height: 2, background: 'var(--cyan)' }} />TOURNAMENT FINDER · 4 PLATFORMS</div>
+          <h1 style={{ fontFamily: 'var(--fd)', fontSize: 'clamp(34px,5vw,62px)', lineHeight: 0.96, fontWeight: 800, letterSpacing: '-.04em', margin: '14px 0 0' }}>Every open bracket,<br /><span style={{ display: 'inline-block', background: 'var(--lime)', color: '#0b0a12', padding: '0 .12em', marginTop: '.08em', border: '3px solid var(--bd)', boxShadow: '6px 6px 0 var(--hard)', transform: 'rotate(-1.4deg)' }}>before it closes.</span></h1>
+          <p style={{ fontSize: 'clamp(15px,1.7vw,18px)', color: 'var(--tx2,#aaa3c6)', maxWidth: '54ch', margin: '24px 0 0', lineHeight: 1.55 }}>PlayWise pulls open registrations from <b style={{ color: 'var(--tx)' }}>start.gg, FACEIT, Battlefy &amp; Discord</b> into one list — and counts down every deadline so you never miss the entry window. Click <b style={{ color: 'var(--tx)' }}>Register</b> to finish on the source platform.</p>
+        </div>
+        <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
+          <div style={{ ...card, borderRadius: 17, padding: '17px 20px', boxShadow: '5px 5px 0 var(--pink)', minWidth: 120 }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 7 }}><span style={{ fontFamily: 'var(--fm)', fontSize: 'clamp(26px,4vw,38px)', fontWeight: 700, letterSpacing: '-.02em', lineHeight: 1, color: 'var(--pink)' }}>{liveCount}</span><span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--pink)', animation: 'pw-blink 1.3s ease-in-out infinite' }} /></div>
+            <div style={{ fontFamily: 'var(--fm)', fontSize: 11, fontWeight: 500, letterSpacing: '.05em', color: 'var(--tx2,#aaa3c6)', marginTop: 7, textTransform: 'uppercase' }}>Live now</div>
+          </div>
+          <div style={{ ...card, borderRadius: 17, padding: '17px 20px', boxShadow: '5px 5px 0 var(--cyan)', minWidth: 120 }}>
+            <div style={{ fontFamily: 'var(--fm)', fontSize: 'clamp(26px,4vw,38px)', fontWeight: 700, letterSpacing: '-.02em', lineHeight: 1, color: 'var(--tx)' }}>{upcomingCount}</div>
+            <div style={{ fontFamily: 'var(--fm)', fontSize: 11, fontWeight: 500, letterSpacing: '.05em', color: 'var(--tx2,#aaa3c6)', marginTop: 7, textTransform: 'uppercase' }}>Open to enter</div>
+          </div>
+        </div>
+      </section>
 
-      {/* Title */}
-      <h3 className="text-[1.05rem] font-bold leading-tight line-clamp-2 mb-1.5">{entry.title}</h3>
+      {/* Workspace */}
+      <section style={{ maxWidth: 1340, margin: '28px auto 0', padding: '0 26px' }}>
+        <div style={{ display: 'flex', gap: 18, alignItems: 'flex-start' }}>
+          {/* Game rail */}
+          <aside style={{ position: 'sticky', top: 78, flexShrink: 0, alignSelf: 'flex-start' }}>
+            <div className="rail" style={{ display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 8, width: 156, ...card, borderRadius: 20, boxShadow: '5px 6px 0 var(--hard)', padding: '12px 10px', maxHeight: 'calc(100vh - 102px)', overflowY: 'auto' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--bg,#0b0a12)', border: '2px solid var(--line2,#3a3460)', borderRadius: 11, padding: '8px 10px', marginBottom: 4 }}>
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--tx3,#736c92)" strokeWidth="2.4"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.2-3.2" /></svg>
+                <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Game" style={{ background: 'none', border: 'none', outline: 'none', color: 'var(--tx,#f6f4ff)', font: 'inherit', fontSize: 13, width: '100%', minWidth: 0 }} />
+              </div>
+              <div style={{ fontFamily: 'var(--fm)', fontSize: 9.5, fontWeight: 700, letterSpacing: '.12em', color: 'var(--tx3,#736c92)', textTransform: 'uppercase', padding: '4px 2px 2px' }}>Games</div>
+              {railGames.map((g) => {
+                const on = g.slug === activeGame
+                return (
+                  <button key={g.slug} className="press" onClick={() => { setActiveGame(g.slug); setOpenMenu(null) }} style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, background: 'none', border: 'none', cursor: 'pointer', padding: '6px 2px' }}>
+                    <span style={{ position: 'absolute', left: -8, top: '50%', transform: 'translateY(-50%)', width: 5, height: on ? 30 : 0, borderRadius: 4, background: g.accent, transition: 'height .25s var(--ease)' }} />
+                    <span style={{ position: 'relative', width: 80, height: 80, borderRadius: 19, background: on ? 'var(--card,#1a1630)' : 'var(--card2,#221c3c)', border: `2.5px solid ${on ? 'var(--bd,#f6f4ff)' : 'var(--line2,#3a3460)'}`, boxShadow: on ? `3px 3px 0 ${g.accent}` : 'none', transform: on ? 'translateY(-1px)' : 'none', display: 'grid', placeItems: 'center', overflow: 'hidden', fontFamily: 'var(--fd)', fontWeight: 800, fontSize: 19, color: 'var(--tx,#f6f4ff)', transition: 'border-color .2s,box-shadow .2s,transform .2s' }}>
+                      {g.abbr}
+                      <span style={{ position: 'absolute', top: -7, right: -7, minWidth: 20, height: 20, padding: '0 4px', borderRadius: 10, background: g.accent, border: '2px solid var(--bd,#f6f4ff)', color: '#0b0a12', fontFamily: 'var(--fm)', fontWeight: 700, fontSize: 10.5, display: 'grid', placeItems: 'center' }}>{g.count}</span>
+                    </span>
+                    <span style={{ fontFamily: 'var(--fm)', fontSize: 11, fontWeight: 600, color: on ? 'var(--tx,#f6f4ff)' : 'var(--tx3,#736c92)', maxWidth: 114, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{g.name}</span>
+                  </button>
+                )
+              })}
+              {railGames.length === 0 && <div style={{ fontFamily: 'var(--fm)', fontSize: 10.5, color: 'var(--tx3,#736c92)', textAlign: 'center', padding: '14px 4px', lineHeight: 1.5 }}>No game matches “{query}”.</div>}
+              {rosterGames.length > CORE_GAMES && (
+                <button className="press" onClick={() => setShowMore((s) => !s)} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, background: 'none', border: 'none', cursor: 'pointer', padding: '8px 2px 4px', marginTop: 2, borderTop: '2px dashed var(--line2,#3a3460)' }}>
+                  <span style={{ width: 80, height: 60, borderRadius: 16, background: 'var(--bg,#0b0a12)', border: '2px dashed var(--line2,#3a3460)', display: 'grid', placeItems: 'center', color: 'var(--tx2,#aaa3c6)' }}><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round"><circle cx="5" cy="12" r="1.4" /><circle cx="12" cy="12" r="1.4" /><circle cx="19" cy="12" r="1.4" /></svg></span>
+                  <span style={{ fontFamily: 'var(--fm)', fontSize: 9.5, fontWeight: 600, color: 'var(--tx3,#736c92)' }}>{showMore ? 'Less' : 'More'}</span>
+                </button>
+              )}
+            </div>
+          </aside>
 
-      {/* Game + region */}
-      <p className="text-[0.78rem] text-muted mb-3">
-        {entry.gameSlug && formatGameLabel(entry.gameSlug)}
-        {region && <> &middot; {region}</>}
-      </p>
+          {/* Main column */}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            {/* Active game header */}
+            <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 14, ...card, borderRadius: 18, boxShadow: '5px 6px 0 var(--hard)', padding: '15px 18px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 0 }}>
+                <span style={{ width: 52, height: 52, flexShrink: 0, borderRadius: 15, background: 'var(--card2,#221c3c)', border: '2.5px solid var(--bd,#f6f4ff)', boxShadow: `3px 3px 0 ${ag.accent}`, display: 'grid', placeItems: 'center', fontFamily: 'var(--fd)', fontWeight: 900, fontSize: 17, color: 'var(--tx,#f6f4ff)' }}>{ag.abbr}</span>
+                <div style={{ minWidth: 0 }}>
+                  <h2 style={{ fontFamily: 'var(--fd)', fontSize: 'clamp(22px,3vw,30px)', fontWeight: 800, letterSpacing: '-.02em', margin: 0, lineHeight: 1.02 }}>{ag.name}</h2>
+                  <div style={{ fontFamily: 'var(--fm)', fontSize: 12.5, fontWeight: 500, color: 'var(--tx2,#aaa3c6)', marginTop: 5 }}><b style={{ color: 'var(--lime)' }}>{agItems.length}</b> active across <b style={{ color: 'var(--tx)' }}>{activePlatforms}</b> platform{activePlatforms === 1 ? '' : 's'}</div>
+                </div>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+                <button className="press" onClick={() => addTrack(activeGame)} title="Track this game" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: tracked.includes(activeGame) ? 'var(--lime)' : 'var(--card2,#221c3c)', border: `2px solid ${tracked.includes(activeGame) ? 'var(--bd,#f6f4ff)' : 'var(--line2,#3a3460)'}`, borderRadius: 12, padding: '9px 13px', cursor: 'pointer', color: tracked.includes(activeGame) ? '#0b0a12' : 'var(--tx2,#aaa3c6)', boxShadow: '2px 2px 0 var(--hard)' }}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.5 21a1.8 1.8 0 0 1-3 0" /></svg>
+                  <span style={{ fontFamily: 'var(--ff)', fontSize: 13, fontWeight: 700 }}>Track</span>
+                </button>
+                <button className="press" onClick={() => setAlertOpen(true)} style={{ display: 'inline-flex', alignItems: 'center', gap: 9, background: 'var(--lime)', border: '2.5px solid var(--bd,#f6f4ff)', borderRadius: 12, padding: '9px 14px', cursor: 'pointer', color: '#0b0a12', boxShadow: '3px 3px 0 var(--hard)' }}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.5 21a1.8 1.8 0 0 1-3 0" /></svg>
+                  <span style={{ fontFamily: 'var(--fd)', fontSize: 13.5, fontWeight: 800, letterSpacing: '-.01em' }}>Tourny Alert List</span>
+                  <span style={{ fontFamily: 'var(--fm)', fontSize: 11, fontWeight: 700, background: '#0b0a12', color: 'var(--lime)', borderRadius: 7, padding: '1px 7px', lineHeight: 1.6 }}>{tracked.length}</span>
+                </button>
+              </div>
+            </div>
 
-      {/* Prize / participants row */}
-      {(prize || participants) && (
-        <div className="flex gap-5 mb-3">
-          {prize && (
-            <div>
-              <span className="font-mono font-extrabold text-[1rem] text-amber">{prize}</span>
-              <span className="block text-[0.62rem] text-muted uppercase tracking-[0.1em] font-semibold">Prize</span>
+            {/* Urgency bar */}
+            {closingSoon > 0 && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 13, marginTop: 14, background: 'linear-gradient(0deg,rgba(255,46,110,.12),rgba(255,46,110,.12)),var(--card,#1a1630)', border: '2.5px solid var(--pink)', borderRadius: 14, padding: '12px 16px', animation: 'pw-urg 2.4s ease-in-out infinite' }}>
+                <span style={{ flexShrink: 0, width: 30, height: 30, borderRadius: 9, background: 'var(--pink)', display: 'grid', placeItems: 'center', color: '#fff' }}><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg></span>
+                <div style={{ flex: 1, minWidth: 0, lineHeight: 1.35 }}>
+                  <div style={{ fontFamily: 'var(--fd)', fontSize: 15, fontWeight: 800, letterSpacing: '-.01em', color: 'var(--tx,#f6f4ff)' }}><span style={{ color: 'var(--pink)' }}>{closingSoon}</span> closing within 48 hours</div>
+                  <div style={{ fontFamily: 'var(--fm)', fontSize: 11.5, color: 'var(--tx2,#aaa3c6)', marginTop: 2 }}>Don't miss the registration deadline — set an alert and we'll ping you.</div>
+                </div>
+                <button className="press" onClick={() => setAlertOpen(true)} style={{ flexShrink: 0, fontFamily: 'var(--ff)', fontSize: 12.5, fontWeight: 700, color: '#fff', background: 'var(--pink)', border: '2px solid var(--bd,#f6f4ff)', borderRadius: 10, padding: '8px 13px', cursor: 'pointer', boxShadow: '2px 2px 0 var(--hard)' }}>Set alerts →</button>
+              </div>
+            )}
+
+            {/* Controls */}
+            <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10, marginTop: 14, ...card, borderRadius: 16, boxShadow: '4px 5px 0 var(--hard)', padding: '12px 15px' }}>
+              <span style={{ fontFamily: 'var(--fm)', fontSize: 10, fontWeight: 700, letterSpacing: '.1em', color: 'var(--tx3,#736c92)', textTransform: 'uppercase' }}>Source</span>
+              {SOURCE_KEYS.map((id) => {
+                const on = sources.includes(id)
+                return (
+                  <button key={id} className="srcchip press" onClick={() => setSources((cur) => cur.includes(id) ? cur.filter((s) => s !== id) : [...cur, id])} style={{ display: 'inline-flex', alignItems: 'center', gap: 7, font: 'inherit', fontSize: 13, fontWeight: 700, cursor: 'pointer', borderRadius: 100, padding: '7px 13px', border: `2px solid ${on ? 'var(--bd,#f6f4ff)' : 'var(--line2,#3a3460)'}`, background: on ? 'var(--card2,#221c3c)' : 'transparent', color: on ? 'var(--tx,#f6f4ff)' : 'var(--tx2,#aaa3c6)' }}>
+                    <span style={{ width: 9, height: 9, borderRadius: 3, background: SRC[id].color, border: '1.5px solid var(--bd,#f6f4ff)' }} />{SRC[id].name}
+                  </button>
+                )
+              })}
+              <span style={{ width: 2, height: 26, background: 'var(--line2,#3a3460)', margin: '0 4px' }} />
+              {FILTER_DEFS.map((fl) => {
+                const cur = f[fl.id]
+                const co = fl.options.find((o) => o[0] === cur)
+                return (
+                  <div key={fl.id} data-menuwrap style={{ position: 'relative' }}>
+                    <button className="press" onClick={() => setOpenMenu((m) => m === fl.id ? null : fl.id)} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontFamily: 'var(--ff)', fontWeight: 700, color: 'var(--tx,#f6f4ff)', background: 'var(--bg,#0b0a12)', border: '2px solid var(--line2,#3a3460)', borderRadius: 11, padding: '8px 12px', cursor: 'pointer' }}>
+                      <span style={{ fontFamily: 'var(--fm)', fontSize: 9.5, letterSpacing: '.06em', textTransform: 'uppercase', color: 'var(--tx3,#736c92)' }}>{fl.label}</span>
+                      <span style={{ fontSize: 13 }}>{co ? co[1] : 'Any'}</span>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--tx3,#736c92)' }}><path d="m6 9 6 6 6-6" /></svg>
+                    </button>
+                    {openMenu === fl.id && (
+                      <div style={{ position: 'absolute', top: 'calc(100% + 8px)', left: 0, zIndex: 130, minWidth: 172, ...card, borderRadius: 14, boxShadow: '5px 6px 0 var(--hard)', padding: 6 }}>
+                        {fl.options.map((op) => {
+                          const on = f[fl.id] === op[0]
+                          return (
+                            <button key={op[0]} onClick={() => { setF((prev) => ({ ...prev, [fl.id]: op[0] })); setOpenMenu(null) }} style={{ display: 'flex', width: '100%', alignItems: 'center', gap: 10, font: 'inherit', fontSize: 13, fontWeight: 600, color: on ? '#0b0a12' : 'var(--tx,#f6f4ff)', background: on ? 'var(--lime)' : 'none', border: 'none', borderRadius: 9, padding: '9px 11px', cursor: 'pointer', textAlign: 'left' }}>{op[1]}</button>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+              <div style={{ flex: 1, minWidth: 6 }} />
+              <div style={{ display: 'inline-flex', background: 'var(--bg,#0b0a12)', border: '2px solid var(--line2,#3a3460)', borderRadius: 11, padding: 3 }}>
+                {(['grid', 'list'] as const).map((v) => (
+                  <button key={v} onClick={() => setView(v)} title={v} style={{ display: 'grid', placeItems: 'center', width: 34, height: 32, border: 'none', background: view === v ? 'var(--lime)' : 'transparent', borderRadius: 8, cursor: 'pointer', color: view === v ? '#0b0a12' : 'var(--tx2,#aaa3c6)' }}>
+                    {v === 'grid'
+                      ? <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3"><rect x="3" y="3" width="7" height="7" rx="1.4" /><rect x="14" y="3" width="7" height="7" rx="1.4" /><rect x="3" y="14" width="7" height="7" rx="1.4" /><rect x="14" y="14" width="7" height="7" rx="1.4" /></svg>
+                      : <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round"><path d="M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01" /></svg>}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, margin: '18px 2px 0' }}>
+              <div style={{ fontFamily: 'var(--fm)', fontSize: 12, fontWeight: 700, color: 'var(--tx2,#aaa3c6)' }}><span style={{ color: 'var(--lime)' }}>{cards.length}</span> result{cards.length === 1 ? '' : 's'} · sorted by closing soonest</div>
+              <button onClick={resetFilters} style={{ fontFamily: 'var(--ff)', fontSize: 12, fontWeight: 700, color: 'var(--tx2,#aaa3c6)', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 3 }}>Reset filters</button>
+            </div>
+
+            {/* Cards grid */}
+            <div key={cardKey} style={{ display: 'grid', gap: 16, marginTop: 14, gridTemplateColumns: view === 'list' ? '1fr' : 'repeat(auto-fill,minmax(322px,1fr))' }}>
+              {cards.map((c, i) => (
+                <div key={c.id} className="tcardin" style={withVar({ ...card, borderRadius: 18, boxShadow: '4px 5px 0 var(--hard)', padding: 16, animationDelay: `${Math.min(i, 12) * 42}ms` }, '--sc', c.accent)}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: 'var(--fm)', fontWeight: 700, fontSize: 11, letterSpacing: '.03em', color: c.sourceText, background: c.sourceColor, border: '2px solid var(--bd,#f6f4ff)', borderRadius: 8, padding: '4px 9px' }}>{c.sourceName}</span>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontFamily: 'var(--fm)', fontWeight: 700, fontSize: 9.5, letterSpacing: '.06em', color: c.stFg, background: c.stBg, border: `2px solid ${c.stBorder}`, borderRadius: 7, padding: '3px 8px' }}>{c.stDot && <span style={{ width: 5, height: 5, borderRadius: '50%', background: 'currentColor', animation: 'pw-blink 1.1s ease-in-out infinite' }} />}{c.stLabel}</span>
+                    <div style={{ flex: 1, minWidth: 4 }} />
+                    <button className="press" onClick={() => addTrack(c.gameSlug)} title="Add game to Tourny Alert List" style={{ width: 34, height: 34, flexShrink: 0, display: 'grid', placeItems: 'center', background: tracked.includes(c.gameSlug) ? 'var(--lime)' : 'var(--card2,#221c3c)', border: `2px solid ${tracked.includes(c.gameSlug) ? 'var(--bd,#f6f4ff)' : 'var(--line2,#3a3460)'}`, borderRadius: 10, cursor: 'pointer', color: tracked.includes(c.gameSlug) ? '#0b0a12' : 'var(--tx2,#aaa3c6)' }}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.5 21a1.8 1.8 0 0 1-3 0" /></svg></button>
+                  </div>
+
+                  <div style={{ fontFamily: 'var(--fd)', fontSize: 17, fontWeight: 800, letterSpacing: '-.01em', lineHeight: 1.16, marginTop: 13 }}>{c.title}</div>
+
+                  <div style={{ marginTop: 11 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontFamily: 'var(--fm)', fontSize: 12, color: 'var(--tx2,#aaa3c6)' }}><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" style={{ flexShrink: 0, color: 'var(--tx3,#736c92)' }}><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>{c.startLabel}</div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7, marginTop: 10 }}>
+                      <span style={chipMeta}>{c.teamSize}</span>
+                      <span style={chipMeta}>{c.prizeLabel}</span>
+                      <span style={chipMeta}>{c.region}</span>
+                      {c.formats.map((ft) => <span key={ft} style={{ ...chipMeta, color: 'var(--vio)' }}>{ft}</span>)}
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 12, marginTop: 14, paddingTop: 14, borderTop: '2px solid var(--line)' }}>
+                    <div>
+                      <div style={{ fontFamily: 'var(--fm)', fontSize: 9.5, letterSpacing: '.1em', color: 'var(--tx3,#736c92)', textTransform: 'uppercase' }}>Registration closes in</div>
+                      <div style={{ fontFamily: 'var(--fm)', fontSize: 23, fontWeight: 700, lineHeight: 1.1, color: c.status === 'live' ? 'var(--pink)' : (c.deadlineAt - now < 48 * 3600000 ? 'var(--pink)' : 'var(--lime)'), fontVariantNumeric: 'tabular-nums' }}>{deadlineText(c.deadlineAt, c.status)}</div>
+                    </div>
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8, fontFamily: 'var(--fm)', fontSize: 11.5 }}><span style={{ fontWeight: 700, color: 'var(--tx,#f6f4ff)' }}>{c.spotsLeft} spots left</span><span style={{ color: 'var(--tx3,#736c92)' }}>{c.feeLabel}</span></div>
+                      <div style={{ marginTop: 6, height: 7, borderRadius: 5, background: 'var(--line2,#3a3460)', border: '1.5px solid var(--bd,#f6f4ff)', overflow: 'hidden' }}><div style={{ height: '100%', width: c.fillPct, background: c.barColor }} /></div>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', marginTop: 14 }}>
+                    <button className="reg press" onClick={() => { window.open(c.url, '_blank', 'noopener,noreferrer'); toast(`Opening ${c.sourceName} → finish your registration`) }} style={{ flex: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'var(--fd)', fontSize: 13.5, fontWeight: 800, letterSpacing: '-.01em', color: '#0b0a12', background: 'var(--lime)', border: '2.5px solid var(--bd,#f6f4ff)', borderRadius: 12, padding: '11px 16px', cursor: 'pointer', boxShadow: '3px 3px 0 var(--hard)' }}>Register on {c.sourceName}<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.7" strokeLinecap="round" strokeLinejoin="round"><path d="M7 17 17 7M9 7h8v8" /></svg></button>
+                  </div>
+                </div>
+              ))}
+
+              {cards.length === 0 && (
+                <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: '60px 22px', ...card, border: '2.5px dashed var(--line2,#3a3460)', borderRadius: 18 }}>
+                  <div style={{ fontFamily: 'var(--fd)', fontSize: 21, fontWeight: 800, letterSpacing: '-.02em' }}>No open registrations match these filters</div>
+                  <div style={{ fontSize: 14, color: 'var(--tx2,#aaa3c6)', marginTop: 9, lineHeight: 1.5 }}>Try re-enabling a source, widening the date range, or clearing entry-fee &amp; region.</div>
+                  <button className="press" onClick={resetFilters} style={{ marginTop: 20, fontFamily: 'var(--fd)', fontSize: 13, fontWeight: 700, color: '#0b0a12', background: 'var(--lime)', border: '2px solid var(--bd,#f6f4ff)', borderRadius: 11, padding: '10px 17px', cursor: 'pointer', boxShadow: '3px 3px 0 var(--hard)' }}>Reset filters</button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Alert drawer */}
+      <div onClick={() => setAlertOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 690, background: 'rgba(7,6,12,.6)', opacity: alertOpen ? 1 : 0, pointerEvents: alertOpen ? 'auto' : 'none', transition: 'opacity .3s ease' }} />
+      <aside style={{ position: 'fixed', top: 0, right: 0, bottom: 0, zIndex: 700, width: 'min(388px,calc(100vw - 32px))', background: 'var(--card,#1a1630)', borderLeft: '3px solid var(--bd,#f6f4ff)', boxShadow: '-9px 0 0 var(--hard)', display: 'flex', flexDirection: 'column', transform: alertOpen ? 'translateX(0)' : 'translateX(112%)', transition: 'transform .36s cubic-bezier(.16,1,.3,1)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 11, padding: 18, borderBottom: '2.5px solid var(--line)', background: 'var(--card2,#221c3c)' }}>
+          <span style={{ width: 42, height: 42, borderRadius: 12, background: 'var(--lime)', border: '2.5px solid var(--bd,#f6f4ff)', boxShadow: '2px 2px 0 var(--hard)', display: 'grid', placeItems: 'center', color: '#0b0a12' }}><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.5 21a1.8 1.8 0 0 1-3 0" /></svg></span>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontFamily: 'var(--fd)', fontSize: 17, fontWeight: 800, letterSpacing: '-.02em' }}>Tourny Alert List</div>
+            <div style={{ fontFamily: 'var(--fm)', fontSize: 11.5, color: 'var(--tx2,#aaa3c6)', marginTop: 2 }}>New registrations for your games — straight to you.</div>
+          </div>
+          <button className="press" onClick={() => setAlertOpen(false)} style={{ width: 34, height: 34, flexShrink: 0, display: 'grid', placeItems: 'center', background: 'var(--bg,#0b0a12)', border: '2px solid var(--line2,#3a3460)', borderRadius: 10, cursor: 'pointer', color: 'var(--tx,#f6f4ff)' }}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round"><path d="M6 6l12 12M18 6 6 18" /></svg></button>
+        </div>
+        <div className="rail" style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
+          {tracked.length > 0 ? (
+            <>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 12 }}>
+                <span style={{ fontFamily: 'var(--fm)', fontSize: 10, fontWeight: 700, letterSpacing: '.1em', color: 'var(--tx3,#736c92)', textTransform: 'uppercase' }}>Tracking {tracked.length} game{tracked.length === 1 ? '' : 's'}</span>
+                <span style={{ fontFamily: 'var(--fm)', fontSize: 10, color: 'var(--tx3,#736c92)' }}>Alerts</span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {tracked.map((slug) => {
+                  const g = GAMES.find((x) => x.slug === slug) || { slug, name: slug, abbr: slug.slice(0, 3).toUpperCase(), accent: '#a24dff' }
+                  const its = dataset.filter((t) => t.gameSlug === slug)
+                  const on = alertsOn[slug] !== false
+                  return (
+                    <div key={slug} style={{ display: 'flex', alignItems: 'center', gap: 12, background: 'var(--card2,#221c3c)', border: '2px solid var(--line2,#3a3460)', borderRadius: 14, padding: '11px 13px' }}>
+                      <span style={{ width: 42, height: 42, flexShrink: 0, borderRadius: 12, background: 'var(--card,#1a1630)', border: '2.5px solid var(--bd,#f6f4ff)', boxShadow: `2px 2px 0 ${g.accent}`, display: 'grid', placeItems: 'center', fontFamily: 'var(--fd)', fontWeight: 800, fontSize: 12, color: 'var(--tx,#f6f4ff)' }}>{g.abbr}</span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: 700, fontSize: 14, letterSpacing: '-.01em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{g.name}</div>
+                        <div style={{ fontFamily: 'var(--fm)', fontSize: 11, color: 'var(--tx2,#aaa3c6)', marginTop: 2 }}>{its.length} open · {its.filter((t) => t.dlH > 0 && t.dlH < 48).length} closing soon</div>
+                      </div>
+                      <button onClick={() => toggleAlertOn(slug)} title="Toggle alerts" style={{ position: 'relative', width: 46, height: 26, flexShrink: 0, border: '2px solid var(--bd,#f6f4ff)', borderRadius: 100, cursor: 'pointer', padding: 0, background: on ? 'var(--lime)' : 'var(--line2,#3a3460)' }}><span style={{ position: 'absolute', top: 1.5, left: 1.5, width: 19, height: 19, borderRadius: '50%', background: 'var(--bd,#f6f4ff)', transform: `translateX(${on ? '20px' : '0px'})`, transition: 'transform .25s var(--ease)' }} /></button>
+                      <button className="press" onClick={() => removeTracked(slug)} title="Remove" style={{ width: 30, height: 30, flexShrink: 0, display: 'grid', placeItems: 'center', background: 'var(--bg,#0b0a12)', border: '2px solid var(--line2,#3a3460)', borderRadius: 9, cursor: 'pointer', color: 'var(--tx3,#736c92)' }}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M6 6l12 12M18 6 6 18" /></svg></button>
+                    </div>
+                  )
+                })}
+              </div>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 9, marginTop: 16, background: 'var(--bg,#0b0a12)', border: '2px solid var(--line)', borderRadius: 12, padding: '12px 13px', fontSize: 12, color: 'var(--tx2,#aaa3c6)', lineHeight: 1.5 }}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--lime)" strokeWidth="2.3" style={{ flexShrink: 0, marginTop: 1 }}><circle cx="12" cy="12" r="9" /><path d="M12 8h.01M11 12h1v4h1" /></svg>We watch start.gg, FACEIT, Battlefy &amp; Discord and ping you the moment a new bracket opens for a tracked game.</div>
+            </>
+          ) : (
+            <div style={{ textAlign: 'center', padding: '50px 18px' }}>
+              <span style={{ display: 'inline-grid', placeItems: 'center', width: 64, height: 64, borderRadius: 18, background: 'var(--card2,#221c3c)', border: '2.5px solid var(--line2,#3a3460)', color: 'var(--tx3,#736c92)', marginBottom: 16 }}><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.5 21a1.8 1.8 0 0 1-3 0" /></svg></span>
+              <div style={{ fontFamily: 'var(--fd)', fontSize: 17, fontWeight: 800, letterSpacing: '-.01em' }}>No games tracked yet</div>
+              <div style={{ fontSize: 13, color: 'var(--tx2,#aaa3c6)', marginTop: 8, lineHeight: 1.5, maxWidth: '30ch', marginLeft: 'auto', marginRight: 'auto' }}>Tap the <b style={{ color: 'var(--tx)' }}>bell</b> on any game or tournament card to add it here and get alerted on new registrations.</div>
             </div>
           )}
-          {participants && (
-            <div>
-              <span className="font-mono font-extrabold text-[1rem] text-cyan">{participants}</span>
-              <span className="block text-[0.62rem] text-muted uppercase tracking-[0.1em] font-semibold">Players</span>
-            </div>
-          )}
         </div>
-      )}
-
-      {/* Dates */}
-      <p className="text-xs text-muted">Starts: {formatDateTime(entry.startsAt)}</p>
-      {entry.endsAt && <p className="text-xs text-muted">Ends: {formatDateTime(entry.endsAt)}</p>}
-
-      {/* Actions */}
-      <div className="mt-4 flex flex-wrap gap-2">
-        {entry.gameSlug && (
-          <Link
-            to={`/games/${entry.gameSlug}`}
-            className="inline-flex rounded-lg border border-border bg-white/[0.03] px-3 py-2 text-xs font-bold text-[var(--text)] hover:bg-white/[0.08] transition-colors"
-          >
-            Game details
-          </Link>
-        )}
-        <a
-          href={externalUrl}
-          target="_blank"
-          rel="noreferrer"
-          className="inline-flex items-center gap-1 rounded-lg px-3 py-2 text-xs font-black text-white transition-colors bg-cyan hover:bg-cyan/80"
-        >
-          {isLive ? 'Watch Live' : 'View event'} <span className="text-[10px]">↗</span>
-        </a>
-      </div>
-    </motion.article>
-  )
-}
-
-/* ── provider section ── */
-
-function ProviderSection({
-  provider,
-  tournaments,
-}: {
-  provider: (typeof PROVIDERS)[number]
-  tournaments: TournamentRecord[]
-}) {
-  if (!tournaments.length) return null
-  const liveCount = tournaments.filter((t) => t.status === 'LIVE_NOW').length
-  const upcomingCount = tournaments.filter((t) => t.status === 'UPCOMING').length
-
-  return (
-    <section id={`provider-${provider.key}`} className="mb-10">
-      <div className="mb-4 flex items-center gap-3">
-        <div
-          className="flex h-10 w-10 items-center justify-center rounded-xl"
-          style={{ backgroundColor: provider.color }}
-        >
-          <span className="material-symbols-outlined text-white" style={{ fontSize: '20px' }}>
-            {provider.icon}
-          </span>
-        </div>
-        <div className="flex-1">
-          <h2 className="text-xl font-black">{provider.label}</h2>
-        </div>
-        <div className="flex gap-2">
-          {liveCount > 0 && (
-            <span className="rounded-full bg-[var(--magenta)]/15 border border-[var(--magenta)]/30 px-2.5 py-0.5 text-[10px] font-black uppercase text-[var(--magenta)]">
-              {liveCount} live
-            </span>
-          )}
-          {upcomingCount > 0 && (
-            <span
-              className="rounded-full px-2.5 py-0.5 text-[10px] font-black uppercase"
-              style={{
-                backgroundColor: `${provider.accent}20`,
-                color: provider.accent,
-                border: `1px solid ${provider.accent}40`,
-              }}
-            >
-              {upcomingCount} upcoming
-            </span>
-          )}
-        </div>
-      </div>
-
-      <div
-        className="mb-4 h-px w-full"
-        style={{ background: `linear-gradient(to right, ${provider.accent}60, transparent)` }}
-      />
-
-      <motion.div
-        className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3"
-        initial="hidden"
-        animate="visible"
-        variants={{ visible: { transition: { staggerChildren: 0.03 } } }}
-      >
-        {tournaments.map((entry) => (
-          <TournamentCard key={entry.id || entry.slug} entry={entry} showProvider={false} />
-        ))}
-      </motion.div>
-    </section>
-  )
-}
-
-/* ── search bar ── */
-
-function SearchBar({
-  value,
-  onChange,
-  placeholder,
-}: {
-  value: string
-  onChange: (v: string) => void
-  placeholder: string
-}) {
-  const inputRef = useRef<HTMLInputElement>(null)
-
-  return (
-    <div className="relative">
-      <span
-        className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-muted"
-        style={{ fontSize: '18px' }}
-      >
-        search
-      </span>
-      <input
-        ref={inputRef}
-        type="text"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        className="w-full rounded-xl border border-border bg-white/[0.04] py-2.5 pl-10 pr-9 text-sm text-[var(--text)] placeholder:text-muted focus:border-cyan/50 focus:bg-white/[0.06] focus:outline-none transition-all"
-      />
-      {value && (
-        <button
-          type="button"
-          onClick={() => {
-            onChange('')
-            inputRef.current?.focus()
-          }}
-          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-[var(--text)] transition-colors"
-        >
-          <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>
-            close
-          </span>
-        </button>
-      )}
+      </aside>
     </div>
   )
 }
 
-/* ── subscribe button ── */
-
-function SubscribeButton({
-  gameSlug,
-  subs,
-  onToggle,
-  busy,
-  loggedIn,
-}: {
-  gameSlug: string
-  subs: TournamentSubscriptionRecord[]
-  onToggle: (gameSlug: string) => void
-  busy: boolean
-  loggedIn: boolean
-}) {
-  const activeSub = subs.find(
-    (s) => s.isActive && ((s.scope === 'GAME' && s.gameSlug === gameSlug) || s.scope === 'ALL'),
-  )
-  const isSubscribed = !!activeSub
-
-  if (!loggedIn) {
-    return (
-      <Link
-        to="/auth?returnTo=/tournaments"
-        className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-white/[0.04] px-4 py-2 text-xs font-bold text-muted hover:text-[var(--text)] hover:border-cyan/30 transition-all"
-      >
-        <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>
-          notifications
-        </span>
-        Sign in to subscribe
-      </Link>
-    )
-  }
-
-  return (
-    <button
-      type="button"
-      disabled={busy}
-      onClick={() => onToggle(gameSlug)}
-      className={`inline-flex items-center gap-1.5 rounded-xl border px-4 py-2 text-xs font-bold transition-all disabled:opacity-50 ${
-        isSubscribed
-          ? 'border-cyan/40 bg-cyan/15 text-cyan hover:bg-cyan/25'
-          : 'border-border bg-white/[0.04] text-muted hover:text-[var(--text)] hover:border-cyan/30'
-      }`}
-    >
-      <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>
-        {isSubscribed ? 'notifications_active' : 'notification_add'}
-      </span>
-      {busy ? 'Saving...' : isSubscribed ? 'Subscribed' : 'Get alerts'}
-    </button>
-  )
-}
-
-/* ── main page ── */
-
-export default function TournamentsPage() {
-  const [searchParams, setSearchParams] = useSearchParams()
-  const selectedGame = searchParams.get('game')?.trim() || ''
-  const { token, user } = useAuth()
-  const [events, setEvents] = useState<TournamentRecord[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
-  const [activeFilter, setActiveFilter] = useState<'all' | 'live' | 'upcoming' | 'ended'>('all')
-  const [searchQuery, setSearchQuery] = useState('')
-  const [subs, setSubs] = useState<TournamentSubscriptionRecord[]>([])
-  const [subBusy, setSubBusy] = useState(false)
-
-  const seoTitle = selectedGame
-    ? `${formatGameLabel(selectedGame)} Tournaments | PlayWise`
-    : 'Tournaments | PlayWise'
-  const seoDescription = selectedGame
-    ? `Live and upcoming ${formatGameLabel(selectedGame)} tournaments with registration links.`
-    : 'Browse esports tournaments across every competitive title — Valorant, CS2, Dota 2, League of Legends, and more.'
-
-  useEffect(() => {
-    let ignore = false
-    async function loadEvents() {
-      setLoading(true)
-      setError('')
-      try {
-        const response = await api.fetchTournaments({
-          game: selectedGame || undefined,
-          limit: selectedGame ? 120 : 200,
-        })
-        if (!ignore) {
-          setEvents(Array.isArray(response) ? response : [])
-        }
-      } catch (err) {
-        if (!ignore) {
-          setError(err instanceof Error ? err.message : 'Could not load tournaments right now.')
-        }
-      } finally {
-        if (!ignore) setLoading(false)
-      }
-    }
-    void loadEvents()
-    return () => {
-      ignore = true
-    }
-  }, [selectedGame])
-
-  useEffect(() => {
-    setActiveFilter('all')
-    setSearchQuery('')
-  }, [selectedGame])
-
-  useEffect(() => {
-    if (!token) { setSubs([]); return }
-    api.fetchTournamentSubscriptions(token).then(setSubs).catch(() => {})
-  }, [token])
-
-  const toggleSubscription = useCallback(
-    async (gameSlug: string) => {
-      if (!token) return
-      setSubBusy(true)
-      try {
-        const existing = subs.find(
-          (s) => s.isActive && s.scope === 'GAME' && s.gameSlug === gameSlug,
-        )
-        if (existing) {
-          await api.updateTournamentSubscription(existing.id, { isActive: false }, token)
-          setSubs((prev) => prev.map((s) => (s.id === existing.id ? { ...s, isActive: false } : s)))
-        } else {
-          const created = await api.createTournamentSubscription(
-            { scope: 'GAME', gameSlug },
-            token,
-          )
-          setSubs((prev) => [...prev, created])
-        }
-      } catch {
-        // silently fail — button state stays unchanged
-      } finally {
-        setSubBusy(false)
-      }
-    },
-    [token, subs, setSubBusy, setSubs],
-  )
-
-  /* ── overview: game chips ── */
-  const gameGroups = useMemo(() => {
-    if (selectedGame) return []
-    const q = searchQuery.toLowerCase().trim()
-    const groups: Record<string, { total: number; live: number }> = {}
-    for (const e of events) {
-      const key = e.gameSlug || 'other'
-      const label = formatGameLabel(key).toLowerCase()
-      if (q && !label.includes(q) && !e.title.toLowerCase().includes(q)) continue
-      if (!groups[key]) groups[key] = { total: 0, live: 0 }
-      groups[key].total++
-      if (e.status === 'LIVE_NOW') groups[key].live++
-    }
-    return Object.entries(groups).sort((a, b) => b[1].total - a[1].total)
-  }, [events, selectedGame, searchQuery])
-
-  /* ── game view: filtered + grouped by provider ── */
-  const filteredEvents = useMemo(() => {
-    if (!selectedGame) return []
-    const q = searchQuery.toLowerCase().trim()
-    return events.filter((e) => {
-      if (activeFilter === 'live' && e.status !== 'LIVE_NOW') return false
-      if (activeFilter === 'upcoming' && e.status !== 'UPCOMING') return false
-      if (activeFilter === 'ended' && e.status !== 'ENDED') return false
-      if (q && !e.title.toLowerCase().includes(q)) return false
-      return true
-    })
-  }, [events, selectedGame, activeFilter, searchQuery])
-
-  const providerGroups = useMemo(() => {
-    if (!selectedGame) return []
-    const grouped = new Map<string, TournamentRecord[]>()
-    for (const t of filteredEvents) {
-      const key = typeof t.metadata?.provider === 'string' ? t.metadata.provider : 'unknown'
-      const arr = grouped.get(key) || []
-      arr.push(t)
-      grouped.set(key, arr)
-    }
-    return PROVIDERS.filter((p) => grouped.has(p.key)).map((p) => ({
-      ...p,
-      tournaments: grouped.get(p.key)!,
-    }))
-  }, [filteredEvents, selectedGame])
-
-  const totalLive = events.filter((e) => e.status === 'LIVE_NOW').length
-  const totalUpcoming = events.filter((e) => e.status === 'UPCOMING').length
-
-  function selectGame(slug: string) {
-    setSearchParams(slug ? { game: slug } : {})
-  }
-
-  return (
-    <>
-      <Seo title={seoTitle} description={seoDescription} />
-      <section className="mx-auto w-full max-w-[1320px] px-4 py-12 text-[var(--text)]">
-        {/* Header */}
-        <div className="mb-8 rounded-2xl border border-border bg-panel p-6">
-          <p className="mb-2 text-[10px] font-black uppercase tracking-[0.2em] text-cyan">
-            Tournament Center
-          </p>
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div>
-              {selectedGame ? (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => selectGame('')}
-                    className="mb-2 flex items-center gap-1 text-xs font-bold text-cyan hover:underline"
-                  >
-                    <span className="text-sm">←</span> All Games
-                  </button>
-                  <h1 className="text-3xl font-black">{formatGameLabel(selectedGame)} Tournaments</h1>
-                  <div className="mt-2 flex flex-wrap items-center gap-3">
-                    <p className="text-sm text-muted">
-                      {events.length} events from{' '}
-                      {new Set(events.map((e) => e.metadata?.provider).filter(Boolean)).size} providers
-                    </p>
-                    <SubscribeButton
-                      gameSlug={selectedGame}
-                      subs={subs}
-                      onToggle={toggleSubscription}
-                      busy={subBusy}
-                      loggedIn={!!user}
-                    />
-                  </div>
-                </>
-              ) : (
-                <>
-                  <h1 className="text-3xl font-black">Pick your game</h1>
-                  <p className="mt-2 text-sm text-muted">
-                    Select a title to see all live and upcoming tournaments.
-                  </p>
-                </>
-              )}
-            </div>
-            <div className="flex gap-2">
-              {totalLive > 0 && (
-                <span className="rounded-full bg-[var(--magenta)]/15 px-3 py-1 text-xs font-bold text-[var(--magenta)] border border-[var(--magenta)]/30">
-                  {totalLive} Live
-                </span>
-              )}
-              {totalUpcoming > 0 && (
-                <span className="rounded-full bg-cyan/15 px-3 py-1 text-xs font-bold text-cyan border border-cyan/30">
-                  {totalUpcoming} Upcoming
-                </span>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Error */}
-        {error && (
-          <div className="mb-6 rounded-xl border border-red-300/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">
-            {error}
-          </div>
-        )}
-
-        {/* Loading */}
-        {loading && (
-          <div className="flex flex-col items-center gap-3 py-16">
-            <div className="h-6 w-6 animate-spin rounded-full border-2 border-cyan border-t-transparent" />
-            <p className="text-sm text-muted">Loading tournaments...</p>
-          </div>
-        )}
-
-        {/* Empty */}
-        {!loading && !events.length && !error && (
-          <div className="rounded-xl border border-border bg-panel p-8 text-center">
-            <p className="text-lg font-bold text-muted mb-2">No tournaments found</p>
-            <p className="text-sm text-muted/60">The tournament scanner is warming up. Check back in a minute.</p>
-          </div>
-        )}
-
-        {/* ═══ OVERVIEW: chips-only game picker ═══ */}
-        {!loading && events.length > 0 && !selectedGame && (
-          <>
-            <div className="mb-6 max-w-md">
-              <SearchBar
-                value={searchQuery}
-                onChange={setSearchQuery}
-                placeholder="Search games or tournaments..."
-              />
-            </div>
-
-            {searchQuery && (
-              <p className="mb-4 text-sm text-muted">
-                {gameGroups.length} game{gameGroups.length !== 1 ? 's' : ''} matching "{searchQuery}"
-              </p>
-            )}
-
-            {gameGroups.length > 0 ? (
-              <div className="grid gap-2 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-                {gameGroups.map(([slug, { total, live }]) => (
-                  <button
-                    key={slug}
-                    type="button"
-                    onClick={() => selectGame(slug)}
-                    className="group flex items-center gap-3 rounded-xl border border-border bg-panel px-4 py-3 text-left transition-all hover:border-cyan/25 hover:bg-white/[0.06] hover:-translate-y-[1px]"
-                  >
-                    <span
-                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-[11px] font-black uppercase"
-                      style={{ background: gameAccent(slug), color: 'white', opacity: 0.85 }}
-                    >
-                      {formatGameLabel(slug).slice(0, 2)}
-                    </span>
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-bold group-hover:text-cyan transition-colors">
-                        {formatGameLabel(slug)}
-                      </p>
-                      <p className="text-[11px] text-muted">
-                        {total} event{total !== 1 ? 's' : ''}
-                        {live > 0 && (
-                          <span className="ml-1 text-[var(--magenta)]">· {live} live</span>
-                        )}
-                      </p>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            ) : searchQuery ? (
-              <div className="rounded-xl border border-border bg-panel p-8 text-center">
-                <p className="text-lg font-bold text-muted mb-2">No games match "{searchQuery}"</p>
-                <p className="text-sm text-muted/60">Try a different keyword or clear the search.</p>
-              </div>
-            ) : null}
-          </>
-        )}
-
-        {/* ═══ GAME VIEW: search + filters + provider sections ═══ */}
-        {!loading && selectedGame && events.length > 0 && (
-          <>
-            <div className="mb-6 space-y-4">
-              <div className="max-w-md">
-                <SearchBar
-                  value={searchQuery}
-                  onChange={setSearchQuery}
-                  placeholder={`Search ${formatGameLabel(selectedGame)} tournaments...`}
-                />
-              </div>
-
-              <div className="flex flex-wrap items-center justify-between gap-4">
-                <div className="flex flex-wrap items-center gap-2">
-                  {(['all', 'live', 'upcoming', 'ended'] as const).map((f) => (
-                    <button
-                      key={f}
-                      type="button"
-                      onClick={() => setActiveFilter(f)}
-                      className={`rounded-full px-4 py-1.5 text-xs font-bold uppercase tracking-[0.14em] transition-all ${
-                        activeFilter === f
-                          ? 'bg-cyan text-white'
-                          : 'border border-border bg-white/[0.04] text-muted hover:text-[var(--text)]'
-                      }`}
-                    >
-                      {f}
-                    </button>
-                  ))}
-                </div>
-
-                {providerGroups.length > 1 && (
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-muted mr-1">
-                      Jump to
-                    </span>
-                    {providerGroups.map((pg) => (
-                      <button
-                        key={pg.key}
-                        type="button"
-                        onClick={() =>
-                          document
-                            .getElementById(`provider-${pg.key}`)
-                            ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-                        }
-                        className="rounded-lg px-2.5 py-1 text-[11px] font-bold text-white/80 transition-all hover:text-white"
-                        style={{
-                          backgroundColor: `${pg.color}80`,
-                          border: `1px solid ${pg.accent}30`,
-                        }}
-                      >
-                        {pg.label}
-                        <span className="ml-1 text-white/50">{pg.tournaments.length}</span>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {providerGroups.length > 0 ? (
-              providerGroups.map((pg) => (
-                <ProviderSection key={pg.key} provider={pg} tournaments={pg.tournaments} />
-              ))
-            ) : (
-              <div className="rounded-xl border border-border bg-panel p-8 text-center">
-                <p className="text-lg font-bold text-muted mb-2">
-                  No {activeFilter === 'all' ? '' : activeFilter + ' '}tournaments
-                  {searchQuery ? ` matching "${searchQuery}"` : ' found'}
-                </p>
-                <p className="text-sm text-muted/60">
-                  {searchQuery
-                    ? 'Try a different keyword or clear the search.'
-                    : 'Try switching the filter to "All".'}
-                </p>
-              </div>
-            )}
-
-            {filteredEvents.length > 0 && (
-              <p className="mt-4 text-center text-[11px] text-muted/50">
-                Tournament data aggregated from start.gg, FACEIT, and PandaScore APIs.
-              </p>
-            )}
-          </>
-        )}
-      </section>
-    </>
-  )
-}
+const chipMeta: CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: 5, fontFamily: 'var(--fm)', fontSize: 11, fontWeight: 600, color: 'var(--tx2,#aaa3c6)', background: 'var(--bg,#0b0a12)', border: '2px solid var(--line2,#3a3460)', borderRadius: 8, padding: '4px 9px' }

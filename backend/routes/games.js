@@ -1,7 +1,6 @@
 const express = require('express')
 const { z } = require('zod')
 
-const { LAPTOP_LIBRARY, CPU_SCORES, GPU_SCORES, estimatePerformance } = require('../utils/hardware')
 const { getPriceSnapshot } = require('../utils/priceTracker')
 const { loadGames } = require('../utils/gameCatalog')
 const { resolveGameIdentity } = require('../utils/gameResolver')
@@ -340,10 +339,6 @@ router.get(
   })
 )
 
-router.get('/hardware/library', (_req, res) => {
-  res.json({ laptops: LAPTOP_LIBRARY, cpuScores: CPU_SCORES, gpuScores: GPU_SCORES })
-})
-
 router.get(
   '/:slug/prices',
   asyncHandler(async (req, res) => {
@@ -399,20 +394,6 @@ router.post(
     }
 
     res.json(await setGameReactionWithSql(identity.canonicalSlug, identity.aliases, req.user.id, req.validatedBody.reaction))
-  })
-)
-
-router.post(
-  '/:slug/compatibility',
-  asyncHandler(async (req, res) => {
-    const { game } = await resolveGameIdentity(req.params.slug)
-
-    if (!game) {
-      return res.status(404).json({ message: 'Game not found' })
-    }
-
-    const result = await estimatePerformance(game, req.body)
-    res.json(result)
   })
 )
 

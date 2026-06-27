@@ -11,69 +11,6 @@ const PRICE_TIMELINE = [
   { price: 44.99, x: 188, y: 32 },
 ];
 
-function CompatibilityCard() {
-  const [readiness, setReadiness] = useState(100);
-  const tilt = useTilt3D(10);
-
-  const n = (readiness - 15) / 85;
-  const fps = Math.round(60 + n * 380);
-  const temp = Math.round(95 - n * 55);
-  const vram = readiness >= 75 ? 'OK' : readiness >= 45 ? 'MID' : 'LOW';
-  const vramColor = vram === 'OK' ? 'var(--blue)' : vram === 'MID' ? 'var(--amber)' : 'var(--red)';
-  const confidence = readiness >= 85 ? 'High confidence fit' : readiness >= 60 ? 'Balanced readiness' : 'Needs tuned settings';
-  const fillStop = Math.max(0, Math.min(100, n * 100 - 2.6));
-
-  return (
-    <div
-      {...tilt}
-      className="rounded-[var(--radius)] border border-card-border bg-card-bg p-8 relative overflow-hidden backdrop-blur-[12px] transition-all duration-400 hover:-translate-y-1 hover:shadow-[0_20px_50px_rgba(0,0,0,0.25)] hover:border-cyan/[0.15]"
-      style={{ perspective: '800px' }}
-    >
-      <div className="relative z-[2] max-w-[400px]">
-        <h3 className="text-[1.5rem] font-extrabold uppercase tracking-tighter mb-3">PlayWise Compatibility</h3>
-        <p className="text-[var(--text-secondary)] text-[0.92rem] mb-6 max-w-[380px]">Real-time performance metering for your specific hardware stack. Adjust readiness to simulate load.</p>
-
-        <div className="mt-2">
-          <div className="flex justify-between items-center mb-1">
-            <span className="text-[10px] font-black uppercase tracking-[0.18em] text-muted">System readiness</span>
-            <strong className="font-bold text-lime font-mono">{readiness}%</strong>
-          </div>
-          <input
-            type="range"
-            min="15"
-            max="100"
-            value={readiness}
-            onChange={(e) => setReadiness(Number(e.target.value))}
-            className="pw-range"
-            style={{ '--range-fill-stop': `${fillStop}%` }}
-          />
-          <div className="flex justify-between mt-2 text-[10px] font-black uppercase tracking-[0.18em] text-muted opacity-60">
-            <span>Low load</span>
-            <span>{confidence}</span>
-            <span>Maxed</span>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-3 gap-3 mt-5">
-          <div className="rounded-[10px] border border-card-border bg-metric-bg p-3.5 text-center transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_8px_20px_rgba(0,0,0,0.15)]">
-            <div className="text-[0.7rem] font-extrabold uppercase tracking-[0.06em] mb-1" style={{ color: 'var(--blue)' }}>Avg FPS</div>
-            <div className="text-[1.3rem] font-extrabold font-mono">{fps}</div>
-          </div>
-          <div className="rounded-[10px] border border-card-border bg-metric-bg p-3.5 text-center transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_8px_20px_rgba(0,0,0,0.15)]">
-            <div className="text-[0.7rem] font-extrabold uppercase tracking-[0.06em] mb-1" style={{ color: 'var(--red)' }}>Temp</div>
-            <div className="text-[1.3rem] font-extrabold font-mono">{temp}&deg;C</div>
-          </div>
-          <div className="rounded-[10px] border border-card-border bg-metric-bg p-3.5 text-center transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_8px_20px_rgba(0,0,0,0.15)]">
-            <div className="text-[0.7rem] font-extrabold uppercase tracking-[0.06em] mb-1 text-muted">VRAM</div>
-            <div className="text-[1.3rem] font-extrabold font-mono" style={{ color: vramColor }}>{vram}</div>
-          </div>
-        </div>
-      </div>
-      <span className="material-symbols-outlined absolute -bottom-5 -right-5 text-[220px] opacity-[0.03] pointer-events-none">memory</span>
-    </div>
-  );
-}
-
 function ValueTrackingCard() {
   const [percent, setPercent] = useState(72);
   const chartRef = useRef(null);
@@ -182,16 +119,15 @@ export default function SignalModules() {
       <div ref={headerRef} className="reveal">
         <div className="inline-flex items-center gap-2 text-[0.72rem] font-bold uppercase tracking-[0.18em] text-cyan mb-3">
           <span className="w-6 h-0.5 bg-cyan rounded-sm" />
-          Built-in Tools
+          Price Intelligence
         </div>
         <h2 className="text-[clamp(2rem,4vw,3.2rem)] font-extrabold tracking-tight leading-tight mb-4">
           Check before <span className="text-lime">you buy</span>
         </h2>
-        <p className="text-muted text-[1.05rem] max-w-[520px]">Test hardware compatibility and track price history for any game in the catalog.</p>
+        <p className="text-muted text-[1.05rem] max-w-[520px]">Track how any game's price has moved over time — and find the best moment to buy.</p>
       </div>
 
-      <div ref={gridRef} className="reveal grid grid-cols-1 lg:grid-cols-[7fr_5fr] gap-5 mt-12" style={{ transitionDelay: '0.15s' }}>
-        <CompatibilityCard />
+      <div ref={gridRef} className="reveal mt-12 max-w-[820px]" style={{ transitionDelay: '0.15s' }}>
         <ValueTrackingCard />
       </div>
     </section>

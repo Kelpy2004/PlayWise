@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 
 import { api } from '../lib/api'
+import CoverImage from './CoverImage'
 import type { NewsItem, NewsSourceSlug } from '../types/api'
 
 /* Source styling — small chip on each card */
@@ -31,10 +32,6 @@ function relativeTime(iso: string) {
   return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }
 
-function initial(title: string) {
-  return ((title || '').trim().charAt(0) || '?').toUpperCase()
-}
-
 /* Source chip overlay (top-left of image) */
 function SourceChip({ slug }: { slug: NewsSourceSlug }) {
   const style = SOURCE_ACCENT[slug]
@@ -59,18 +56,13 @@ function FeaturedCard({ item }: { item: NewsItem }) {
       className="group relative col-span-1 row-span-2 md:col-span-2 md:row-span-2 overflow-hidden rounded-2xl border border-[var(--card-border)] bg-[var(--card-bg)] transition-all hover:border-[var(--text-secondary)] hover:shadow-[0_8px_40px_rgba(0,0,0,0.4)]"
     >
       <div className="relative h-full min-h-[300px] w-full overflow-hidden">
-        {item.image ? (
-          <img
-            src={item.image}
-            alt={item.title}
-            loading="lazy"
-            className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-[1.05]"
-          />
-        ) : (
-          <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-[var(--input-bg)] to-[var(--metric-bg)]">
-            <span className="text-8xl font-black text-white/[0.05]">{initial(item.title)}</span>
-          </div>
-        )}
+        <CoverImage
+          src={item.image}
+          alt={item.title}
+          seed={item.title}
+          className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-[1.05]"
+          letterClassName="text-8xl"
+        />
         <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/40 to-transparent" />
         <SourceChip slug={item.sourceSlug} />
         <div className="absolute inset-x-0 bottom-0 p-6 md:p-7">
@@ -102,18 +94,13 @@ function MediumCard({ item }: { item: NewsItem }) {
       className="group flex flex-col overflow-hidden rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] transition-all hover:border-[var(--card-border)]"
     >
       <div className="relative aspect-[16/9] w-full overflow-hidden bg-[var(--input-bg)]">
-        {item.image ? (
-          <img
-            src={item.image}
-            alt={item.title}
-            loading="lazy"
-            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.04]"
-          />
-        ) : (
-          <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-[var(--input-bg)] to-[var(--metric-bg)]">
-            <span className="text-5xl font-black text-white/[0.05]">{initial(item.title)}</span>
-          </div>
-        )}
+        <CoverImage
+          src={item.image}
+          alt={item.title}
+          seed={item.title}
+          className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.04]"
+          letterClassName="text-5xl"
+        />
         <SourceChip slug={item.sourceSlug} />
       </div>
       <div className="flex flex-1 flex-col gap-1.5 p-3.5">
@@ -196,7 +183,7 @@ export default function IndustryNewsSection() {
   const compacts = items.slice(5, 8)
 
   return (
-    <section className="bg-[var(--deep)] px-[clamp(1rem,5vw,6rem)] py-20" id="industry-news">
+    <section className="bg-[var(--deep)] px-[clamp(1rem,5vw,6rem)] py-[100px]" id="industry-news">
       <div className="mx-auto max-w-[1340px]">
         {/* Header */}
         <motion.div

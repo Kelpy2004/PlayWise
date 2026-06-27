@@ -27,7 +27,11 @@
   --red: #ff7351;
   --text: #e8e8f0;
   --text-secondary: rgba(255,255,255,0.52);
-  --muted: #6b6b8d;
+  --muted: #9595b3;
+  --muted-faint: #6b6b8d;
+  /* Bootstrap is loaded for the Admin page; its !important .text-muted utility
+     was overriding our muted text site-wide. Re-point its token at ours. */
+  --bs-secondary-color: var(--muted);
   --input-bg: #1f1f1f;
   --card-bg: #151515;
   --card-border: rgba(255,255,255,0.05);
@@ -42,7 +46,7 @@
   --border: rgba(120,90,40,0.1); --cyan: #0088bb; --cyan-dim: rgba(0,136,187,0.1);
   --amber: #c88600; --amber-dim: rgba(200,134,0,0.12); --magenta: #c41850;
   --green: #009050; --lime: #4d8810; --blue: #1870cc; --red: #d04428;
-  --text: #2a2420; --text-secondary: rgba(40,30,20,0.55); --muted: #7a6e60;
+  --text: #2a2420; --text-secondary: rgba(40,30,20,0.55); --muted: #6b6052; --muted-faint: #8a7e6e;
   --input-bg: #e8e0d4; --card-bg: #faf7f2; --card-border: rgba(120,90,40,0.1);
   --metric-bg: #f0ebe2; --tooltip-bg: rgba(250,247,242,0.95);
   --celestial-glow: rgba(255,200,50,0.2); --celestial-color: #e8a000;

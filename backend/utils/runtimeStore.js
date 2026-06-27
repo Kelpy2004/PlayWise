@@ -10,7 +10,6 @@ const store = {
   commentReactions: new Map(),
   contacts: [],
   favorites: new Map(),
-  savedHardwareProfiles: new Map(),
   priceAlerts: new Map(),
   emailVerificationTokens: [],
   newsletterSubscribers: [],
@@ -84,7 +83,6 @@ function saveRuntimeStore() {
           commentReactions: serializeMapOfMaps(store.commentReactions),
           contacts: store.contacts,
           favorites: serializeMapOfArrays(store.favorites),
-          savedHardwareProfiles: serializeMapOfArrays(store.savedHardwareProfiles),
           priceAlerts: serializeMapOfArrays(store.priceAlerts),
           emailVerificationTokens: store.emailVerificationTokens,
           newsletterSubscribers: store.newsletterSubscribers,
@@ -117,7 +115,6 @@ function loadRuntimeStore() {
     store.commentReactions = deserializeMapOfMaps(payload.commentReactions)
     store.contacts = Array.isArray(payload.contacts) ? payload.contacts : []
     store.favorites = deserializeMapOfArrays(payload.favorites)
-    store.savedHardwareProfiles = deserializeMapOfArrays(payload.savedHardwareProfiles)
     store.priceAlerts = deserializeMapOfArrays(payload.priceAlerts)
     store.emailVerificationTokens = Array.isArray(payload.emailVerificationTokens) ? payload.emailVerificationTokens : []
     store.newsletterSubscribers = Array.isArray(payload.newsletterSubscribers) ? payload.newsletterSubscribers : []
@@ -325,22 +322,6 @@ function removeRuntimeFavorite(userId, gameSlug) {
   const next = getRuntimeFavorites(userId).filter((entry) => entry.gameSlug !== gameSlug)
   store.favorites.set(userId, next)
   saveRuntimeStore()
-}
-
-function getRuntimeHardwareProfiles(userId) {
-  return store.savedHardwareProfiles.get(userId) || []
-}
-
-function addRuntimeHardwareProfile(userId, profile) {
-  const current = getRuntimeHardwareProfiles(userId)
-  const nextProfile = {
-    ...profile,
-    id: `hardware-profile-${userId}-${current.length + 1}`
-  }
-  current.unshift(nextProfile)
-  store.savedHardwareProfiles.set(userId, current.slice(0, 20))
-  saveRuntimeStore()
-  return nextProfile
 }
 
 function addTelemetryEvent(event) {
@@ -580,7 +561,6 @@ function resetRuntimeStoreForTests() {
   store.commentReactions = new Map()
   store.contacts = []
   store.favorites = new Map()
-  store.savedHardwareProfiles = new Map()
   store.priceAlerts = new Map()
   store.emailVerificationTokens = []
   store.newsletterSubscribers = []
@@ -599,7 +579,6 @@ module.exports = {
   addRuntimeComment,
   addRuntimeContact,
   addRuntimeFavorite,
-  addRuntimeHardwareProfile,
   addTelemetryEvent,
   addRecommendationSnapshot,
   countDemoAdmins,
@@ -609,7 +588,6 @@ module.exports = {
   getRuntimeComments,
   getRuntimeGameReactionSummary,
   getRuntimeFavorites,
-  getRuntimeHardwareProfiles,
   getRuntimeNotificationDeliveries,
   getRuntimeNewsletterSubscribers,
   getRuntimePriceAlerts,

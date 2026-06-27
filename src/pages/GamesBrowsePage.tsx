@@ -3,6 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
 
 import Seo from '../components/Seo'
+import CoverImage from '../components/CoverImage'
 import { api } from '../lib/api'
 
 /* ─────────────────── Store icon SVGs (small logos) ─────────────────── */
@@ -126,20 +127,13 @@ function GameCard({ game }: { game: LibraryGame }) {
     >
       {/* Image container — portrait 3:4 to match Steam library / IGDB cover shape */}
       <div className="relative aspect-[3/4] w-full overflow-hidden rounded-md bg-[var(--input-bg)]">
-        {img ? (
-          <img
-            src={img}
-            alt={game.title}
-            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
-            loading="lazy"
-          />
-        ) : (
-          <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-[var(--input-bg)] to-[var(--metric-bg)]">
-            <span className="text-4xl font-black text-white/[0.06] select-none">
-              {game.title.charAt(0).toUpperCase()}
-            </span>
-          </div>
-        )}
+        <CoverImage
+          src={img}
+          alt={game.title}
+          seed={game.title}
+          className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
+          letterClassName="text-4xl"
+        />
 
         {/* Subtle hover overlay */}
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
@@ -187,6 +181,18 @@ function GameCard({ game }: { game: LibraryGame }) {
         )}
       </div>
     </Link>
+  )
+}
+
+/* ─────────────────── Game card skeleton (loading) ─────────────────── */
+
+function GameCardSkeleton() {
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="aspect-[3/4] w-full animate-pulse rounded-md bg-[var(--card-bg)]" />
+      <div className="h-2.5 w-2/3 animate-pulse rounded bg-[var(--card-bg)]" />
+      <div className="h-3 w-5/6 animate-pulse rounded bg-[var(--card-bg)]" />
+    </div>
   )
 }
 
@@ -478,9 +484,10 @@ export default function GamesBrowsePage() {
 
           {/* ── Loading ── */}
           {loading && (
-            <div className="flex items-center gap-3 py-24 justify-center">
-              <div className="h-4 w-4 animate-spin rounded-full border-2 border-[var(--card-border)]0 border-t-transparent" />
-              <span className="text-xs text-[var(--muted)]">Loading games…</span>
+            <div className="grid gap-x-4 gap-y-7 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+              {Array.from({ length: 18 }).map((_, i) => (
+                <GameCardSkeleton key={i} />
+              ))}
             </div>
           )}
 

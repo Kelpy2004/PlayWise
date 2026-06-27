@@ -97,6 +97,37 @@ function extractFirstImageFromHtml(html) {
   return match ? match[1] : null
 }
 
+// Steam's clan-image placeholders resolve to this CDN host.
+const STEAM_CLAN_CDN = 'https://clan.akamai.steamstatic.com/images'
+
+function resolveSteamPlaceholders(url) {
+  return String(url).replace(/\{STEAM_CLAN(?:_LOC)?_IMAGE\}/g, STEAM_CLAN_CDN)
+}
+
+function steamHeaderImage(appId) {
+  return appId ? `https://cdn.akamai.steamstatic.com/steam/apps/${appId}/header.jpg` : null
+}
+
+// Steam news bodies embed images as BBCode against a placeholder host, e.g.
+//   [img]{STEAM_CLAN_IMAGE}/43372748/8e2596f.jpg[/img]
+// which extractFirstImageFromHtml (HTML <img> only) misses. Harvest the first
+// embedded image; if there is none (plain-text patch notes), fall back to the
+// game's store header art so every Steam-sourced item still gets a real image.
+function extractSteamImage(rawContents, appId) {
+  const html = String(rawContents || '')
+  // 1. HTML <img src="…">
+  const htmlImg = html.match(/<img[^>]+src=["']([^"']+)["']/i)
+  if (htmlImg) return resolveSteamPlaceholders(htmlImg[1])
+  // 2. BBCode [img]…[/img]
+  const bb = html.match(/\[img\]\s*([^[\]]+?)\s*\[\/img\]/i)
+  if (bb) return resolveSteamPlaceholders(bb[1])
+  // 3. Bare placeholder path: {STEAM_CLAN_IMAGE}/123/abc.jpg
+  const ph = html.match(/\{STEAM_CLAN(?:_LOC)?_IMAGE\}\/\S+?\.(?:jpe?g|png|gif|webp)/i)
+  if (ph) return resolveSteamPlaceholders(ph[0])
+  // 4. Fallback: the game's Steam store header image
+  return steamHeaderImage(appId)
+}
+
 function categorizeFromTitle(title, body = '') {
   const text = `${title} ${body}`.toLowerCase()
   if (/\b(sale|deal|discount|free|giveaway|promo)\b/.test(text)) return 'sale'
@@ -216,7 +247,7 @@ async function fetchSteamNews(appIds = STEAM_GLOBAL_APP_IDS) {
       const url = news?.url || ''
       const date = news?.date ? new Date(news.date * 1000).toISOString() : null
       if (!date) continue
-      const image = extractFirstImageFromHtml(rawContents)
+      const image = extractSteamImage(rawContents, appId)
       items.push({
         id: `steam-${news?.gid || hashString(title + appId)}`,
         title,
@@ -481,7 +512,7 @@ async function fetchUbisoftNews() {
           source: 'Ubisoft',
           sourceSlug: 'ubisoft',
           url: news?.url || '',
-          image: extractFirstImageFromHtml(rawContents),
+          image: extractSteamImage(rawContents, UBISOFT_STEAM_APP_IDS[idx]),
           publishedAt: date,
           category: categorizeFromTitle(title, body),
           author: news?.author || null,
@@ -548,7 +579,7 @@ async function fetchEaNews() {
           source: 'EA',
           sourceSlug: 'ea',
           url: news?.url || '',
-          image: extractFirstImageFromHtml(rawContents),
+          image: extractSteamImage(rawContents, EA_STEAM_APP_IDS[idx]),
           publishedAt: date,
           category: categorizeFromTitle(title, body),
           author: news?.author || null,

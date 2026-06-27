@@ -5,7 +5,6 @@ import type {
   AuthProvidersResponse,
   AuthResponse,
   CommentRecord,
-  CompatibilityResult,
   ContactResponse,
   DealRecord,
   DealSubscriptionRecord,
@@ -13,8 +12,6 @@ import type {
   NewsSource,
   NewsSourceSlug,
   FavoriteGame,
-  HardwareCatalog,
-  HardwareSearchSuggestion,
   NewsletterSubscriberRecord,
   NotificationAdminOverview,
   NotificationDeliveryRecord,
@@ -23,13 +20,12 @@ import type {
   ReactionKind,
   ReactionSummary,
   RecommendationPreview,
-  SavedHardwareProfile,
   SessionResponse,
   TournamentRecord,
   TournamentSubscriptionRecord,
   TelemetryEventPayload
 } from '../types/api'
-import type { CpuRecord, GameRecord, GpuRecord, LaptopRecord } from '../types/catalog'
+import type { GameRecord } from '../types/catalog'
 
 const LIVE_API_BASE = 'https://playwise-cda1.onrender.com/api' // live backend
 
@@ -219,13 +215,6 @@ export const api = {
     request<{ ok: boolean; message: string }>('/auth/reset-password', { method: 'POST', body }),
   sendContact: (body: { name: string; email: string; message: string }) =>
     request<ContactResponse>('/contact', { method: 'POST', body }),
-  getHardwareCatalog: () => request<HardwareCatalog>('/hardware/catalog'),
-  searchHardware: (kind: 'laptop' | 'cpu' | 'gpu', q: string) =>
-    request<HardwareSearchSuggestion[]>(
-      `/hardware/search?kind=${encodeURIComponent(kind)}&q=${encodeURIComponent(q)}`
-    ),
-  checkCompatibility: (game: GameRecord, hardware: Record<string, unknown>) =>
-    request<CompatibilityResult>('/hardware/compatibility', { method: 'POST', body: { game, hardware } }),
   fetchComments: (slug: string, token?: string | null) => request<CommentRecord[]>(`/comments/${slug}`, { token }),
   postComment: (slug: string, body: { username?: string; message: string }, token?: string | null) =>
     request<CommentRecord>(`/comments/${slug}`, { method: 'POST', body, token }),
@@ -244,12 +233,6 @@ export const api = {
       body: { reaction },
       token
     }),
-  createCpu: (body: CpuRecord, token: string) =>
-    request<CpuRecord>('/hardware/cpus', { method: 'POST', body, token }),
-  createGpu: (body: GpuRecord, token: string) =>
-    request<GpuRecord>('/hardware/gpus', { method: 'POST', body, token }),
-  createLaptop: (body: LaptopRecord, token: string) =>
-    request<LaptopRecord>('/hardware/laptops', { method: 'POST', body, token }),
   trackEvent: (body: TelemetryEventPayload & { sessionId: string; path?: string }, token?: string | null) =>
     request<{ ok: true }>('/telemetry/events', { method: 'POST', body, token }),
   reportClientError: (
@@ -261,14 +244,8 @@ export const api = {
     request<FavoriteGame>('/users/me/favorites', { method: 'POST', token, body: { gameSlug } }),
   removeFavorite: (gameSlug: string, token: string) =>
     request<{ ok: true }>('/users/me/favorites/remove', { method: 'POST', token, body: { gameSlug } }),
-  fetchSavedHardwareProfiles: (token: string) =>
-    request<SavedHardwareProfile[]>('/users/me/hardware-profiles', { token }),
-  createSavedHardwareProfile: (
-    body: Omit<SavedHardwareProfile, 'id'>,
-    token: string
-  ) => request<SavedHardwareProfile>('/users/me/hardware-profiles', { method: 'POST', body, token }),
   previewRecommendation: (
-    body: { gameSlug: string; hardware?: Record<string, unknown>; priceSnapshot?: PriceSnapshot | null },
+    body: { gameSlug: string; priceSnapshot?: PriceSnapshot | null },
     token?: string | null
   ) => request<RecommendationPreview>('/recommendations/assist', { method: 'POST', body, token }),
   askAssistant: (

@@ -8,10 +8,8 @@ const { validateBody } = require('../middleware/validate')
 const { resolveGameIdentity } = require('../utils/gameResolver')
 const {
   addRuntimeFavorite,
-  addRuntimeHardwareProfile,
   findRuntimeNewsletterSubscriberByEmail,
   getRuntimeFavorites,
-  getRuntimeHardwareProfiles,
   getRuntimePriceAlerts,
   getRuntimeTournamentSubscriptions,
   removeRuntimeFavorite,
@@ -28,15 +26,6 @@ const favoriteSchema = z.object({
   gameSlug: z.string().trim().min(1)
 })
 
-const hardwareProfileSchema = z.object({
-  label: z.string().trim().min(1),
-  kind: z.enum(['LAPTOP', 'MANUAL']),
-  laptopModel: z.string().trim().optional().nullable(),
-  cpuName: z.string().trim().optional().nullable(),
-  gpuName: z.string().trim().optional().nullable(),
-  ram: z.number().int().positive().optional().nullable(),
-  isDefault: z.boolean().optional().default(false)
-})
 
 const priceAlertCreateSchema = z.object({
   gameSlug: z.string().trim().min(1),
@@ -145,61 +134,6 @@ router.post(
 
     aliases.forEach((slug) => removeRuntimeFavorite(req.user.id, slug))
     res.json({ ok: true })
-  })
-)
-
-router.get(
-  '/me/hardware-profiles',
-  requireAuth,
-  asyncHandler(async (req, res) => {
-    if (isDatabaseReady()) {
-      const profiles = await getPrisma().savedHardwareProfile.findMany({
-        where: { userId: req.user.id },
-        orderBy: [{ isDefault: 'desc' }, { createdAt: 'desc' }]
-      })
-
-      return res.json(profiles)
-    }
-
-    res.json(getRuntimeHardwareProfiles(req.user.id))
-  })
-)
-
-router.post(
-  '/me/hardware-profiles',
-  requireAuth,
-  validateBody(hardwareProfileSchema),
-  asyncHandler(async (req, res) => {
-    if (req.validatedBody.kind === 'LAPTOP' && !req.validatedBody.laptopModel) {
-      throw new ApiError(400, 'Laptop profiles require a laptop model.')
-    }
-
-    if (
-      req.validatedBody.kind === 'MANUAL' &&
-      (!req.validatedBody.cpuName || !req.validatedBody.gpuName || !req.validatedBody.ram)
-    ) {
-      throw new ApiError(400, 'Manual profiles require CPU, GPU, and RAM.')
-    }
-
-    if (isDatabaseReady()) {
-      if (req.validatedBody.isDefault) {
-        await getPrisma().savedHardwareProfile.updateMany({
-          where: { userId: req.user.id },
-          data: { isDefault: false }
-        })
-      }
-
-      const profile = await getPrisma().savedHardwareProfile.create({
-        data: {
-          ...req.validatedBody,
-          userId: req.user.id
-        }
-      })
-
-      return res.status(201).json(profile)
-    }
-
-    res.status(201).json(addRuntimeHardwareProfile(req.user.id, req.validatedBody))
   })
 )
 

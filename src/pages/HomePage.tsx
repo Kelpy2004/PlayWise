@@ -13,14 +13,11 @@ import TrendingSection from '../components/TrendingSection'
 import IndustryNewsSection from '../components/IndustryNewsSection'
 import SignalModules from '../components/SignalModules'
 import FeaturesSection from '../components/FeaturesSection'
-import TournamentsSection from '../components/TournamentsSection'
-import CTASection from '../components/CTASection'
 import StarsLayer from '../components/StarsLayer'
 import MountainsLayer from '../components/MountainsLayer'
 import PetalsLayer from '../components/PetalsLayer'
 
 import type { GameRecord } from '../types/catalog'
-import type { TournamentRecord } from '../types/api'
 
 // Intro plays once per fresh browser session. sessionStorage survives
 // F5 refresh and SPA navigation but clears when the tab/browser closes,
@@ -53,10 +50,7 @@ export default function HomePage() {
 
   // Load live data from API
   const [catalogGames, setCatalogGames] = useState<GameRecord[]>(() => getAllGames())
-  const [tournaments, setTournaments] = useState<TournamentRecord[]>([])
   const [stats, setStats] = useState({ gameCount: 0, dealCount: 0, freeCount: 0, storeCount: 0, stores: [] as string[], tournamentCount: 0 })
-  const [newsletterEmail, setNewsletterEmail] = useState('')
-  const [newsletterStatus, setNewsletterStatus] = useState({ tone: 'info', message: '' })
 
   useEffect(() => {
     let ignore = false
@@ -69,15 +63,6 @@ export default function HomePage() {
         }
       } catch {
         if (!ignore) setCatalogGames(getAllGames())
-      }
-
-      try {
-        const tourns = await api.fetchTournaments({ limit: 6 })
-        if (!ignore && Array.isArray(tourns)) {
-          setTournaments(tourns)
-        }
-      } catch {
-        // keep defaults
       }
 
       try {
@@ -117,21 +102,6 @@ export default function HomePage() {
       setSiteRevealed(true)
     }
   }, [introPlayed])
-
-  async function handleNewsletterSubscribe() {
-    const trimmed = newsletterEmail.trim()
-    if (!trimmed) {
-      setNewsletterStatus({ tone: 'warn', message: 'Enter your email to subscribe.' })
-      return
-    }
-    try {
-      await api.subscribeNewsletter({ email: trimmed }, token)
-      setNewsletterStatus({ tone: 'good', message: 'Newsletter subscription active.' })
-      setNewsletterEmail('')
-    } catch (error) {
-      setNewsletterStatus({ tone: 'bad', message: error instanceof Error ? error.message : 'Could not subscribe.' })
-    }
-  }
 
   const origin = typeof window !== 'undefined' ? window.location.origin : ''
 
@@ -176,54 +146,8 @@ export default function HomePage() {
         {/* Signal Modules — interactive compatibility & price tracking */}
         <SignalModules />
 
-        {/* Features bento grid */}
+        {/* Features bento grid — closing value prop */}
         <FeaturesSection />
-
-        {/* Tournaments — live data from API */}
-        <TournamentsSection tournaments={tournaments} />
-
-        {/* Newsletter subscribe */}
-        <section className="bg-[var(--deep)] px-[clamp(1rem,5vw,6rem)] py-16" id="newsletter">
-          <div className="mx-auto max-w-[980px] rounded-2xl border border-border bg-panel p-8 md:p-10">
-            <p className="mb-2 text-[0.72rem] font-black uppercase tracking-[0.22em] text-cyan">Deal Alerts</p>
-            <h3 className="text-[clamp(1.8rem,3vw,2.5rem)] font-extrabold tracking-tight">Never miss a free game</h3>
-            <p className="mt-3 text-[0.92rem] text-muted">
-              Get notified when games go free or hit your target price. We check Steam, Epic, Xbox, and more every 5 minutes.
-            </p>
-            <div className="mt-5 flex flex-col gap-3 sm:flex-row">
-              <input
-                type="email"
-                className="flex-1 rounded-lg border border-border bg-input-bg px-4 py-3 text-sm text-[var(--text)] outline-none"
-                placeholder="you@example.com"
-                value={newsletterEmail}
-                onChange={(e) => setNewsletterEmail(e.target.value)}
-              />
-              <button
-                type="button"
-                onClick={() => void handleNewsletterSubscribe()}
-                className="rounded-lg bg-cyan px-5 py-3 text-xs font-black uppercase tracking-[0.14em] text-white"
-              >
-                Subscribe
-              </button>
-            </div>
-            {newsletterStatus.message ? (
-              <div
-                className={`mt-4 rounded-lg px-3 py-2 text-xs ${
-                  newsletterStatus.tone === 'good'
-                    ? 'bg-green/[0.15] text-green'
-                    : newsletterStatus.tone === 'bad'
-                      ? 'bg-red/[0.15] text-red'
-                      : 'bg-amber/[0.15] text-amber'
-                }`}
-              >
-                {newsletterStatus.message}
-              </div>
-            ) : null}
-          </div>
-        </section>
-
-        {/* CTA */}
-        <CTASection />
       </div>
     </>
   )

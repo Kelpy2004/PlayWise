@@ -296,7 +296,7 @@ export default function AppShell() {
             <button type="button" className="text-sm font-medium text-[var(--muted)] transition-colors hover:text-[var(--text)]" onClick={() => navigate('/games?view=wishlist')}>
               Library
             </button>
-            {user?.role === 'admin' ? <ShellLink to="/admin/hardware">Hardware</ShellLink> : null}
+            {user?.role === 'admin' ? <ShellLink to="/admin/hardware">Admin</ShellLink> : null}
           </nav>
 
           <div className="ml-auto flex shrink-0 items-center justify-end gap-2 sm:gap-3">

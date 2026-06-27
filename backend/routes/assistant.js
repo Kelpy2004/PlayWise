@@ -43,10 +43,9 @@ function summarizeSite(games) {
     externalCount,
     coreFeatures: [
       'Game discovery',
-      'PC compatibility checks',
       'Price timing insights',
       'Shared comments and reactions',
-      'Favorites and saved hardware profiles',
+      'Favorites',
       'AI-assisted recommendations'
     ]
   }
@@ -86,14 +85,14 @@ function buildFallbackReply({ latestMessage, context, reason }) {
   }
 
   if (question.includes('what can playwise do') || question.includes('what can this site do') || question.includes('site')) {
-    return `PlayWise helps you discover games, check hardware compatibility, read price timing signals, post shared comments, save favorites and hardware profiles, and generate recommendation previews. The live AI layer is temporarily unavailable, so this answer is coming from the built-in site assistant instead.`
+    return `PlayWise helps you discover games, read price timing signals, post shared comments, save favorites, and generate recommendation previews. The live AI layer is temporarily unavailable, so this answer is coming from the built-in site assistant instead.`
   }
 
   if (context.activeGame) {
-    return `You are on ${context.activeGame.title}. PlayWise can explain price timing, hardware fit, and recommendation logic for this page. The live AI response is temporarily unavailable, so this is the fallback assistant talking.${reason ? ` ${reason}` : ''}`
+    return `You are on ${context.activeGame.title}. PlayWise can explain price timing and recommendation logic for this page. The live AI response is temporarily unavailable, so this is the fallback assistant talking.${reason ? ` ${reason}` : ''}`
   }
 
-  return `The live AI response is temporarily unavailable, so PlayWise is answering with its built-in fallback assistant instead. You can still ask about site features, pricing, compatibility, comments, and recommendations.${reason ? ` ${reason}` : ''}`
+  return `The live AI response is temporarily unavailable, so PlayWise is answering with its built-in fallback assistant instead. You can still ask about site features, pricing, comments, and recommendations.${reason ? ` ${reason}` : ''}`
 }
 
 async function callGemini({ messages, context }) {

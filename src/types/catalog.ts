@@ -100,32 +100,3 @@ export interface GameRecord {
   supportedPlatforms?: string[]
 }
 
-export interface CpuRecord {
-  id?: string
-  name: string
-  score: number
-  family?: string
-  platform?: string
-  notes?: string
-}
-
-export interface GpuRecord {
-  id?: string
-  name: string
-  score: number
-  family?: string
-  platform?: string
-  notes?: string
-}
-
-export interface LaptopRecord {
-  id?: string
-  model: string
-  brand?: string
-  cpu: string
-  gpu: string
-  ram: number
-  platform?: string
-  tags?: string[]
-  notes?: string
-}

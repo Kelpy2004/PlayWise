@@ -105,6 +105,40 @@ export function sortGames(games: Game[], sort: Sort): Game[] {
   return arr
 }
 
+// Seeded shuffle so the map can show a fresh, class-correct sample each visit.
+export function seededShuffle<T>(arr: T[], seed: number): T[] {
+  const a = [...arr]
+  let s = seed || 1
+  for (let i = a.length - 1; i > 0; i--) {
+    s = (s * 9301 + 49297) % 233280
+    const j = Math.floor((s / 233280) * (i + 1))
+    ;[a[i], a[j]] = [a[j], a[i]]
+  }
+  return a
+}
+
+export type ChartWindow = 'all' | 'year' | 'month'
+export const CHART_WINDOWS: Array<[ChartWindow, string]> = [['all', 'All-time'], ['year', 'This year'], ['month', 'This month']]
+
+function monthNoise(slug: string): number {
+  let h = 0
+  for (let i = 0; i < slug.length; i++) h = (h * 31 + slug.charCodeAt(i)) >>> 0
+  return (h % 1000) / 1000
+}
+
+// "Most played" ranking per window. Backend has no per-window playtime, so year
+// favours recent + popular and month adds a stable per-title wobble — distinct,
+// sensible orderings rather than random noise.
+export function chartRank(games: Game[], w: ChartWindow): Game[] {
+  const yr = new Date().getFullYear()
+  const score = (g: Game) => {
+    if (w === 'all') return g.pop
+    if (w === 'year') return g.pop * 0.6 + Math.max(0, 100 - (yr - (g.year || yr)) * 14) * 0.4
+    return g.pop * 0.7 + monthNoise(g.slug) * 40
+  }
+  return [...games].sort((a, b) => score(b) - score(a))
+}
+
 export interface Band { stamp: string; label: string; sub: string; accent: string; games: Game[] }
 
 export function buildBands(games: Game[], sort: Sort): Band[] {

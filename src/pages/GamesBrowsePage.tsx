@@ -3,8 +3,10 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 
 import { api } from '../lib/api'
 import {
+  CHART_WINDOWS,
   PLATFORMS,
   buildBands,
+  chartRank,
   fallbackGames,
   genreColor,
   mapX,
@@ -12,7 +14,8 @@ import {
   matchesPlatform,
   movement,
   normalize,
-  sortGames,
+  seededShuffle,
+  type ChartWindow,
   type Game,
   type LibGame,
   type Sort,
@@ -81,9 +84,12 @@ export default function GamesBrowsePage() {
   const [sort, setSort] = useState<Sort>('rated')
   const [query, setQuery] = useState(params.get('q') || '')
   const [plat, setPlat] = useState('All')
+  const [chartWin, setChartWin] = useState<ChartWindow>('all')
   const [hover, setHover] = useState<string | null>(null)
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const open = useRef<HTMLDivElement>(null)
+  // fresh sample on every visit (stable within the visit)
+  const [mapSeed] = useState(() => Math.floor(Math.random() * 1e6) + 1)
 
   useEffect(() => {
     let ignore = false
@@ -103,11 +109,10 @@ export default function GamesBrowsePage() {
     return all.filter((g) => (!q || g.title.toLowerCase().includes(q)) && (plat === 'All' || matchesPlatform(g, plat)))
   }, [all, query, plat])
 
-  const ranked = useMemo(() => sortGames(filtered, sort), [filtered, sort])
-  const chart = ranked.slice(0, 10)
+  const chart = useMemo(() => chartRank(filtered, chartWin).slice(0, 10), [filtered, chartWin])
   const spotlight = chart[0]
   const bands = useMemo(() => buildBands(filtered, sort), [filtered, sort])
-  const mapNodes = useMemo(() => [...filtered].sort((a, b) => b.pop - a.pop).slice(0, 70), [filtered])
+  const mapNodes = useMemo(() => seededShuffle(filtered, mapSeed).slice(0, 60), [filtered, mapSeed])
   const hoveredGame = hover ? filtered.find((g) => g.slug === hover) : null
   const isHot = (g: Game) => (sort === 'rated' ? g.score >= 8.5 : sort === 'popular' ? g.pop >= 80 : true)
 
@@ -177,8 +182,18 @@ export default function GamesBrowsePage() {
       {/* ── THE CHART ── */}
       {spotlight && (
         <div style={{ marginTop: 30 }}>
-          <div style={{ fontFamily: 'var(--fm)', fontSize: 12, fontWeight: 700, letterSpacing: '.12em', color: 'var(--pink)' }}>THE CHART</div>
-          <h2 style={{ fontFamily: 'var(--fd)', fontSize: 'clamp(24px,3.4vw,40px)', fontWeight: 800, letterSpacing: '-.03em', margin: '6px 0 18px' }}>{sort === 'popular' ? 'Most played right now' : sort === 'new' ? 'Newest arrivals' : sort === 'az' ? 'A to Z' : "This week's top 10"}</h2>
+          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', justifyContent: 'space-between', gap: 14, marginBottom: 18 }}>
+            <div>
+              <div style={{ fontFamily: 'var(--fm)', fontSize: 12, fontWeight: 700, letterSpacing: '.12em', color: 'var(--pink)' }}>THE CHART</div>
+              <h2 style={{ fontFamily: 'var(--fd)', fontSize: 'clamp(24px,3.4vw,40px)', fontWeight: 800, letterSpacing: '-.03em', margin: '6px 0 0' }}>Most played</h2>
+            </div>
+            <div style={{ display: 'inline-flex', gap: 5, ...card, borderRadius: 13, padding: 5, boxShadow: '4px 4px 0 var(--hard)' }}>
+              {CHART_WINDOWS.map(([k, lbl]) => {
+                const on = chartWin === k
+                return <button key={k} onClick={() => setChartWin(k)} style={{ fontFamily: 'var(--fd)', fontSize: 13, fontWeight: 700, border: `2px solid ${on ? 'var(--bd,#f6f4ff)' : 'transparent'}`, cursor: 'pointer', borderRadius: 9, padding: '8px 13px', background: on ? 'var(--pink)' : 'transparent', color: on ? '#fff' : 'var(--tx2,#aaa3c6)' }}>{lbl}</button>
+              })}
+            </div>
+          </div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 18 }}>
             {/* spotlight #1 */}
             <div style={{ flex: '1 1 360px', minWidth: 300, display: 'flex', gap: 18, ...card, borderRadius: 20, boxShadow: '9px 9px 0 var(--lime)', padding: 18 }}>
@@ -187,7 +202,7 @@ export default function GamesBrowsePage() {
                 <span style={{ position: 'absolute', top: 8, left: 8, fontFamily: 'var(--fd)', fontWeight: 900, fontSize: 22, color: '#0b0a12', background: 'var(--lime)', border: '2px solid var(--bd,#f6f4ff)', borderRadius: 9, padding: '2px 9px', boxShadow: '2px 2px 0 rgba(0,0,0,.35)' }}>#1</span>
               </div>
               <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, alignSelf: 'flex-start', fontFamily: 'var(--fm)', fontSize: 10, fontWeight: 700, letterSpacing: '.1em', color: '#0b0a12', background: 'var(--lime)', border: '2px solid var(--bd,#f6f4ff)', borderRadius: 100, padding: '4px 11px', transform: 'rotate(-1deg)' }}>★ {sort === 'popular' ? 'MOST POPULAR' : sort === 'new' ? 'NEWEST' : 'TOP RATED'}</div>
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, alignSelf: 'flex-start', fontFamily: 'var(--fm)', fontSize: 10, fontWeight: 700, letterSpacing: '.1em', color: '#0b0a12', background: 'var(--lime)', border: '2px solid var(--bd,#f6f4ff)', borderRadius: 100, padding: '4px 11px', transform: 'rotate(-1deg)' }}>★ MOST PLAYED · {(CHART_WINDOWS.find(([k]) => k === chartWin)?.[1] || 'All-time').toUpperCase()}</div>
                 <h3 style={{ fontFamily: 'var(--fd)', fontSize: 'clamp(22px,2.6vw,30px)', fontWeight: 800, letterSpacing: '-.02em', margin: '10px 0 0', lineHeight: 1 }}>{spotlight.title}</h3>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 12 }}>
                   <Ring score={spotlight.score} color="var(--lime)" />

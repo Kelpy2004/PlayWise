@@ -179,16 +179,48 @@ export function buildBands(games: Game[], sort: Sort): Band[] {
   return [...groups.entries()].sort((a, b) => b[0] - a[0]).map(([y, gs], i) => ({ stamp: y ? `'${String(y).slice(2)}` : '—', label: y ? String(y) : 'Undated', sub: `${gs.length} game${gs.length === 1 ? '' : 's'}`, accent: accents[i % accents.length], games: gs }))
 }
 
-export interface GenreSection { genre: string; accent: string; stamp: string; games: Game[] }
+export interface CategorySection { category: string; accent: string; stamp: string; games: Game[] }
 
-// Group games by primary genre (similar games together), ordered by size, with
-// each genre's games ordered by the active sort.
-export function buildGenres(games: Game[], sort: Sort): GenreSection[] {
+// Gamer-vocabulary buckets. Curated keyword sets supply the signals the catalog
+// data doesn't carry (open-world / co-op / competitive / hub-based); unknown
+// titles fall back to genre + popularity heuristics.
+const COMPETITIVE = ['valorant', 'counter-strike', 'apex-legends', 'overwatch', 'rocket-league', 'fortnite', 'dota', 'league-of-legends', 'rainbow-six', 'street-fighter', 'tekken', 'brawlhalla', 'destiny-2', 'call-of-duty', 'halo-infinite', 'the-finals', 'marvel-rivals']
+const COOP = ['it-takes-two', 'helldivers', 'sea-of-thieves', 'lethal-company', 'deep-rock', 'valheim', 'phasmophobia', 'left-4-dead', 'back-4-blood', 'grounded', 'raft', 'gtfo', 'remnant', 'payday']
+const OPEN_WORLD = ['elden-ring', 'witcher-3', 'red-dead', 'cyberpunk-2077', 'grand-theft-auto', 'skyrim', 'fallout', 'horizon', 'starfield', 'assassins-creed', 'ghost-of-tsushima', 'far-cry', 'forza-horizon', 'no-mans-sky', 'subnautica', 'dragons-dogma', 'hogwarts', 'watch-dogs', 'dying-light', 'the-crew', 'genshin', 'palworld', 'avatar-frontiers']
+const SEMI_OPEN = ['god-of-war', 'control', 'alan-wake', 'spider-man', 'returnal', 'jedi', 'death-stranding', 'sekiro', 'baldurs-gate', 'mass-effect', 'final-fantasy', 'resident-evil', 'metro', 'uncharted', 'last-of-us', 'hellblade', 'prince-of-persia', 'star-wars-outlaws', 'lies-of-p', 'plague-tale']
+const SIM_GENRES = ['Simulation', 'Sim', 'Strategy', 'Sandbox']
+
+const anyHit = (slug: string, list: string[]) => list.some((k) => slug.includes(k))
+
+export function categorize(g: Game): string {
+  const s = g.slug
+  const inSim = SIM_GENRES.includes(g.genre) || g.genres.some((x) => SIM_GENRES.includes(x))
+  if (anyHit(s, COMPETITIVE)) return 'Competitive'
+  if (anyHit(s, COOP)) return 'Co-op'
+  if (anyHit(s, OPEN_WORLD)) return 'Open world'
+  if (anyHit(s, SEMI_OPEN)) return 'Semi-open'
+  if (inSim) return 'Simulation & strategy'
+  if (g.pop >= 72) return 'AAA'
+  return 'AA & Indie'
+}
+
+// Display order + accent + short gamer-style stamp.
+export const CATEGORY_META: Array<[string, string, string]> = [
+  ['AAA', 'var(--pink)', 'AAA'],
+  ['Open world', 'var(--cyan)', 'OW'],
+  ['Semi-open', 'var(--vio)', 'SEMI'],
+  ['Competitive', 'var(--lime)', 'PVP'],
+  ['Co-op', 'var(--amber)', 'CO'],
+  ['Simulation & strategy', 'var(--cyan)', 'SIM'],
+  ['AA & Indie', 'var(--amber)', 'AA'],
+]
+
+// Group games into gamer-style categories (each game in exactly one), in the
+// curated order, games within each ordered by the active sort.
+export function buildCategories(games: Game[], sort: Sort): CategorySection[] {
   const map = new Map<string, Game[]>()
-  games.forEach((g) => { const k = g.genre || 'Other'; if (!map.has(k)) map.set(k, []); map.get(k)!.push(g) })
-  return [...map.entries()]
-    .map(([genre, gs]) => ({ genre, accent: genreColor(genre), stamp: genre.slice(0, 3).toUpperCase(), games: sortGames(gs, sort) }))
-    .sort((a, b) => b.games.length - a.games.length)
+  games.forEach((g) => { const c = categorize(g); if (!map.has(c)) map.set(c, []); map.get(c)!.push(g) })
+  return CATEGORY_META.filter(([c]) => map.has(c)).map(([category, accent, stamp]) => ({ category, accent, stamp, games: sortGames(map.get(category)!, sort) }))
 }
 
 // map positioning

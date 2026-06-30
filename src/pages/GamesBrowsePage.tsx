@@ -6,7 +6,7 @@ import { useShell } from '../context/ShellContext'
 import {
   CHART_WINDOWS,
   PLATFORMS,
-  buildGenres,
+  buildCategories,
   chartRank,
   fallbackGames,
   genreColor,
@@ -149,7 +149,7 @@ export default function GamesBrowsePage() {
 
   const chart = useMemo(() => chartRank(filtered, chartWin).slice(0, 10), [filtered, chartWin])
   const spotlight = chart[0]
-  const genres = useMemo(() => buildGenres(filtered, sort), [filtered, sort])
+  const categories = useMemo(() => buildCategories(filtered, sort), [filtered, sort])
   const mapNodes = useMemo(() => seededShuffle(filtered, mapSeed).slice(0, 60), [filtered, mapSeed])
   const hoveredGame = hover ? filtered.find((g) => g.slug === hover) : null
   const isHot = (g: Game) => (sort === 'rated' ? g.score >= 8.5 : sort === 'popular' ? g.pop >= 80 : true)
@@ -277,22 +277,22 @@ export default function GamesBrowsePage() {
       {/* ── THE STACKS (by genre) ── */}
       <div style={{ marginTop: 40 }}>
         <div style={{ fontFamily: 'var(--fm)', fontSize: 12, fontWeight: 700, letterSpacing: '.12em', color: 'var(--cyan)' }}>THE STACKS</div>
-        <h2 style={{ fontFamily: 'var(--fd)', fontSize: 'clamp(24px,3.4vw,40px)', fontWeight: 800, letterSpacing: '-.03em', margin: '6px 0 4px' }}>Browse by genre</h2>
+        <h2 style={{ fontFamily: 'var(--fd)', fontSize: 'clamp(24px,3.4vw,40px)', fontWeight: 800, letterSpacing: '-.03em', margin: '6px 0 4px' }}>Browse by category</h2>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 22, marginTop: 16 }}>
-          {genres.map((sec) => {
-            const isExp = expanded.has(sec.genre)
+          {categories.map((sec) => {
+            const isExp = expanded.has(sec.category)
             const pages = Math.max(1, Math.ceil(sec.games.length / PER_PAGE))
-            const page = Math.min(pageByGenre[sec.genre] || 1, pages)
+            const page = Math.min(pageByGenre[sec.category] || 1, pages)
             const pageGames = sec.games.slice((page - 1) * PER_PAGE, page * PER_PAGE)
             return (
-              <section key={sec.genre}>
+              <section key={sec.category}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 14, borderBottom: '2px solid var(--line)', paddingBottom: 13 }}>
                   <span style={{ width: 50, height: 50, flexShrink: 0, display: 'grid', placeItems: 'center', borderRadius: 14, background: sec.accent, border: '2.5px solid var(--bd,#f6f4ff)', boxShadow: '3px 3px 0 var(--hard)', fontFamily: 'var(--fd)', fontWeight: 900, fontSize: 14, color: '#0b0a12', transform: 'rotate(-3deg)' }}>{sec.stamp}</span>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <h3 style={{ fontFamily: 'var(--fd)', fontSize: 'clamp(19px,2.4vw,26px)', fontWeight: 800, letterSpacing: '-.02em', margin: 0, lineHeight: 1 }}>{sec.genre}</h3>
+                    <h3 style={{ fontFamily: 'var(--fd)', fontSize: 'clamp(19px,2.4vw,26px)', fontWeight: 800, letterSpacing: '-.02em', margin: 0, lineHeight: 1 }}>{sec.category}</h3>
                     <div style={{ fontFamily: 'var(--fm)', fontSize: 12, color: 'var(--tx2,#aaa3c6)', marginTop: 4 }}>{sec.games.length} game{sec.games.length === 1 ? '' : 's'}{isExp && pages > 1 ? ` · page ${page} of ${pages}` : ''}</div>
                   </div>
-                  <button className="press" onClick={() => toggleGenre(sec.genre)} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontFamily: 'var(--fd)', fontSize: 12.5, fontWeight: 700, color: isExp ? '#0b0a12' : 'var(--tx,#f6f4ff)', background: isExp ? 'var(--lime)' : 'var(--card,#1a1630)', border: '2px solid var(--bd,#f6f4ff)', borderRadius: 10, padding: '8px 14px', cursor: 'pointer', boxShadow: '2px 2px 0 var(--hard)' }}>
+                  <button className="press" onClick={() => toggleGenre(sec.category)} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontFamily: 'var(--fd)', fontSize: 12.5, fontWeight: 700, color: isExp ? '#0b0a12' : 'var(--tx,#f6f4ff)', background: isExp ? 'var(--lime)' : 'var(--card,#1a1630)', border: '2px solid var(--bd,#f6f4ff)', borderRadius: 10, padding: '8px 14px', cursor: 'pointer', boxShadow: '2px 2px 0 var(--hard)' }}>
                     {isExp ? 'Collapse' : `Browse all ${sec.games.length}`}
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round" style={{ transition: 'transform .25s', transform: isExp ? 'rotate(180deg)' : 'none' }}><path d="m6 9 6 6 6-6" /></svg>
                   </button>
@@ -305,16 +305,16 @@ export default function GamesBrowsePage() {
                     </div>
                     {pages > 1 && (
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap', gap: 10, marginTop: 20 }}>
-                        <button className="press" onClick={() => setPage(sec.genre, Math.max(1, page - 1))} disabled={page <= 1} style={pagerBtn(page <= 1)}>← Prev</button>
+                        <button className="press" onClick={() => setPage(sec.category, Math.max(1, page - 1))} disabled={page <= 1} style={pagerBtn(page <= 1)}>← Prev</button>
                         {pages <= 8 && (
                           <div style={{ display: 'flex', gap: 6 }}>
                             {Array.from({ length: pages }).map((_, i) => {
                               const on = page === i + 1
-                              return <button key={i} onClick={() => setPage(sec.genre, i + 1)} aria-label={`Page ${i + 1}`} style={{ width: 32, height: 32, borderRadius: 8, cursor: 'pointer', fontFamily: 'var(--fm)', fontSize: 12.5, fontWeight: 700, border: `2px solid ${on ? 'var(--bd,#f6f4ff)' : 'var(--line2,#3a3460)'}`, background: on ? 'var(--lime)' : 'var(--card,#1a1630)', color: on ? '#0b0a12' : 'var(--tx2,#aaa3c6)' }}>{i + 1}</button>
+                              return <button key={i} onClick={() => setPage(sec.category, i + 1)} aria-label={`Page ${i + 1}`} style={{ width: 32, height: 32, borderRadius: 8, cursor: 'pointer', fontFamily: 'var(--fm)', fontSize: 12.5, fontWeight: 700, border: `2px solid ${on ? 'var(--bd,#f6f4ff)' : 'var(--line2,#3a3460)'}`, background: on ? 'var(--lime)' : 'var(--card,#1a1630)', color: on ? '#0b0a12' : 'var(--tx2,#aaa3c6)' }}>{i + 1}</button>
                             })}
                           </div>
                         )}
-                        <button className="press" onClick={() => setPage(sec.genre, Math.min(pages, page + 1))} disabled={page >= pages} style={pagerBtn(page >= pages)}>Next →</button>
+                        <button className="press" onClick={() => setPage(sec.category, Math.min(pages, page + 1))} disabled={page >= pages} style={pagerBtn(page >= pages)}>Next →</button>
                       </div>
                     )}
                   </>

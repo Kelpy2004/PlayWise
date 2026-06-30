@@ -1,558 +1,266 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
-import { motion } from 'framer-motion'
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 
-import Seo from '../components/Seo'
-import CoverImage from '../components/CoverImage'
 import { api } from '../lib/api'
+import {
+  PLATFORMS,
+  buildBands,
+  fallbackGames,
+  genreColor,
+  mapX,
+  mapY,
+  matchesPlatform,
+  movement,
+  normalize,
+  sortGames,
+  type Game,
+  type LibGame,
+  type Sort,
+} from '../lib/gamesData'
 
-/* ─────────────────── Store icon SVGs (small logos) ─────────────────── */
+const card = { background: 'var(--card,#1a1630)', border: '2.5px solid var(--bd,#f6f4ff)' } as const
+const SORTS: Array<[Sort, string]> = [['rated', 'Top Rated'], ['popular', 'Popular'], ['az', 'A–Z'], ['new', 'New']]
+const PLAT_CHIPS = ['All', ...PLATFORMS]
 
-function SteamIcon() {
+function coverStyle(g: Game): CSSProperties {
+  return g.image
+    ? { backgroundImage: `linear-gradient(180deg,rgba(11,10,18,.05),rgba(11,10,18,.5)), url("${g.image}")`, backgroundSize: 'cover', backgroundPosition: 'center' }
+    : { background: g.cover }
+}
+
+function Ring({ score, color, size = 40 }: { score: number; color: string; size?: number }) {
+  const r = size / 2 - 2.5
+  const C = 2 * Math.PI * r
   return (
-    <svg viewBox="0 0 24 24" className="h-full w-full" fill="white">
-      <path d="M12 2a10 10 0 00-9.96 9.04l5.34 2.2a2.85 2.85 0 011.62-.5h.05l2.42-3.51V9.1a3.82 3.82 0 013.81-3.81 3.82 3.82 0 013.82 3.81 3.82 3.82 0 01-3.82 3.82h-.09l-3.45 2.46c0 .03.01.06.01.1a2.86 2.86 0 01-2.86 2.86 2.87 2.87 0 01-2.82-2.35L2.2 14.96A10 10 0 0012 22a10 10 0 000-20z"/>
-    </svg>
+    <span style={{ position: 'relative', width: size, height: size, display: 'grid', placeItems: 'center', flexShrink: 0 }}>
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ transform: 'rotate(-90deg)' }}>
+        <circle cx={size / 2} cy={size / 2} r={r} fill="var(--card2,#221c3c)" stroke="var(--line2,#3a3460)" strokeWidth="4" />
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={color} strokeWidth="4" strokeLinecap="round" strokeDasharray={C} strokeDashoffset={C * (1 - score / 10)} />
+      </svg>
+      <span style={{ position: 'absolute', fontFamily: 'var(--fm)', fontWeight: 700, fontSize: size * 0.3, color: 'var(--tx,#f6f4ff)' }}>{score.toFixed(1)}</span>
+    </span>
   )
 }
 
-function EpicIcon() {
+function Move({ slug }: { slug: string }) {
+  const m = movement(slug)
+  if (m.dir === 'new') return <span style={{ fontFamily: 'var(--fm)', fontSize: 9.5, fontWeight: 700, color: '#0b0a12', background: 'var(--cyan)', border: '1.5px solid var(--bd,#f6f4ff)', borderRadius: 6, padding: '1px 6px' }}>NEW</span>
+  if (m.dir === 'same') return <span style={{ fontFamily: 'var(--fm)', fontSize: 12, fontWeight: 700, color: 'var(--tx3,#736c92)' }}>–</span>
+  const up = m.dir === 'up'
+  return <span style={{ fontFamily: 'var(--fm)', fontSize: 11, fontWeight: 700, color: up ? 'var(--lime)' : 'var(--pink)' }}>{up ? '▲' : '▼'}{m.n}</span>
+}
+
+const chipMeta: CSSProperties = { fontFamily: 'var(--fm)', fontSize: 9.5, fontWeight: 700, color: 'var(--tx2,#aaa3c6)', background: 'var(--bg,#0b0a12)', border: '1.5px solid var(--line2,#3a3460)', borderRadius: 6, padding: '2px 6px' }
+
+function StackCard({ g, accent, onClick }: { g: Game; accent: string; onClick: () => void }) {
   return (
-    <svg viewBox="0 0 24 24" className="h-full w-full" fill="white">
-      <path d="M3.537 0C2.165 0 1.66.506 1.66 1.879V18.12c0 1.374.504 1.879 1.877 1.879h4.963v-2.32H5.02c-.474 0-.68-.206-.68-.68V7.02c0-.474.206-.68.68-.68h2.48V4H5.02c-.474 0-.68-.206-.68-.68V1.68c0-.474.206-.68.68-.68h3.48V0zm6.508 0v20h2.524v-8.24h3.39v-2.32h-3.39V2.32h4.2V0zm10.036 0c-1.374 0-1.877.506-1.877 1.879V18.12c0 1.374.503 1.879 1.877 1.879h2.282v-2.32h-.962c-.474 0-.68-.206-.68-.68V7.02c0-.474.206-.68.68-.68h.962V4h-.962c-.474 0-.68-.206-.68-.68V1.68c0-.474.206-.68.68-.68h.962V0z" transform="scale(0.9) translate(1.2, 2)"/>
-    </svg>
-  )
-}
-
-function XboxIcon() {
-  return (
-    <svg viewBox="0 0 24 24" className="h-full w-full" fill="white">
-      <path d="M6.43 4.65C5.04 5.74 3.29 8.31 4.13 11.44c.84 3.12 3.3 5.73 4.68 6.82.83.66 1.54.62 1.54.62s-.75-1.35-.71-2.15c.08-1.54 2.15-4.26 2.36-4.63.21-.36 2.28-3.09 2.36-4.63.04-.8-.71-2.15-.71-2.15s.71-.04 1.54.62c1.38 1.09 3.84 3.7 4.68 6.82.84 3.13-.91 5.7-2.3 6.79C17.57 20.55 14.15 22 12 22s-5.57-1.45-6.57-2.45c-1.39-1.09-3.14-3.66-2.3-6.79.84-3.12 3.3-5.73 4.68-6.82a9.22 9.22 0 012.19-1.3S8.3 5.02 8.3 5.02c-1.3.04-1.87-.37-1.87-.37zM12 2c2.39 0 4.55.88 6.22 2.33 0 0-.8.5-2.31.45 0 0-1.69-.44-3.91-.44s-3.91.44-3.91.44C6.58 4.83 5.78 4.33 5.78 4.33A9.96 9.96 0 0112 2z"/>
-    </svg>
-  )
-}
-
-function UbisoftIcon() {
-  return (
-    <svg viewBox="0 0 24 24" className="h-full w-full" fill="white">
-      <path d="M23.561 12.669a11.479 11.479 0 00-2.56-7.487c-.21.39-.54.96-.88 1.53a9.87 9.87 0 011.88 5.957 9.83 9.83 0 01-9.96 9.84 9.83 9.83 0 01-9.96-9.84c0-3.57 1.89-6.59 4.62-8.37a14.93 14.93 0 00-.15 2.37c0 6.57 5.16 10.41 5.16 10.41s-.87-.72-1.17-1.65c-.3-.93-.15-2.22.72-3.69s2.16-3.39 2.16-5.13c0-1.17-.36-2.73-1.59-4.2C10.561.99 8.101 0 8.101 0s.72.42 1.11 1.23c.39.84.3 1.89-.27 2.61-.72.9-2.22 1.71-3.66 3.12C3.131 9.069 1.601 11.759 1.601 14.729a10.39 10.39 0 0010.44 10.35 10.39 10.39 0 0010.44-10.35c0-.72-.06-1.41-.18-2.06z" transform="scale(0.88) translate(1.5, 1)"/>
-    </svg>
-  )
-}
-
-function EAIcon() {
-  return (
-    <svg viewBox="0 0 24 24" className="h-full w-full" fill="white">
-      <text x="12" y="16" textAnchor="middle" fontSize="13" fontWeight="900" fontFamily="Arial,sans-serif">EA</text>
-    </svg>
-  )
-}
-
-function GFNIcon() {
-  return (
-    <svg viewBox="0 0 24 24" className="h-full w-full" fill="white">
-      <path d="M19.35 10.04A7.49 7.49 0 0012 4C9.11 4 6.6 5.64 5.35 8.04A5.994 5.994 0 000 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z"/>
-    </svg>
-  )
-}
-
-function GOGIcon() {
-  return (
-    <svg viewBox="0 0 24 24" className="h-full w-full" fill="white">
-      <circle cx="12" cy="12" r="10" fill="none" stroke="white" strokeWidth="2"/>
-      <circle cx="12" cy="12" r="4" fill="white"/>
-    </svg>
-  )
-}
-
-const STORE_ICONS: Record<string, () => JSX.Element> = {
-  Steam: SteamIcon,
-  'Epic Games Store': EpicIcon,
-  Xbox: XboxIcon,
-  'Ubisoft Store': UbisoftIcon,
-  EA: EAIcon,
-  'GeForce NOW': GFNIcon,
-  GOG: GOGIcon,
-}
-
-/* ─────────────────── Sort & filter config ─────────────────── */
-
-const SORT_OPTIONS = [
-  { key: 'title',   label: 'A – Z' },
-  { key: 'popular', label: 'Popular' },
-  { key: 'rating',  label: 'Top Rated' },
-  { key: 'newest',  label: 'Newest' },
-] as const
-
-const ITEMS_PER_PAGE = 48
-
-type LibraryGame = {
-  slug: string; title: string; year: number | null; heroTag: string | null
-  genres: string[]; stores: string[]; platforms: string[]
-  averageRating: number | null; popularityScore: number | null
-  image: string | null; banner: string | null
-  catalogBuckets: string[]; releaseTimestamp: string | null
-  publisher: string | null
-}
-
-/* ─────────────────── Store icon pill (rendered inside image) ─────────────────── */
-
-function StoreIconBadge({ store }: { store: string }) {
-  const IconComponent = STORE_ICONS[store]
-  if (!IconComponent) return null
-
-  return (
-    <div
-      className="flex items-center justify-center rounded-full bg-black/60 backdrop-blur-sm border border-[var(--card-border)]"
-      style={{ width: 24, height: 24 }}
-      title={store}
-    >
-      <div className="w-[14px] h-[14px] opacity-90">
-        <IconComponent />
-      </div>
-    </div>
-  )
-}
-
-/* ─────────────────── Game card (NVIDIA layout) ─────────────────── */
-
-function GameCard({ game }: { game: LibraryGame }) {
-  // Prefer the official portrait cover (image). Fall back to landscape banner.
-  const img = game.image || game.banner
-
-  return (
-    <Link
-      to={`/games/${game.slug}`}
-      className="group flex flex-col gap-2 text-left"
-    >
-      {/* Image container — portrait 3:4 to match Steam library / IGDB cover shape */}
-      <div className="relative aspect-[3/4] w-full overflow-hidden rounded-md bg-[var(--input-bg)]">
-        <CoverImage
-          src={img}
-          alt={game.title}
-          seed={game.title}
-          className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
-          letterClassName="text-4xl"
-        />
-
-        {/* Subtle hover overlay */}
-        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
-
-        {/* Store icons — bottom-right of image */}
-        {game.stores && game.stores.length > 0 && (
-          <div className="absolute bottom-2 right-2 flex items-center gap-1">
-            {game.stores.slice(0, 3).map(store => (
-              <StoreIconBadge key={store} store={store} />
-            ))}
+    <div style={{ flex: '0 0 196px' }}>
+      <div className="gcard" onClick={onClick} style={{ height: '100%', ...card, borderRadius: 16, overflow: 'hidden', boxShadow: '4px 5px 0 var(--hard)' }}>
+        <div style={{ position: 'relative', height: 150, overflow: 'hidden', borderBottom: '2.5px solid var(--bd,#f6f4ff)', ...coverStyle(g) }}>
+          {!g.image && <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(rgba(0,0,0,.22) 1.4px,transparent 1.5px)', backgroundSize: '11px 11px' }} />}
+          <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 12, textAlign: 'center' }}>
+            <span style={{ fontFamily: 'var(--fd)', fontWeight: 800, fontSize: 17, lineHeight: 1, color: 'rgba(255,255,255,.96)', letterSpacing: '-.01em', textShadow: '2px 2px 0 rgba(0,0,0,.4)' }}>{g.title}</span>
           </div>
-        )}
-
-        {/* Rating — top-left (subtle) */}
-        {game.averageRating != null && game.averageRating > 0 && (
-          <div className="absolute left-2 top-2 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
-            <span className={`rounded px-1.5 py-0.5 text-[10px] font-black shadow-lg ${
-              game.averageRating >= 8 ? 'bg-[#76b900]/90 text-black' :
-              game.averageRating >= 6 ? 'bg-amber-500/90 text-black' :
-              'bg-black/70 text-[var(--text-secondary)] backdrop-blur-sm'
-            }`}>
-              {game.averageRating.toFixed(1)}
-            </span>
-          </div>
-        )}
+          <span style={{ position: 'absolute', top: 8, right: 8, fontFamily: 'var(--fm)', fontWeight: 700, fontSize: 11, color: '#0b0a12', background: accent, border: '2px solid var(--bd,#f6f4ff)', borderRadius: 8, padding: '2px 7px', boxShadow: '2px 2px 0 rgba(0,0,0,.35)' }}>{g.score.toFixed(1)}</span>
+          {g.year ? <span style={{ position: 'absolute', bottom: 8, left: 8, fontFamily: 'var(--fm)', fontWeight: 700, fontSize: 10, color: '#fff', background: 'rgba(0,0,0,.5)', border: '1.5px solid rgba(255,255,255,.5)', borderRadius: 6, padding: '2px 7px' }}>{g.year}</span> : null}
+        </div>
+        <div style={{ padding: '11px 12px 12px' }}>
+          <div style={{ fontWeight: 700, fontSize: 14, letterSpacing: '-.01em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{g.title}</div>
+          <div style={{ fontFamily: 'var(--fm)', fontSize: 11, color: 'var(--tx2,#aaa3c6)', marginTop: 4 }}>{g.genres.slice(0, 2).join(' · ')}</div>
+          <div style={{ display: 'flex', gap: 5, marginTop: 9, flexWrap: 'wrap' }}>{g.platforms.slice(0, 3).map((p) => <span key={p} style={chipMeta}>{p}</span>)}</div>
+        </div>
       </div>
-
-      {/* Text — below image */}
-      <div className="flex flex-col gap-0.5 px-0.5">
-        {/* Publisher */}
-        {game.publisher && (
-          <span className="text-[11px] leading-tight text-[var(--muted)] line-clamp-1">
-            {game.publisher}
-          </span>
-        )}
-
-        {/* Title */}
-        <h3 className="text-[13px] font-bold leading-snug text-[var(--text)] line-clamp-1 group-hover:text-[var(--cyan)] transition-colors">
-          {game.title}
-        </h3>
-
-        {/* Year */}
-        {game.year && (
-          <span className="text-[10px] text-[var(--muted)]">{game.year}</span>
-        )}
-      </div>
-    </Link>
-  )
-}
-
-/* ─────────────────── Game card skeleton (loading) ─────────────────── */
-
-function GameCardSkeleton() {
-  return (
-    <div className="flex flex-col gap-2">
-      <div className="aspect-[3/4] w-full animate-pulse rounded-md bg-[var(--card-bg)]" />
-      <div className="h-2.5 w-2/3 animate-pulse rounded bg-[var(--card-bg)]" />
-      <div className="h-3 w-5/6 animate-pulse rounded bg-[var(--card-bg)]" />
     </div>
   )
 }
-
-/* ─────────────────── Pagination ─────────────────── */
-
-function Pagination({
-  page, totalPages, onPageChange
-}: {
-  page: number; totalPages: number; onPageChange: (p: number) => void
-}) {
-  if (totalPages <= 1) return null
-
-  const pages: (number | '...')[] = []
-  const delta = 2
-  for (let i = 1; i <= totalPages; i++) {
-    if (i === 1 || i === totalPages || (i >= page - delta && i <= page + delta)) {
-      pages.push(i)
-    } else if (pages[pages.length - 1] !== '...') {
-      pages.push('...')
-    }
-  }
-
-  return (
-    <div className="flex items-center justify-center gap-1 mt-12">
-      <button
-        disabled={page <= 1}
-        onClick={() => onPageChange(page - 1)}
-        className="rounded-md border border-[var(--card-border)] bg-[var(--card-bg)] px-3 py-1.5 text-[11px] font-semibold text-[var(--muted)] transition hover:bg-[var(--metric-bg)] hover:text-[var(--text-secondary)] disabled:opacity-25 disabled:cursor-not-allowed"
-      >
-        Prev
-      </button>
-      {pages.map((p, i) =>
-        p === '...' ? (
-          <span key={`dot-${i}`} className="px-1 text-[11px] text-[var(--muted)]">…</span>
-        ) : (
-          <button
-            key={p}
-            onClick={() => onPageChange(p)}
-            className={`rounded-md px-2.5 py-1.5 text-[11px] font-semibold transition ${
-              p === page
-                ? 'bg-[var(--text)] text-[var(--deep)]'
-                : 'border border-[var(--card-border)] bg-[var(--card-bg)] text-[var(--muted)] hover:bg-[var(--metric-bg)] hover:text-[var(--text-secondary)]'
-            }`}
-          >
-            {p}
-          </button>
-        )
-      )}
-      <button
-        disabled={page >= totalPages}
-        onClick={() => onPageChange(page + 1)}
-        className="rounded-md border border-[var(--card-border)] bg-[var(--card-bg)] px-3 py-1.5 text-[11px] font-semibold text-[var(--muted)] transition hover:bg-[var(--metric-bg)] hover:text-[var(--text-secondary)] disabled:opacity-25 disabled:cursor-not-allowed"
-      >
-        Next
-      </button>
-    </div>
-  )
-}
-
-/* ─────────────────── Page ─────────────────── */
 
 export default function GamesBrowsePage() {
-  const [searchParams, setSearchParams] = useSearchParams()
-  const [games, setGames] = useState<LibraryGame[]>([])
-  const [pagination, setPagination] = useState({ page: 1, limit: ITEMS_PER_PAGE, total: 0, totalPages: 0 })
-  const [availableGenres, setAvailableGenres] = useState<string[]>([])
-  const [storeCounts, setStoreCounts] = useState<Array<{ name: string; count: number }>>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
-  const searchRef = useRef<HTMLInputElement>(null)
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>()
-
-  const currentPage = parseInt(searchParams.get('page') || '1') || 1
-  const currentStore = searchParams.get('store') || ''
-  const currentGenre = searchParams.get('genre') || ''
-  const currentSort = searchParams.get('sort') || 'title'
-  const currentQuery = searchParams.get('q') || ''
-
-  const updateParams = useCallback((updates: Record<string, string>) => {
-    setSearchParams(prev => {
-      const next = new URLSearchParams(prev)
-      for (const [key, value] of Object.entries(updates)) {
-        if (value) next.set(key, value)
-        else next.delete(key)
-      }
-      if (!('page' in updates)) next.delete('page')
-      return next
-    }, { replace: true })
-  }, [setSearchParams])
+  const navigate = useNavigate()
+  const [params] = useSearchParams()
+  const [all, setAll] = useState<Game[]>(() => fallbackGames())
+  const [sort, setSort] = useState<Sort>('rated')
+  const [query, setQuery] = useState(params.get('q') || '')
+  const [plat, setPlat] = useState('All')
+  const [hover, setHover] = useState<string | null>(null)
+  const [expanded, setExpanded] = useState<Set<string>>(new Set())
+  const open = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     let ignore = false
-    async function load() {
-      setLoading(true)
-      setError('')
+    void (async () => {
       try {
-        const result = await api.fetchLibrary({
-          page: currentPage,
-          limit: ITEMS_PER_PAGE,
-          q: currentQuery || undefined,
-          store: currentStore || undefined,
-          genre: currentGenre || undefined,
-          sort: currentSort,
-        })
-        if (ignore) return
-        if (!result || !Array.isArray(result.games)) {
-          throw new Error('Library endpoint not available yet. The backend needs to be redeployed.')
-        }
-        setGames(result.games)
-        const p = result.pagination
-        setPagination({
-          page: p?.page ?? 1,
-          limit: p?.limit ?? ITEMS_PER_PAGE,
-          total: p?.total ?? 0,
-          totalPages: p?.totalPages ?? 0,
-        })
-        if (result.filters?.genres?.length) setAvailableGenres(result.filters.genres)
-        if (result.filters?.stores?.length) setStoreCounts(result.filters.stores)
-      } catch (err) {
-        if (!ignore) setError(err instanceof Error ? err.message : 'Failed to load library')
-      } finally {
-        if (!ignore) setLoading(false)
+        const res = await api.fetchLibrary({ limit: 150 })
+        if (!ignore && res.games?.length) setAll(normalize(res.games as LibGame[]))
+      } catch {
+        /* keep fallback */
       }
-    }
-    void load()
+    })()
     return () => { ignore = true }
-  }, [currentPage, currentStore, currentGenre, currentSort, currentQuery])
+  }, [])
 
-  function handleSearch(value: string) {
-    clearTimeout(debounceRef.current)
-    debounceRef.current = setTimeout(() => {
-      updateParams({ q: value.trim() })
-    }, 400)
-  }
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    return all.filter((g) => (!q || g.title.toLowerCase().includes(q)) && (plat === 'All' || matchesPlatform(g, plat)))
+  }, [all, query, plat])
 
-  function handlePageChange(page: number) {
-    setSearchParams(prev => {
-      const next = new URLSearchParams(prev)
-      if (page > 1) next.set('page', String(page))
-      else next.delete('page')
-      return next
-    }, { replace: true })
-    window.scrollTo({ top: 0, behavior: 'smooth' })
-  }
+  const ranked = useMemo(() => sortGames(filtered, sort), [filtered, sort])
+  const chart = ranked.slice(0, 10)
+  const spotlight = chart[0]
+  const bands = useMemo(() => buildBands(filtered, sort), [filtered, sort])
+  const mapNodes = useMemo(() => [...filtered].sort((a, b) => b.pop - a.pop).slice(0, 70), [filtered])
+  const hoveredGame = hover ? filtered.find((g) => g.slug === hover) : null
+  const isHot = (g: Game) => (sort === 'rated' ? g.score >= 8.5 : sort === 'popular' ? g.pop >= 80 : true)
 
-  const seoTitle = currentQuery
-    ? `Search "${currentQuery}" | PlayWise`
-    : currentStore
-      ? `${currentStore} Games | PlayWise`
-      : 'Game Library | PlayWise'
+  const go = (slug: string) => navigate(`/games/${slug}`)
+  const toggle = (key: string) => setExpanded((s) => { const n = new Set(s); n.has(key) ? n.delete(key) : n.add(key); return n })
 
   return (
-    <>
-      <Seo
-        title={seoTitle}
-        description="Browse thousands of PC games. Filter by store, genre, and more."
-      />
-      <section className="min-h-screen bg-[var(--deep)] text-[var(--text)]">
-        <div className="mx-auto w-full max-w-[1360px] px-6 py-10 sm:px-8 xl:px-10">
+    <div ref={open} style={{ maxWidth: 1340, margin: '0 auto', padding: '40px 26px 0' }}>
+      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontFamily: 'var(--fm)', fontSize: 12, fontWeight: 700, letterSpacing: '.14em', color: 'var(--vio)' }}><span style={{ width: 18, height: 2, background: 'var(--vio)' }} />ALL GAMES · {filtered.length} TITLES</div>
+      <h1 style={{ fontFamily: 'var(--fd)', fontSize: 'clamp(34px,5vw,64px)', lineHeight: 0.95, fontWeight: 800, letterSpacing: '-.04em', margin: '12px 0 0' }}>Don't just scroll.<br /><span style={{ display: 'inline-block', background: 'var(--lime)', color: '#0b0a12', padding: '0 .12em', marginTop: '.08em', border: '3px solid var(--bd)', boxShadow: '6px 6px 0 var(--hard)', transform: 'rotate(-1.4deg)' }}>explore.</span></h1>
+      <p style={{ fontSize: 'clamp(15px,1.6vw,18px)', color: 'var(--tx2,#aaa3c6)', maxWidth: '58ch', margin: '18px 0 0', lineHeight: 1.55 }}>The whole library, mapped by <b style={{ color: 'var(--tx)' }}>rating</b> &amp; <b style={{ color: 'var(--tx)' }}>popularity</b> — then charted and stacked. Hunt the <b style={{ color: 'var(--lime)' }}>hidden gems</b>, scan the chart, dive the tiers.</p>
 
-          {/* ── Header ── */}
-          <motion.div
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-            className="mb-7"
-          >
-            <h1 className="text-[22px] font-bold tracking-tight text-[var(--text)]">
-              {currentStore || 'Games'}
-              {currentGenre && <span className="text-[var(--muted)] font-normal"> / {currentGenre}</span>}
-            </h1>
-            <p className="mt-1 text-[11px] text-[var(--muted)]">
-              {pagination.total.toLocaleString()} titles
-              {' · '}
-              Page {pagination.page} of {pagination.totalPages || 1}
-            </p>
-          </motion.div>
+      {/* ── CONSTELLATION MAP ── */}
+      <div style={{ position: 'relative', height: 460, ...card, borderRadius: 20, boxShadow: '7px 7px 0 var(--hard)', overflow: 'hidden', padding: '14px 14px 30px 34px', marginTop: 26 }}>
+        <div aria-hidden style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(var(--line2,#3a3460) 1px,transparent 1.2px)', backgroundSize: '26px 26px', opacity: 0.4 }} />
+        <div style={{ position: 'absolute', left: '52%', top: 12, bottom: 30, width: 0, borderLeft: '2px dashed var(--line2,#3a3460)' }} />
+        <div style={{ position: 'absolute', left: 34, right: 14, top: '46%', height: 0, borderTop: '2px dashed var(--line2,#3a3460)' }} />
+        <div aria-hidden style={{ position: 'absolute', left: 34, top: 12, width: '46%', height: '40%', background: 'rgba(202,255,63,.06)', borderRadius: 12 }} />
+        {([['★ HIDDEN GEMS', 'var(--lime)', '#0b0a12', { left: 42, top: 16 }, '-2deg'], ['BLOCKBUSTERS', 'var(--cyan)', '#0b0a12', { right: 16, top: 16 }, '2deg'], ['NICHE / DEEP CUTS', 'var(--vio)', '#fff', { left: 42, bottom: 34 }, '2deg'], ['OVERHYPED', 'var(--amber)', '#0b0a12', { right: 16, bottom: 34 }, '-2deg']] as const).map(([t, bg, fg, pos, rot]) => (
+          <div key={t} style={{ position: 'absolute', ...(pos as CSSProperties), fontFamily: 'var(--fd)', fontWeight: 800, fontSize: 11, letterSpacing: '.06em', padding: '4px 9px', border: '2px solid var(--bd,#f6f4ff)', borderRadius: 8, background: bg, color: fg, transform: `rotate(${rot})`, zIndex: 2 }}>{t}</div>
+        ))}
+        <div style={{ position: 'absolute', left: 10, top: '50%', transform: 'rotate(-90deg) translateX(50%)', transformOrigin: 'left center', fontFamily: 'var(--fm)', fontSize: 10, fontWeight: 700, letterSpacing: '.12em', color: 'var(--tx3,#736c92)', whiteSpace: 'nowrap' }}>← RATING →</div>
+        <div style={{ position: 'absolute', left: '50%', bottom: 8, transform: 'translateX(-50%)', fontFamily: 'var(--fm)', fontSize: 10, fontWeight: 700, letterSpacing: '.12em', color: 'var(--tx3,#736c92)', whiteSpace: 'nowrap' }}>← NICHE · POPULARITY · MAINSTREAM →</div>
 
-          {/* ── Toolbar ── */}
-          <div className="mb-6 flex flex-col gap-3 lg:flex-row lg:items-center">
-
-            {/* Search */}
-            <div className="relative min-w-[220px] lg:flex-1 lg:max-w-xs">
-              <span className="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--muted)]" style={{ fontSize: '16px' }}>search</span>
-              <input
-                ref={searchRef}
-                type="text"
-                placeholder="Search games…"
-                defaultValue={currentQuery}
-                onChange={(e) => handleSearch(e.target.value)}
-                className="w-full rounded border border-[var(--card-border)] bg-[var(--card-bg)] py-2 pl-8 pr-3 text-[12px] text-[var(--text)] placeholder:text-[var(--muted)] focus:border-[var(--cyan)] focus:outline-none transition"
-              />
+        <div style={{ position: 'absolute', left: 34, right: 14, top: 12, bottom: 30 }}>
+          {mapNodes.map((g) => {
+            const hot = isHot(g)
+            const isH = hover === g.slug
+            const size = 14 + (g.pop / 100) * 12
+            return <button key={g.slug} onMouseEnter={() => setHover(g.slug)} onMouseLeave={() => setHover((h) => (h === g.slug ? null : h))} onClick={() => go(g.slug)} aria-label={g.title} style={{ position: 'absolute', left: `${mapX(g.pop)}%`, top: `${mapY(g.score)}%`, transform: `translate(-50%,-50%) ${isH ? 'scale(1.5)' : 'scale(1)'}`, width: size, height: size, borderRadius: 5, background: genreColor(g.genre), border: '2px solid var(--bd,#f6f4ff)', boxShadow: isH ? '0 0 0 4px rgba(255,255,255,.12)' : '1.5px 1.5px 0 rgba(0,0,0,.4)', cursor: 'pointer', padding: 0, opacity: hot ? 1 : 0.32, transition: 'transform .15s var(--ease), opacity .2s', zIndex: isH ? 6 : hot ? 3 : 1 }} />
+          })}
+          {hoveredGame && (
+            <div style={{ position: 'absolute', left: `${Math.max(16, Math.min(82, mapX(hoveredGame.pop)))}%`, top: `${mapY(hoveredGame.score)}%`, transform: 'translate(-50%,calc(-100% - 14px))', zIndex: 8, width: 210, pointerEvents: 'none', ...card, borderRadius: 14, boxShadow: '5px 5px 0 var(--hard)', padding: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <Ring score={hoveredGame.score} color={genreColor(hoveredGame.genre)} size={38} />
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontWeight: 700, fontSize: 13.5, letterSpacing: '-.01em', lineHeight: 1.15 }}>{hoveredGame.title}</div>
+                  <div style={{ fontFamily: 'var(--fm)', fontSize: 10.5, color: 'var(--tx2,#aaa3c6)', marginTop: 3 }}>{hoveredGame.genres[0]}{hoveredGame.year ? ` · ${hoveredGame.year}` : ''}</div>
+                </div>
+              </div>
             </div>
+          )}
+        </div>
+      </div>
 
-            {/* Store filter */}
-            <div className="flex flex-wrap gap-1">
-              <button
-                onClick={() => updateParams({ store: '' })}
-                className={`rounded px-2.5 py-1.5 text-[10px] font-semibold transition ${
-                  !currentStore ? 'bg-[var(--text)] text-[var(--deep)]' : 'bg-[var(--card-bg)] text-[var(--muted)] hover:text-[var(--text-secondary)]'
-                }`}
-              >
-                All
-              </button>
-              {storeCounts.map(sc => {
-                const label = sc.name === 'Epic Games Store' ? 'Epic' : sc.name.replace(' Store', '')
+      {/* ── STICKY TOOLBAR ── */}
+      <div style={{ position: 'sticky', top: 70, zIndex: 150, display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center', margin: '18px -8px 0', padding: '10px 8px', background: 'var(--bg,#0b0a12)' }}>
+        <div style={{ flex: '1 1 240px', display: 'flex', alignItems: 'center', gap: 12, ...card, borderRadius: 14, padding: '9px 16px', boxShadow: '5px 5px 0 var(--hard)' }}>
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="var(--tx3,#736c92)" strokeWidth="2.4"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.2-3.2" /></svg>
+          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search games…" style={{ flex: 1, background: 'none', border: 'none', outline: 'none', color: 'var(--tx,#f6f4ff)', font: 'inherit', fontSize: 15 }} />
+        </div>
+        <div style={{ display: 'inline-flex', gap: 5, ...card, borderRadius: 13, padding: 5, boxShadow: '4px 4px 0 var(--hard)' }}>
+          {SORTS.map(([k, lbl]) => {
+            const on = sort === k
+            return <button key={k} onClick={() => setSort(k)} style={{ fontFamily: 'var(--fd)', fontSize: 13, fontWeight: 700, border: `2px solid ${on ? 'var(--bd,#f6f4ff)' : 'transparent'}`, cursor: 'pointer', borderRadius: 9, padding: '8px 13px', background: on ? 'var(--lime)' : 'transparent', color: on ? '#0b0a12' : 'var(--tx2,#aaa3c6)' }}>{lbl}</button>
+          })}
+        </div>
+      </div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 12, alignItems: 'center' }}>
+        <span style={{ fontFamily: 'var(--fm)', fontSize: 10, fontWeight: 700, letterSpacing: '.1em', color: 'var(--tx3,#736c92)', textTransform: 'uppercase' }}>Platform</span>
+        {PLAT_CHIPS.map((p) => {
+          const on = plat === p
+          return <button key={p} className="chip" onClick={() => setPlat(p)} style={{ font: 'inherit', fontSize: 12.5, fontWeight: on ? 700 : 600, cursor: 'pointer', borderRadius: 100, padding: '6px 13px', border: `2px solid ${on ? 'var(--bd,#f6f4ff)' : 'var(--line2,#3a3460)'}`, background: on ? 'var(--lime)' : 'transparent', color: on ? '#0b0a12' : 'var(--tx2,#aaa3c6)' }}>{p}</button>
+        })}
+      </div>
+
+      {/* ── THE CHART ── */}
+      {spotlight && (
+        <div style={{ marginTop: 30 }}>
+          <div style={{ fontFamily: 'var(--fm)', fontSize: 12, fontWeight: 700, letterSpacing: '.12em', color: 'var(--pink)' }}>THE CHART</div>
+          <h2 style={{ fontFamily: 'var(--fd)', fontSize: 'clamp(24px,3.4vw,40px)', fontWeight: 800, letterSpacing: '-.03em', margin: '6px 0 18px' }}>{sort === 'popular' ? 'Most played right now' : sort === 'new' ? 'Newest arrivals' : sort === 'az' ? 'A to Z' : "This week's top 10"}</h2>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 18 }}>
+            {/* spotlight #1 */}
+            <div style={{ flex: '1 1 360px', minWidth: 300, display: 'flex', gap: 18, ...card, borderRadius: 20, boxShadow: '9px 9px 0 var(--lime)', padding: 18 }}>
+              <div onClick={() => go(spotlight.slug)} style={{ flex: '0 0 150px', minWidth: 130, position: 'relative', borderRadius: 14, border: '3px solid var(--bd,#f6f4ff)', boxShadow: '5px 5px 0 var(--hard)', overflow: 'hidden', cursor: 'pointer', transform: 'rotate(-1.5deg)', ...coverStyle(spotlight) }}>
+                {!spotlight.image && <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', padding: 12 }}><span style={{ fontFamily: 'var(--fd)', fontWeight: 900, fontSize: 20, color: 'rgba(255,255,255,.96)', textAlign: 'center', lineHeight: 0.95, textShadow: '2px 2px 0 rgba(0,0,0,.35)' }}>{spotlight.title}</span></div>}
+                <span style={{ position: 'absolute', top: 8, left: 8, fontFamily: 'var(--fd)', fontWeight: 900, fontSize: 22, color: '#0b0a12', background: 'var(--lime)', border: '2px solid var(--bd,#f6f4ff)', borderRadius: 9, padding: '2px 9px', boxShadow: '2px 2px 0 rgba(0,0,0,.35)' }}>#1</span>
+              </div>
+              <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, alignSelf: 'flex-start', fontFamily: 'var(--fm)', fontSize: 10, fontWeight: 700, letterSpacing: '.1em', color: '#0b0a12', background: 'var(--lime)', border: '2px solid var(--bd,#f6f4ff)', borderRadius: 100, padding: '4px 11px', transform: 'rotate(-1deg)' }}>★ {sort === 'popular' ? 'MOST POPULAR' : sort === 'new' ? 'NEWEST' : 'TOP RATED'}</div>
+                <h3 style={{ fontFamily: 'var(--fd)', fontSize: 'clamp(22px,2.6vw,30px)', fontWeight: 800, letterSpacing: '-.02em', margin: '10px 0 0', lineHeight: 1 }}>{spotlight.title}</h3>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 12 }}>
+                  <Ring score={spotlight.score} color="var(--lime)" />
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                    {spotlight.genres.slice(0, 3).map((x) => <span key={x} style={{ fontFamily: 'var(--fm)', fontSize: 11, fontWeight: 600, color: 'var(--tx2,#aaa3c6)', background: 'var(--bg,#0b0a12)', border: '2px solid var(--line2,#3a3460)', borderRadius: 8, padding: '4px 9px' }}>{x}</span>)}
+                  </div>
+                </div>
+                <button className="press" onClick={() => go(spotlight.slug)} style={{ alignSelf: 'flex-start', marginTop: 16, fontFamily: 'var(--fd)', fontSize: 13, fontWeight: 700, color: '#0b0a12', background: 'var(--cyan)', border: '2.5px solid var(--bd,#f6f4ff)', borderRadius: 11, padding: '10px 16px', cursor: 'pointer', boxShadow: '3px 3px 0 var(--hard)' }}>View game →</button>
+              </div>
+            </div>
+            {/* ranked 2–10 */}
+            <div style={{ flex: '1 1 320px', minWidth: 280, display: 'flex', flexDirection: 'column', gap: 7 }}>
+              {chart.slice(1).map((g, i) => {
+                const isH = hover === g.slug
                 return (
-                  <button
-                    key={sc.name}
-                    onClick={() => updateParams({ store: sc.name === currentStore ? '' : sc.name })}
-                    className={`inline-flex items-center gap-1 rounded px-2.5 py-1.5 text-[10px] font-semibold transition ${
-                      currentStore === sc.name
-                        ? 'bg-[var(--text)] text-[var(--deep)]'
-                        : 'bg-[var(--card-bg)] text-[var(--muted)] hover:text-[var(--text-secondary)]'
-                    }`}
-                  >
-                    {label}
-                    <span className="opacity-40">{sc.count}</span>
-                  </button>
+                  <div key={g.slug} onMouseEnter={() => setHover(g.slug)} onMouseLeave={() => setHover((h) => (h === g.slug ? null : h))} onClick={() => go(g.slug)} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 12px', borderRadius: 12, cursor: 'pointer', background: isH ? 'var(--card2,#221c3c)' : 'var(--card,#1a1630)', border: `2px solid ${isH ? 'var(--bd,#f6f4ff)' : 'var(--line2,#3a3460)'}`, transition: 'background .15s,border-color .15s' }}>
+                    <span style={{ fontFamily: 'var(--fd)', fontSize: 19, fontWeight: 800, color: 'var(--tx3,#736c92)', minWidth: 26, textAlign: 'center' }}>{i + 2}</span>
+                    <span style={{ width: 40, height: 40, flexShrink: 0, borderRadius: 9, border: '2px solid var(--bd,#f6f4ff)', ...coverStyle(g) }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 700, fontSize: 14, letterSpacing: '-.01em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{g.title}</div>
+                      <div style={{ fontFamily: 'var(--fm)', fontSize: 10.5, color: 'var(--tx3,#736c92)', marginTop: 2 }}>{g.genres[0]}{g.year ? ` · ${g.year}` : ''}</div>
+                    </div>
+                    <Move slug={g.slug} />
+                    <span style={{ fontFamily: 'var(--fm)', fontSize: 13, fontWeight: 700, color: g.score >= 9 ? 'var(--lime)' : g.score >= 8 ? 'var(--cyan)' : 'var(--tx2,#aaa3c6)' }}>{g.score.toFixed(1)}</span>
+                  </div>
                 )
               })}
             </div>
-
-            {/* Genre */}
-            {availableGenres.length > 0 && (
-              <select
-                value={currentGenre}
-                onChange={(e) => updateParams({ genre: e.target.value })}
-                className="rounded border border-[var(--card-border)] bg-[var(--card-bg)] px-2.5 py-1.5 text-[10px] font-semibold text-[var(--muted)] focus:border-[var(--cyan)] focus:outline-none appearance-none cursor-pointer"
-              >
-                <option value="">All Genres</option>
-                {availableGenres.map(g => <option key={g} value={g}>{g}</option>)}
-              </select>
-            )}
-
-            {/* Sort */}
-            <div className="flex gap-0.5 ml-auto">
-              {SORT_OPTIONS.map(opt => (
-                <button
-                  key={opt.key}
-                  onClick={() => updateParams({ sort: opt.key })}
-                  className={`rounded px-2.5 py-1.5 text-[10px] font-semibold transition ${
-                    currentSort === opt.key
-                      ? 'bg-[var(--metric-bg)] text-[var(--text)]'
-                      : 'text-[var(--muted)] hover:text-[var(--text-secondary)]'
-                  }`}
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
           </div>
+        </div>
+      )}
 
-          {/* ── Active filter chips ── */}
-          {(currentQuery || currentStore || currentGenre) && (
-            <div className="mb-5 flex flex-wrap items-center gap-1.5">
-              {currentQuery && (
-                <button
-                  onClick={() => { updateParams({ q: '' }); if (searchRef.current) searchRef.current.value = '' }}
-                  className="inline-flex items-center gap-1 rounded-full bg-[var(--card-bg)] border border-[var(--card-border)] px-2.5 py-0.5 text-[10px] text-[var(--text-secondary)]"
-                >
-                  "{currentQuery}" <span className="opacity-40">✕</span>
-                </button>
-              )}
-              {currentStore && (
-                <button
-                  onClick={() => updateParams({ store: '' })}
-                  className="inline-flex items-center gap-1 rounded-full bg-[var(--card-bg)] border border-[var(--card-border)] px-2.5 py-0.5 text-[10px] text-[var(--text-secondary)]"
-                >
-                  {currentStore} <span className="opacity-40">✕</span>
-                </button>
-              )}
-              {currentGenre && (
-                <button
-                  onClick={() => updateParams({ genre: '' })}
-                  className="inline-flex items-center gap-1 rounded-full bg-[var(--card-bg)] border border-[var(--card-border)] px-2.5 py-0.5 text-[10px] text-[var(--text-secondary)]"
-                >
-                  {currentGenre} <span className="opacity-40">✕</span>
-                </button>
-              )}
-              <button
-                onClick={() => { setSearchParams({}, { replace: true }); if (searchRef.current) searchRef.current.value = '' }}
-                className="text-[10px] text-[var(--muted)] hover:text-[var(--muted)] underline ml-1"
-              >
-                Clear all
-              </button>
+      {/* ── THE STACKS ── */}
+      <div style={{ marginTop: 40 }}>
+        <div style={{ fontFamily: 'var(--fm)', fontSize: 12, fontWeight: 700, letterSpacing: '.12em', color: 'var(--cyan)' }}>THE STACKS</div>
+        <h2 style={{ fontFamily: 'var(--fd)', fontSize: 'clamp(24px,3.4vw,40px)', fontWeight: 800, letterSpacing: '-.03em', margin: '6px 0 4px' }}>{sort === 'rated' ? 'Browse by tier' : sort === 'popular' ? 'Browse by heat' : sort === 'az' ? 'Browse A–Z' : 'Browse by year'}</h2>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 26, marginTop: 16 }}>
+          {bands.map((b, i) => {
+            const isOpen = i < 2 || expanded.has(b.label)
+            return (
+              <section key={b.label}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 14, borderBottom: '2px solid var(--line)', paddingBottom: 13 }}>
+                  <span style={{ width: 50, height: 50, flexShrink: 0, display: 'grid', placeItems: 'center', borderRadius: 14, background: b.accent, border: '2.5px solid var(--bd,#f6f4ff)', boxShadow: '3px 3px 0 var(--hard)', fontFamily: 'var(--fd)', fontWeight: 900, fontSize: 22, color: '#0b0a12', transform: 'rotate(-3deg)' }}>{b.stamp}</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <h3 style={{ fontFamily: 'var(--fd)', fontSize: 'clamp(19px,2.4vw,26px)', fontWeight: 800, letterSpacing: '-.02em', margin: 0, lineHeight: 1 }}>{b.label}</h3>
+                    <div style={{ fontFamily: 'var(--fm)', fontSize: 12, color: 'var(--tx2,#aaa3c6)', marginTop: 4 }}>{b.sub} · {b.games.length} game{b.games.length === 1 ? '' : 's'}</div>
+                  </div>
+                  {i >= 2 && b.games.length > 0 && (
+                    <button className="press" onClick={() => toggle(b.label)} style={{ fontFamily: 'var(--ff)', fontSize: 12.5, fontWeight: 700, color: 'var(--tx,#f6f4ff)', ...card, borderRadius: 10, padding: '8px 13px', cursor: 'pointer', boxShadow: '2px 2px 0 var(--hard)' }}>{isOpen ? 'Collapse' : `Show ${b.games.length}`}</button>
+                  )}
+                </div>
+                {isOpen && (
+                  <div className="rail" style={{ display: 'flex', gap: 16, overflowX: 'auto', padding: '16px 2px 6px' }}>
+                    {b.games.map((g) => <StackCard key={g.slug} g={g} accent={b.accent} onClick={() => go(g.slug)} />)}
+                  </div>
+                )}
+              </section>
+            )
+          })}
+          {filtered.length === 0 && (
+            <div style={{ textAlign: 'center', padding: '60px 22px', ...card, border: '2.5px dashed var(--line2,#3a3460)', borderRadius: 18 }}>
+              <div style={{ fontFamily: 'var(--fd)', fontSize: 21, fontWeight: 800, letterSpacing: '-.02em' }}>No games match</div>
+              <div style={{ fontSize: 14, color: 'var(--tx2,#aaa3c6)', marginTop: 9 }}>Try a different search or platform.</div>
             </div>
-          )}
-
-          {/* ── Loading ── */}
-          {loading && (
-            <div className="grid gap-x-4 gap-y-7 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
-              {Array.from({ length: 18 }).map((_, i) => (
-                <GameCardSkeleton key={i} />
-              ))}
-            </div>
-          )}
-
-          {/* ── Error ── */}
-          {error && (
-            <div className="mb-6 rounded border border-red-500/20 bg-red-500/5 px-4 py-3 text-xs text-red-300">
-              {error}
-            </div>
-          )}
-
-          {/* ── Empty ── */}
-          {!loading && !error && games.length === 0 && (
-            <div className="px-6 py-24 text-center">
-              <p className="text-sm font-semibold text-[var(--muted)] mb-1">No games found</p>
-              <p className="text-xs text-[var(--muted)] mb-6">
-                {currentQuery ? `No results for "${currentQuery}".` : 'Try a different filter.'}
-              </p>
-              <button
-                onClick={() => { setSearchParams({}, { replace: true }); if (searchRef.current) searchRef.current.value = '' }}
-                className="rounded bg-[var(--text)] px-5 py-2 text-xs font-bold text-[var(--deep)]"
-              >
-                Reset
-              </button>
-            </div>
-          )}
-
-          {/* ── Game grid — 4 columns like NVIDIA ── */}
-          {!loading && games.length > 0 && (
-            <motion.div
-              initial="hidden"
-              animate="visible"
-              variants={{ hidden: {}, visible: { transition: { staggerChildren: 0.015 } } }}
-              className="grid gap-x-4 gap-y-7 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6"
-            >
-              {games.map(game => (
-                <motion.div
-                  key={game.slug}
-                  variants={{
-                    hidden: { opacity: 0, y: 8 },
-                    visible: { opacity: 1, y: 0, transition: { duration: 0.2, ease: [0.16, 1, 0.3, 1] } },
-                  }}
-                >
-                  <GameCard game={game} />
-                </motion.div>
-              ))}
-            </motion.div>
-          )}
-
-          {/* ── Pagination ── */}
-          {!loading && pagination.totalPages > 1 && (
-            <Pagination
-              page={pagination.page}
-              totalPages={pagination.totalPages}
-              onPageChange={handlePageChange}
-            />
-          )}
-
-          {/* ── Footer ── */}
-          {!loading && games.length > 0 && (
-            <p className="mt-10 text-center text-[10px] text-[var(--muted)]">
-              Game data powered by IGDB &amp; NVIDIA GeForce NOW. Cover art belongs to their respective publishers.
-            </p>
           )}
         </div>
-      </section>
-    </>
+      </div>
+
+      {/* Footer note */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 11, margin: '34px 0 0', background: 'var(--panel,#120f1f)', border: '2px solid var(--line)', borderRadius: 14, padding: '14px 18px', color: 'var(--tx2,#aaa3c6)', fontSize: 13, lineHeight: 1.5 }}>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--tx3,#736c92)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><circle cx="12" cy="12" r="9" /><path d="M12 8h.01M11 12h1v4h1" /></svg>
+        Game data powered by IGDB &amp; NVIDIA GeForce NOW. Cover art belongs to their respective publishers.
+      </div>
+    </div>
   )
 }

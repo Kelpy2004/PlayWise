@@ -1,11 +1,12 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 
 import { api } from '../lib/api'
+import { useShell } from '../context/ShellContext'
 import {
   CHART_WINDOWS,
   PLATFORMS,
-  buildBands,
+  buildGenres,
   chartRank,
   fallbackGames,
   genreColor,
@@ -20,6 +21,41 @@ import {
   type LibGame,
   type Sort,
 } from '../lib/gamesData'
+
+const PER_PAGE = 12
+
+function AutoRail({ vel, children }: { vel: number; children: ReactNode }) {
+  const { velFactor } = useShell()
+  const velRef = useRef(velFactor)
+  velRef.current = velFactor
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    let paused = false
+    let idle: number | undefined
+    let pos = el.scrollLeft
+    let raf = 0
+    const pause = () => { paused = true; window.clearTimeout(idle); idle = window.setTimeout(() => { paused = false }, 2400) }
+    const onEnter = () => { paused = true }
+    const onLeave = () => { paused = false }
+    el.addEventListener('mouseenter', onEnter)
+    el.addEventListener('mouseleave', onLeave)
+    el.addEventListener('pointerdown', pause)
+    el.addEventListener('wheel', pause, { passive: true })
+    const step = () => {
+      if (!paused && el.scrollWidth > el.clientWidth + 4) {
+        pos += vel * velRef.current
+        if (pos >= el.scrollWidth - el.clientWidth) pos = 0
+        el.scrollLeft = pos
+      } else { pos = el.scrollLeft }
+      raf = requestAnimationFrame(step)
+    }
+    raf = requestAnimationFrame(step)
+    return () => { cancelAnimationFrame(raf); window.clearTimeout(idle); el.removeEventListener('mouseenter', onEnter); el.removeEventListener('mouseleave', onLeave); el.removeEventListener('pointerdown', pause); el.removeEventListener('wheel', pause) }
+  }, [vel])
+  return <div ref={ref} className="rail" style={{ display: 'flex', gap: 16, overflowX: 'auto', padding: '16px 2px 6px' }}>{children}</div>
+}
 
 const card = { background: 'var(--card,#1a1630)', border: '2.5px solid var(--bd,#f6f4ff)' } as const
 const SORTS: Array<[Sort, string]> = [['rated', 'Top Rated'], ['popular', 'Popular'], ['az', 'A–Z'], ['new', 'New']]
@@ -54,6 +90,7 @@ function Move({ slug }: { slug: string }) {
 }
 
 const chipMeta: CSSProperties = { fontFamily: 'var(--fm)', fontSize: 9.5, fontWeight: 700, color: 'var(--tx2,#aaa3c6)', background: 'var(--bg,#0b0a12)', border: '1.5px solid var(--line2,#3a3460)', borderRadius: 6, padding: '2px 6px' }
+const pagerBtn = (disabled: boolean): CSSProperties => ({ fontFamily: 'var(--ff)', fontSize: 13, fontWeight: 700, color: 'var(--tx,#f6f4ff)', background: 'var(--card,#1a1630)', border: '2px solid var(--bd,#f6f4ff)', borderRadius: 10, padding: '8px 14px', cursor: disabled ? 'not-allowed' : 'pointer', opacity: disabled ? 0.4 : 1, boxShadow: '2px 2px 0 var(--hard)' })
 
 function StackCard({ g, accent, onClick }: { g: Game; accent: string; onClick: () => void }) {
   return (
@@ -87,6 +124,7 @@ export default function GamesBrowsePage() {
   const [chartWin, setChartWin] = useState<ChartWindow>('all')
   const [hover, setHover] = useState<string | null>(null)
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
+  const [pageByGenre, setPageByGenre] = useState<Record<string, number>>({})
   const open = useRef<HTMLDivElement>(null)
   // fresh sample on every visit (stable within the visit)
   const [mapSeed] = useState(() => Math.floor(Math.random() * 1e6) + 1)
@@ -111,13 +149,14 @@ export default function GamesBrowsePage() {
 
   const chart = useMemo(() => chartRank(filtered, chartWin).slice(0, 10), [filtered, chartWin])
   const spotlight = chart[0]
-  const bands = useMemo(() => buildBands(filtered, sort), [filtered, sort])
+  const genres = useMemo(() => buildGenres(filtered, sort), [filtered, sort])
   const mapNodes = useMemo(() => seededShuffle(filtered, mapSeed).slice(0, 60), [filtered, mapSeed])
   const hoveredGame = hover ? filtered.find((g) => g.slug === hover) : null
   const isHot = (g: Game) => (sort === 'rated' ? g.score >= 8.5 : sort === 'popular' ? g.pop >= 80 : true)
 
   const go = (slug: string) => navigate(`/games/${slug}`)
-  const toggle = (key: string) => setExpanded((s) => { const n = new Set(s); n.has(key) ? n.delete(key) : n.add(key); return n })
+  const toggleGenre = (key: string) => setExpanded((s) => { const n = new Set(s); if (n.has(key)) n.delete(key); else { n.add(key); setPageByGenre((p) => ({ ...p, [key]: 1 })) } return n })
+  const setPage = (key: string, p: number) => setPageByGenre((prev) => ({ ...prev, [key]: p }))
 
   return (
     <div ref={open} style={{ maxWidth: 1340, margin: '0 auto', padding: '40px 26px 0' }}>
@@ -235,29 +274,54 @@ export default function GamesBrowsePage() {
         </div>
       )}
 
-      {/* ── THE STACKS ── */}
+      {/* ── THE STACKS (by genre) ── */}
       <div style={{ marginTop: 40 }}>
         <div style={{ fontFamily: 'var(--fm)', fontSize: 12, fontWeight: 700, letterSpacing: '.12em', color: 'var(--cyan)' }}>THE STACKS</div>
-        <h2 style={{ fontFamily: 'var(--fd)', fontSize: 'clamp(24px,3.4vw,40px)', fontWeight: 800, letterSpacing: '-.03em', margin: '6px 0 4px' }}>{sort === 'rated' ? 'Browse by tier' : sort === 'popular' ? 'Browse by heat' : sort === 'az' ? 'Browse A–Z' : 'Browse by year'}</h2>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 26, marginTop: 16 }}>
-          {bands.map((b, i) => {
-            const isOpen = i < 2 || expanded.has(b.label)
+        <h2 style={{ fontFamily: 'var(--fd)', fontSize: 'clamp(24px,3.4vw,40px)', fontWeight: 800, letterSpacing: '-.03em', margin: '6px 0 4px' }}>Browse by genre</h2>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 22, marginTop: 16 }}>
+          {genres.map((sec) => {
+            const isExp = expanded.has(sec.genre)
+            const pages = Math.max(1, Math.ceil(sec.games.length / PER_PAGE))
+            const page = Math.min(pageByGenre[sec.genre] || 1, pages)
+            const pageGames = sec.games.slice((page - 1) * PER_PAGE, page * PER_PAGE)
             return (
-              <section key={b.label}>
+              <section key={sec.genre}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 14, borderBottom: '2px solid var(--line)', paddingBottom: 13 }}>
-                  <span style={{ width: 50, height: 50, flexShrink: 0, display: 'grid', placeItems: 'center', borderRadius: 14, background: b.accent, border: '2.5px solid var(--bd,#f6f4ff)', boxShadow: '3px 3px 0 var(--hard)', fontFamily: 'var(--fd)', fontWeight: 900, fontSize: 22, color: '#0b0a12', transform: 'rotate(-3deg)' }}>{b.stamp}</span>
+                  <span style={{ width: 50, height: 50, flexShrink: 0, display: 'grid', placeItems: 'center', borderRadius: 14, background: sec.accent, border: '2.5px solid var(--bd,#f6f4ff)', boxShadow: '3px 3px 0 var(--hard)', fontFamily: 'var(--fd)', fontWeight: 900, fontSize: 14, color: '#0b0a12', transform: 'rotate(-3deg)' }}>{sec.stamp}</span>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <h3 style={{ fontFamily: 'var(--fd)', fontSize: 'clamp(19px,2.4vw,26px)', fontWeight: 800, letterSpacing: '-.02em', margin: 0, lineHeight: 1 }}>{b.label}</h3>
-                    <div style={{ fontFamily: 'var(--fm)', fontSize: 12, color: 'var(--tx2,#aaa3c6)', marginTop: 4 }}>{b.sub} · {b.games.length} game{b.games.length === 1 ? '' : 's'}</div>
+                    <h3 style={{ fontFamily: 'var(--fd)', fontSize: 'clamp(19px,2.4vw,26px)', fontWeight: 800, letterSpacing: '-.02em', margin: 0, lineHeight: 1 }}>{sec.genre}</h3>
+                    <div style={{ fontFamily: 'var(--fm)', fontSize: 12, color: 'var(--tx2,#aaa3c6)', marginTop: 4 }}>{sec.games.length} game{sec.games.length === 1 ? '' : 's'}{isExp && pages > 1 ? ` · page ${page} of ${pages}` : ''}</div>
                   </div>
-                  {i >= 2 && b.games.length > 0 && (
-                    <button className="press" onClick={() => toggle(b.label)} style={{ fontFamily: 'var(--ff)', fontSize: 12.5, fontWeight: 700, color: 'var(--tx,#f6f4ff)', ...card, borderRadius: 10, padding: '8px 13px', cursor: 'pointer', boxShadow: '2px 2px 0 var(--hard)' }}>{isOpen ? 'Collapse' : `Show ${b.games.length}`}</button>
-                  )}
+                  <button className="press" onClick={() => toggleGenre(sec.genre)} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontFamily: 'var(--fd)', fontSize: 12.5, fontWeight: 700, color: isExp ? '#0b0a12' : 'var(--tx,#f6f4ff)', background: isExp ? 'var(--lime)' : 'var(--card,#1a1630)', border: '2px solid var(--bd,#f6f4ff)', borderRadius: 10, padding: '8px 14px', cursor: 'pointer', boxShadow: '2px 2px 0 var(--hard)' }}>
+                    {isExp ? 'Collapse' : `Browse all ${sec.games.length}`}
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round" style={{ transition: 'transform .25s', transform: isExp ? 'rotate(180deg)' : 'none' }}><path d="m6 9 6 6 6-6" /></svg>
+                  </button>
                 </div>
-                {isOpen && (
-                  <div className="rail" style={{ display: 'flex', gap: 16, overflowX: 'auto', padding: '16px 2px 6px' }}>
-                    {b.games.map((g) => <StackCard key={g.slug} g={g} accent={b.accent} onClick={() => go(g.slug)} />)}
-                  </div>
+
+                {isExp ? (
+                  <>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(190px,1fr))', gap: 16, margin: '18px 0 0' }}>
+                      {pageGames.map((g) => <StackCard key={g.slug} g={g} accent={sec.accent} onClick={() => go(g.slug)} />)}
+                    </div>
+                    {pages > 1 && (
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap', gap: 10, marginTop: 20 }}>
+                        <button className="press" onClick={() => setPage(sec.genre, Math.max(1, page - 1))} disabled={page <= 1} style={pagerBtn(page <= 1)}>← Prev</button>
+                        {pages <= 8 && (
+                          <div style={{ display: 'flex', gap: 6 }}>
+                            {Array.from({ length: pages }).map((_, i) => {
+                              const on = page === i + 1
+                              return <button key={i} onClick={() => setPage(sec.genre, i + 1)} aria-label={`Page ${i + 1}`} style={{ width: 32, height: 32, borderRadius: 8, cursor: 'pointer', fontFamily: 'var(--fm)', fontSize: 12.5, fontWeight: 700, border: `2px solid ${on ? 'var(--bd,#f6f4ff)' : 'var(--line2,#3a3460)'}`, background: on ? 'var(--lime)' : 'var(--card,#1a1630)', color: on ? '#0b0a12' : 'var(--tx2,#aaa3c6)' }}>{i + 1}</button>
+                            })}
+                          </div>
+                        )}
+                        <button className="press" onClick={() => setPage(sec.genre, Math.min(pages, page + 1))} disabled={page >= pages} style={pagerBtn(page >= pages)}>Next →</button>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <AutoRail vel={0.4}>
+                    {sec.games.slice(0, 16).map((g) => <StackCard key={g.slug} g={g} accent={sec.accent} onClick={() => go(g.slug)} />)}
+                  </AutoRail>
                 )}
               </section>
             )

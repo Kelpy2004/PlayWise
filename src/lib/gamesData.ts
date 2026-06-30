@@ -179,6 +179,18 @@ export function buildBands(games: Game[], sort: Sort): Band[] {
   return [...groups.entries()].sort((a, b) => b[0] - a[0]).map(([y, gs], i) => ({ stamp: y ? `'${String(y).slice(2)}` : '—', label: y ? String(y) : 'Undated', sub: `${gs.length} game${gs.length === 1 ? '' : 's'}`, accent: accents[i % accents.length], games: gs }))
 }
 
+export interface GenreSection { genre: string; accent: string; stamp: string; games: Game[] }
+
+// Group games by primary genre (similar games together), ordered by size, with
+// each genre's games ordered by the active sort.
+export function buildGenres(games: Game[], sort: Sort): GenreSection[] {
+  const map = new Map<string, Game[]>()
+  games.forEach((g) => { const k = g.genre || 'Other'; if (!map.has(k)) map.set(k, []); map.get(k)!.push(g) })
+  return [...map.entries()]
+    .map(([genre, gs]) => ({ genre, accent: genreColor(genre), stamp: genre.slice(0, 3).toUpperCase(), games: sortGames(gs, sort) }))
+    .sort((a, b) => b.games.length - a.games.length)
+}
+
 // map positioning
 export const mapX = (pop: number) => Math.max(5, Math.min(94, 5 + (pop / 100) * 89))
 export const mapY = (score: number) => Math.max(6, Math.min(90, 90 - ((score - 5) / (10 - 5)) * 84))
@@ -208,6 +220,49 @@ const FB: Array<[string, number, number, string, string[], number]> = [
   ['Redfall', 6.2, 56, 'Shooter', ['PC', 'Xbox'], 2023],
   ['Suicide Squad', 6.0, 70, 'Action', ['PC', 'Xbox', 'PlayStation'], 2024],
   ['Gollum', 4.8, 40, 'Adventure', ['PC', 'Xbox', 'PlayStation'], 2023],
+  ["Marvel's Spider-Man Remastered", 8.7, 88, 'Action', ['PC', 'PlayStation'], 2022],
+  ['Ghost of Tsushima', 9.0, 82, 'Action', ['PC', 'PlayStation'], 2020],
+  ['Sekiro: Shadows Die Twice', 9.1, 80, 'Action', ['PC', 'Xbox', 'PlayStation'], 2019],
+  ['Devil May Cry 5', 8.6, 70, 'Action', ['PC', 'Xbox', 'PlayStation'], 2019],
+  ['Returnal', 8.5, 64, 'Action', ['PC', 'PlayStation'], 2021],
+  ['It Takes Two', 8.9, 76, 'Action', ['PC', 'Xbox', 'PlayStation'], 2021],
+  ['Bayonetta 3', 8.3, 55, 'Action', ['Switch'], 2022],
+  ['The Witcher 3: Wild Hunt', 9.3, 95, 'RPG', ['PC', 'Xbox', 'PlayStation', 'Switch'], 2015],
+  ['Persona 5 Royal', 9.4, 78, 'RPG', ['PC', 'Xbox', 'PlayStation', 'Switch'], 2019],
+  ['Final Fantasy XVI', 8.7, 76, 'RPG', ['PC', 'PlayStation'], 2023],
+  ['The Elder Scrolls V: Skyrim', 9.0, 90, 'RPG', ['PC', 'Xbox', 'PlayStation'], 2011],
+  ['Mass Effect Legendary Edition', 8.8, 72, 'RPG', ['PC', 'Xbox', 'PlayStation'], 2021],
+  ['Diablo IV', 8.0, 85, 'RPG', ['PC', 'Xbox', 'PlayStation'], 2023],
+  ['Divinity: Original Sin 2', 9.2, 66, 'RPG', ['PC', 'Xbox', 'Switch'], 2017],
+  ["Dragon's Dogma 2", 8.1, 68, 'RPG', ['PC', 'Xbox', 'PlayStation'], 2024],
+  ['Doom Eternal', 8.8, 80, 'Shooter', ['PC', 'Xbox', 'PlayStation', 'Switch'], 2020],
+  ['Overwatch 2', 6.9, 84, 'Shooter', ['PC', 'Xbox', 'PlayStation'], 2022],
+  ['Valorant', 8.0, 90, 'Shooter', ['PC'], 2020],
+  ['Counter-Strike 2', 8.3, 94, 'Shooter', ['PC'], 2023],
+  ['Titanfall 2', 9.0, 60, 'Shooter', ['PC', 'Xbox', 'PlayStation'], 2016],
+  ['Helldivers 2', 8.6, 88, 'Shooter', ['PC', 'PlayStation'], 2024],
+  ['Resident Evil 4', 9.3, 82, 'Horror', ['PC', 'Xbox', 'PlayStation'], 2023],
+  ['Dead Space', 8.9, 70, 'Horror', ['PC', 'Xbox', 'PlayStation'], 2023],
+  ['Phasmophobia', 8.2, 67, 'Horror', ['PC'], 2020],
+  ['Amnesia: The Bunker', 7.8, 44, 'Horror', ['PC', 'Xbox', 'PlayStation'], 2023],
+  ['Subnautica', 8.8, 73, 'Adventure', ['PC', 'Xbox', 'PlayStation', 'Switch'], 2018],
+  ["No Man's Sky", 8.1, 75, 'Adventure', ['PC', 'Xbox', 'PlayStation', 'Switch'], 2016],
+  ['Death Stranding', 8.3, 64, 'Adventure', ['PC', 'PlayStation'], 2019],
+  ['Slay the Spire', 8.9, 62, 'Roguelike', ['PC', 'Switch'], 2019],
+  ['Risk of Rain 2', 8.4, 58, 'Roguelike', ['PC', 'Xbox', 'PlayStation', 'Switch'], 2020],
+  ['Vampire Survivors', 8.6, 71, 'Roguelike', ['PC', 'Xbox'], 2022],
+  ['The Sims 4', 7.6, 80, 'Simulation', ['PC', 'Xbox', 'PlayStation'], 2014],
+  ['Microsoft Flight Simulator', 8.5, 66, 'Simulation', ['PC', 'Xbox'], 2020],
+  ['Planet Coaster', 8.0, 49, 'Simulation', ['PC', 'Xbox', 'PlayStation'], 2016],
+  ['Gran Turismo 7', 8.2, 72, 'Racing', ['PlayStation'], 2022],
+  ['F1 24', 7.4, 58, 'Racing', ['PC', 'Xbox', 'PlayStation'], 2024],
+  ['Civilization VI', 8.7, 74, 'Strategy', ['PC', 'Xbox', 'PlayStation', 'Switch'], 2016],
+  ['Total War: Warhammer III', 8.4, 63, 'Strategy', ['PC'], 2022],
+  ['Age of Empires IV', 8.3, 60, 'Strategy', ['PC', 'Xbox'], 2021],
+  ['Ori and the Will of the Wisps', 9.0, 65, 'Metroidvania', ['PC', 'Xbox', 'Switch'], 2020],
+  ['Blasphemous', 8.0, 50, 'Metroidvania', ['PC', 'Xbox', 'PlayStation', 'Switch'], 2019],
+  ['Celeste', 9.1, 68, 'Platformer', ['PC', 'Xbox', 'PlayStation', 'Switch'], 2018],
+  ['Cuphead', 8.8, 72, 'Platformer', ['PC', 'Xbox', 'Switch'], 2017],
 ]
 
 export function fallbackGames(): Game[] {

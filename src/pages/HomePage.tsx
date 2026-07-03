@@ -389,7 +389,7 @@ export default function HomePage() {
       </section>
 
       {/* TIME MACHINE */}
-      <TimeMachine tourns={tourns} news={news} />
+      <TimeMachine />
 
       {/* WHY PLAYWISE */}
       <section style={{ maxWidth: 1200, margin: '0 auto', padding: '104px 26px 0' }}>

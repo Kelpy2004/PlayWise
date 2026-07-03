@@ -133,8 +133,35 @@ export default function GamesBrowsePage() {
     let ignore = false
     void (async () => {
       try {
-        const res = await api.fetchLibrary({ limit: 150 })
-        if (!ignore && res.games?.length) setAll(normalize(res.games as LibGame[]))
+        // The library endpoint caps limit at 60, so build the pool from several
+        // slices: the heavy hitters (popular/rating/newest) plus one random deep-
+        // catalog page that rotates fresh titles in on every visit.
+        const deepPage = Math.floor(Math.random() * 70) + 1
+        const batches = await Promise.allSettled([
+          api.fetchLibrary({ sort: 'popular', limit: 60, page: 1 }),
+          api.fetchLibrary({ sort: 'popular', limit: 60, page: 2 }),
+          api.fetchLibrary({ sort: 'rating', limit: 60, page: 1 }),
+          api.fetchLibrary({ sort: 'newest', limit: 60, page: 1 }),
+          api.fetchLibrary({ sort: 'title', limit: 60, page: deepPage }),
+        ])
+        if (ignore) return
+        // popularityScore from the API is an unreliable raw float; the server's
+        // `popular` sort order (batches 0–1, in rank order) is the real signal.
+        // Synthesize a big descending score from it so percentiles line up.
+        const seen = new Set<string>()
+        const pool: LibGame[] = []
+        let popRank = 0
+        batches.forEach((b, bi) => {
+          if (b.status !== 'fulfilled') return
+          for (const g of b.value.games || []) {
+            if (seen.has(g.slug)) continue
+            seen.add(g.slug)
+            const entry = { ...(g as LibGame) }
+            if (bi <= 1) entry.popularityScore = 100000 - popRank++
+            pool.push(entry)
+          }
+        })
+        if (pool.length) setAll(normalize(pool))
       } catch {
         /* keep fallback */
       }
@@ -150,7 +177,11 @@ export default function GamesBrowsePage() {
   const chart = useMemo(() => chartRank(filtered, chartWin).slice(0, 10), [filtered, chartWin])
   const spotlight = chart[0]
   const categories = useMemo(() => buildCategories(filtered, sort), [filtered, sort])
-  const mapNodes = useMemo(() => seededShuffle(filtered, mapSeed).slice(0, 60), [filtered, mapSeed])
+  const mapNodes = useMemo(() => {
+    // constellation needs both axes — skip games with no rating/popularity signal
+    const scored = filtered.filter((g) => g.score > 0 && g.pop > 0)
+    return seededShuffle(scored.length >= 24 ? scored : filtered, mapSeed).slice(0, 60)
+  }, [filtered, mapSeed])
   const hoveredGame = hover ? filtered.find((g) => g.slug === hover) : null
   const isHot = (g: Game) => (sort === 'rated' ? g.score >= 8.5 : sort === 'popular' ? g.pop >= 80 : true)
 

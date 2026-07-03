@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import { useNavigate } from 'react-router-dom'
 
 import { api } from '../lib/api'
+import { useAuth } from '../context/AuthContext'
 import { useShell } from '../context/ShellContext'
 import {
   CORE_GAMES,
@@ -8,6 +10,7 @@ import {
   GAMES,
   SOURCE_KEYS,
   SRC,
+  accentFor,
   enrich,
   fmtLeft,
   generated,
@@ -16,6 +19,7 @@ import {
 } from '../lib/tournamentData'
 
 const TRACK_KEY = 'playwise-tourny-tracked'
+const EMAIL_KEY = 'playwise-tourny-email'
 
 function withVar(style: CSSProperties, name: string, val: string): CSSProperties {
   return { ...style, [name]: val } as CSSProperties
@@ -25,6 +29,8 @@ const card = { background: 'var(--card,#1a1630)', border: '2.5px solid var(--bd,
 
 export default function TournamentsPage() {
   const { toast } = useShell()
+  const navigate = useNavigate()
+  const { token, user } = useAuth()
   const baseRef = useRef(Date.now())
   const [dataset, setDataset] = useState<TItem[]>(() => generated())
   const [activeGame, setActiveGame] = useState('valorant')
@@ -35,20 +41,34 @@ export default function TournamentsPage() {
   const [showMore, setShowMore] = useState(false)
   const [alertOpen, setAlertOpen] = useState(false)
   const [f, setF] = useState<{ date: string; fee: string; region: string }>({ date: 'all', fee: 'all', region: 'all' })
-  const [tracked, setTracked] = useState<string[]>(['valorant', 'cs2'])
-  const [alertsOn, setAlertsOn] = useState<Record<string, boolean>>({ valorant: true, cs2: true })
+  const [tracked, setTracked] = useState<string[]>([])
+  const [alertsOn, setAlertsOn] = useState<Record<string, boolean>>({})
   const [now, setNow] = useState(Date.now())
+  // real cover art + catalog membership for the games in the dataset
+  const [covers, setCovers] = useState<Record<string, string>>({})
+  const knownGames = useMemo(() => new Set(Object.keys(covers)), [covers])
+  // guest alert email + server subscription ids (logged-in)
+  const [guestEmail, setGuestEmail] = useState<string>(() => { try { return localStorage.getItem(EMAIL_KEY) || '' } catch { return '' } })
+  const [emailDraft, setEmailDraft] = useState('')
+  const subIdsRef = useRef<Record<string, string>>({})
 
   useEffect(() => {
     let ignore = false
     void (async () => {
       try {
         const t = await api.fetchTournaments({ limit: 60 })
-        if (!ignore && t.length) {
-          const mapped = mapReal(t, baseRef.current)
-          // Only switch to real data if it covers the active game; otherwise keep representative.
-          if (mapped.length >= 3) setDataset(mapped)
-        }
+        if (ignore || !t.length) return
+        const mapped = mapReal(t, baseRef.current)
+        if (mapped.length >= 3) setDataset(mapped)
+        // resolve real cover art for the games these tournaments belong to
+        const slugs = [...new Set(mapped.map((x) => x.gameSlug))].slice(0, 16)
+        const details = await Promise.allSettled(slugs.map((sl) => api.fetchGameDetails(sl)))
+        if (ignore) return
+        const map: Record<string, string> = {}
+        details.forEach((r) => {
+          if (r.status === 'fulfilled' && r.value.slug && r.value.image) map[r.value.slug] = r.value.image
+        })
+        setCovers(map)
       } catch {
         /* keep representative */
       }
@@ -61,6 +81,34 @@ export default function TournamentsPage() {
     }
     return () => { ignore = true }
   }, [])
+
+  // logged-in: server-side subscriptions are the source of truth
+  useEffect(() => {
+    if (!token) return
+    let ignore = false
+    void (async () => {
+      try {
+        const subs = await api.fetchTournamentSubscriptions(token)
+        if (ignore) return
+        const gameSubs = subs.filter((s) => s.scope === 'GAME' && s.gameSlug)
+        const ids: Record<string, string> = {}
+        const on: Record<string, boolean> = {}
+        const list: string[] = []
+        gameSubs.forEach((s) => {
+          const slug = s.gameSlug as string
+          ids[slug] = s.id
+          on[slug] = s.isActive
+          if (!list.includes(slug)) list.push(slug)
+        })
+        subIdsRef.current = ids
+        setTracked(list)
+        setAlertsOn(on)
+      } catch {
+        /* keep local state */
+      }
+    })()
+    return () => { ignore = true }
+  }, [token])
 
   useEffect(() => {
     const id = window.setInterval(() => setNow(Date.now()), 1000)
@@ -95,9 +143,14 @@ export default function TournamentsPage() {
     // games that exist in the dataset, in roster order, then any extras
     const inData = GAMES.filter((g) => counts[g.slug])
     const known = new Set(inData.map((g) => g.slug))
-    const extras = [...dsGames].filter((s) => !known.has(s)).map((s) => ({ slug: s, name: s, abbr: s.slice(0, 3).toUpperCase(), accent: '#a24dff' }))
-    return [...inData, ...extras]
-  }, [counts, dsGames])
+    const extras = [...dsGames].filter((s) => !known.has(s)).map((s) => {
+      const name = dataset.find((t) => t.gameSlug === s)?.game || s
+      const abbr = name.split(/\s+/).map((w) => w[0]).join('').replace(/[^A-Za-z0-9]/g, '').slice(0, 3).toUpperCase() || s.slice(0, 3).toUpperCase()
+      return { slug: s, name, abbr, accent: accentFor(s) }
+    })
+    // most tournaments first so the rail leads with the busiest games
+    return [...inData, ...extras].sort((a, b) => (counts[b.slug] || 0) - (counts[a.slug] || 0))
+  }, [counts, dsGames, dataset])
 
   const q = query.trim().toLowerCase()
   const railGames = rosterGames
@@ -114,8 +167,9 @@ export default function TournamentsPage() {
       const lim = { '48h': 48, week: 168, month: 720 }[f.date] || 99999
       arr = arr.filter((t) => t.status === 'live' || (t.dlH > 0 && t.dlH <= lim))
     }
-    if (f.fee === 'free') arr = arr.filter((t) => t.fee === 0)
-    else if (f.fee === 'paid') arr = arr.filter((t) => t.fee > 0)
+    // fee < 0 = unknown (real tournaments don't expose fees) — keep those visible
+    if (f.fee === 'free') arr = arr.filter((t) => t.fee <= 0)
+    else if (f.fee === 'paid') arr = arr.filter((t) => t.fee > 0 || t.fee < 0)
     if (f.region !== 'all') arr = arr.filter((t) => t.region === f.region)
     return [...arr].sort((a, b) => {
       if ((a.status === 'live') !== (b.status === 'live')) return a.status === 'live' ? -1 : 1
@@ -133,16 +187,56 @@ export default function TournamentsPage() {
   const persistTracked = (list: string[], on: Record<string, boolean>) => {
     try { localStorage.setItem(TRACK_KEY, JSON.stringify({ list, on })) } catch { /* ignore */ }
   }
+  const gameName = (slug: string) =>
+    dataset.find((t) => t.gameSlug === slug)?.game || GAMES.find((x) => x.slug === slug)?.name || slug
+
   const addTrack = (slug: string) => {
     if (tracked.includes(slug)) return
     const list = [...tracked, slug]
     const on = { ...alertsOn, [slug]: true }
     setTracked(list); setAlertsOn(on); persistTracked(list, on)
-    const g = GAMES.find((x) => x.slug === slug)
-    toast(`Added ${g ? g.name : 'game'} to Tourny Alert List`)
+    toast(`Added ${gameName(slug)} to Tourny Alert List`)
+    if (token) {
+      void api.createTournamentSubscription({ scope: 'GAME', gameSlug: slug }, token)
+        .then((sub) => { subIdsRef.current[slug] = sub.id })
+        .catch(() => toast('Could not sync this alert to your account'))
+    } else if (guestEmail) {
+      void api.subscribeTournamentAlerts({ email: guestEmail, scope: 'GAME', gameSlug: slug }).catch(() => {})
+    } else {
+      setAlertOpen(true)
+    }
   }
-  const removeTracked = (slug: string) => { const list = tracked.filter((x) => x !== slug); setTracked(list); persistTracked(list, alertsOn) }
-  const toggleAlertOn = (slug: string) => { const on = { ...alertsOn, [slug]: alertsOn[slug] === false }; setAlertsOn(on); persistTracked(tracked, on); toast(on[slug] ? 'Alerts on' : 'Alerts muted') }
+  const removeTracked = (slug: string) => {
+    const list = tracked.filter((x) => x !== slug)
+    setTracked(list); persistTracked(list, alertsOn)
+    if (token && subIdsRef.current[slug]) {
+      void api.deleteTournamentSubscription(subIdsRef.current[slug], token).catch(() => {})
+      delete subIdsRef.current[slug]
+    } else if (guestEmail) {
+      void api.unsubscribeTournamentAlerts({ email: guestEmail, gameSlug: slug }).catch(() => {})
+    }
+  }
+  const toggleAlertOn = (slug: string) => {
+    const next = alertsOn[slug] === false
+    const on = { ...alertsOn, [slug]: next }
+    setAlertsOn(on); persistTracked(tracked, on)
+    toast(next ? 'Alerts on' : 'Alerts muted')
+    if (token && subIdsRef.current[slug]) {
+      void api.updateTournamentSubscription(subIdsRef.current[slug], { isActive: next }, token).catch(() => {})
+    } else if (guestEmail) {
+      void api.subscribeTournamentAlerts({ email: guestEmail, scope: 'GAME', gameSlug: slug, isActive: next }).catch(() => {})
+    }
+  }
+  const saveGuestEmail = () => {
+    const email = emailDraft.trim()
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { toast('Enter a valid email for alerts'); return }
+    setGuestEmail(email)
+    try { localStorage.setItem(EMAIL_KEY, email) } catch { /* ignore */ }
+    tracked.forEach((slug) => {
+      void api.subscribeTournamentAlerts({ email, scope: 'GAME', gameSlug: slug, isActive: alertsOn[slug] !== false }).catch(() => {})
+    })
+    toast(`Tourny alerts will go to ${email}`)
+  }
   const resetFilters = () => { setSources([...SOURCE_KEYS]); setF({ date: 'all', fee: 'all', region: 'all' }); setOpenMenu(null); toast('Filters reset') }
 
   const deadlineText = (deadlineAt: number, status: string) => {
@@ -190,8 +284,12 @@ export default function TournamentsPage() {
                   <button key={g.slug} className="press" onClick={() => { setActiveGame(g.slug); setOpenMenu(null) }} style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, background: 'none', border: 'none', cursor: 'pointer', padding: '6px 2px' }}>
                     <span style={{ position: 'absolute', left: -8, top: '50%', transform: 'translateY(-50%)', width: 5, height: on ? 30 : 0, borderRadius: 4, background: g.accent, transition: 'height .25s var(--ease)' }} />
                     <span style={{ position: 'relative', width: 80, height: 80, borderRadius: 19, background: on ? 'var(--card,#1a1630)' : 'var(--card2,#221c3c)', border: `2.5px solid ${on ? 'var(--bd,#f6f4ff)' : 'var(--line2,#3a3460)'}`, boxShadow: on ? `3px 3px 0 ${g.accent}` : 'none', transform: on ? 'translateY(-1px)' : 'none', display: 'grid', placeItems: 'center', overflow: 'hidden', fontFamily: 'var(--fd)', fontWeight: 800, fontSize: 19, color: 'var(--tx,#f6f4ff)', transition: 'border-color .2s,box-shadow .2s,transform .2s' }}>
-                      {g.abbr}
-                      <span style={{ position: 'absolute', top: -7, right: -7, minWidth: 20, height: 20, padding: '0 4px', borderRadius: 10, background: g.accent, border: '2px solid var(--bd,#f6f4ff)', color: '#0b0a12', fontFamily: 'var(--fm)', fontWeight: 700, fontSize: 10.5, display: 'grid', placeItems: 'center' }}>{g.count}</span>
+                      {covers[g.slug] ? (
+                        <img src={covers[g.slug]} alt={g.name} loading="lazy" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: on ? 1 : 0.82 }} />
+                      ) : (
+                        g.abbr
+                      )}
+                      <span style={{ position: 'absolute', top: -7, right: -7, minWidth: 20, height: 20, padding: '0 4px', borderRadius: 10, background: g.accent, border: '2px solid var(--bd,#f6f4ff)', color: '#0b0a12', fontFamily: 'var(--fm)', fontWeight: 700, fontSize: 10.5, display: 'grid', placeItems: 'center', zIndex: 1 }}>{g.count}</span>
                     </span>
                     <span style={{ fontFamily: 'var(--fm)', fontSize: 11, fontWeight: 600, color: on ? 'var(--tx,#f6f4ff)' : 'var(--tx3,#736c92)', maxWidth: 114, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{g.name}</span>
                   </button>
@@ -212,10 +310,20 @@ export default function TournamentsPage() {
             {/* Active game header */}
             <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 14, ...card, borderRadius: 18, boxShadow: '5px 6px 0 var(--hard)', padding: '15px 18px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 0 }}>
-                <span style={{ width: 52, height: 52, flexShrink: 0, borderRadius: 15, background: 'var(--card2,#221c3c)', border: '2.5px solid var(--bd,#f6f4ff)', boxShadow: `3px 3px 0 ${ag.accent}`, display: 'grid', placeItems: 'center', fontFamily: 'var(--fd)', fontWeight: 900, fontSize: 17, color: 'var(--tx,#f6f4ff)' }}>{ag.abbr}</span>
+                <span style={{ position: 'relative', width: 52, height: 52, flexShrink: 0, borderRadius: 15, background: 'var(--card2,#221c3c)', border: '2.5px solid var(--bd,#f6f4ff)', boxShadow: `3px 3px 0 ${ag.accent}`, display: 'grid', placeItems: 'center', overflow: 'hidden', fontFamily: 'var(--fd)', fontWeight: 900, fontSize: 17, color: 'var(--tx,#f6f4ff)' }}>
+                  {covers[ag.slug] ? <img src={covers[ag.slug]} alt={ag.name} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} /> : ag.abbr}
+                </span>
                 <div style={{ minWidth: 0 }}>
                   <h2 style={{ fontFamily: 'var(--fd)', fontSize: 'clamp(22px,3vw,30px)', fontWeight: 800, letterSpacing: '-.02em', margin: 0, lineHeight: 1.02 }}>{ag.name}</h2>
-                  <div style={{ fontFamily: 'var(--fm)', fontSize: 12.5, fontWeight: 500, color: 'var(--tx2,#aaa3c6)', marginTop: 5 }}><b style={{ color: 'var(--lime)' }}>{agItems.length}</b> active across <b style={{ color: 'var(--tx)' }}>{activePlatforms}</b> platform{activePlatforms === 1 ? '' : 's'}</div>
+                  <div style={{ fontFamily: 'var(--fm)', fontSize: 12.5, fontWeight: 500, color: 'var(--tx2,#aaa3c6)', marginTop: 5 }}>
+                    <b style={{ color: 'var(--lime)' }}>{agItems.length}</b> active across <b style={{ color: 'var(--tx)' }}>{activePlatforms}</b> platform{activePlatforms === 1 ? '' : 's'}
+                    {knownGames.has(ag.slug) && (
+                      <>
+                        {' · '}
+                        <button onClick={() => navigate(`/games/${ag.slug}`)} style={{ font: 'inherit', fontWeight: 700, color: 'var(--cyan)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, textDecoration: 'underline', textUnderlineOffset: 3 }}>View game →</button>
+                      </>
+                    )}
+                  </div>
                 </div>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
@@ -308,12 +416,25 @@ export default function TournamentsPage() {
 
                   <div style={{ fontFamily: 'var(--fd)', fontSize: 17, fontWeight: 800, letterSpacing: '-.01em', lineHeight: 1.16, marginTop: 13 }}>{c.title}</div>
 
+                  <button
+                    onClick={() => { if (knownGames.has(c.gameSlug)) navigate(`/games/${c.gameSlug}`) }}
+                    title={knownGames.has(c.gameSlug) ? `Open ${c.game} on PlayWise` : undefined}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 8, marginTop: 10, background: 'var(--bg,#0b0a12)', border: '2px solid var(--line2,#3a3460)', borderRadius: 100, padding: '4px 11px 4px 5px', cursor: knownGames.has(c.gameSlug) ? 'pointer' : 'default', color: 'var(--tx,#f6f4ff)' }}
+                  >
+                    <span style={{ position: 'relative', width: 24, height: 24, flexShrink: 0, borderRadius: '50%', overflow: 'hidden', background: c.accent, border: '1.5px solid var(--bd,#f6f4ff)', display: 'grid', placeItems: 'center', fontFamily: 'var(--fd)', fontWeight: 800, fontSize: 10, color: '#0b0a12' }}>
+                      {covers[c.gameSlug] ? <img src={covers[c.gameSlug]} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} /> : c.game[0]}
+                    </span>
+                    <span style={{ fontFamily: 'var(--fm)', fontSize: 11.5, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 180 }}>{c.game}</span>
+                    {knownGames.has(c.gameSlug) && <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="var(--cyan)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M9 6l6 6-6 6" /></svg>}
+                  </button>
+
                   <div style={{ marginTop: 11 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontFamily: 'var(--fm)', fontSize: 12, color: 'var(--tx2,#aaa3c6)' }}><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" style={{ flexShrink: 0, color: 'var(--tx3,#736c92)' }}><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>{c.startLabel}</div>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7, marginTop: 10 }}>
-                      <span style={chipMeta}>{c.teamSize}</span>
-                      <span style={chipMeta}>{c.prizeLabel}</span>
+                      {c.teamSize && <span style={chipMeta}>{c.teamSize}</span>}
+                      {c.prizeLabel && <span style={chipMeta}>{c.prizeLabel}</span>}
                       <span style={chipMeta}>{c.region}</span>
+                      {c.venue && <span style={chipMeta}>📍 {c.venue}</span>}
                       {c.formats.map((ft) => <span key={ft} style={{ ...chipMeta, color: 'var(--vio)' }}>{ft}</span>)}
                     </div>
                   </div>
@@ -323,10 +444,17 @@ export default function TournamentsPage() {
                       <div style={{ fontFamily: 'var(--fm)', fontSize: 9.5, letterSpacing: '.1em', color: 'var(--tx3,#736c92)', textTransform: 'uppercase' }}>Registration closes in</div>
                       <div style={{ fontFamily: 'var(--fm)', fontSize: 23, fontWeight: 700, lineHeight: 1.1, color: c.status === 'live' ? 'var(--pink)' : (c.deadlineAt - now < 48 * 3600000 ? 'var(--pink)' : 'var(--lime)'), fontVariantNumeric: 'tabular-nums' }}>{deadlineText(c.deadlineAt, c.status)}</div>
                     </div>
-                    <div>
-                      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8, fontFamily: 'var(--fm)', fontSize: 11.5 }}><span style={{ fontWeight: 700, color: 'var(--tx,#f6f4ff)' }}>{c.spotsLeft} spots left</span><span style={{ color: 'var(--tx3,#736c92)' }}>{c.feeLabel}</span></div>
-                      <div style={{ marginTop: 6, height: 7, borderRadius: 5, background: 'var(--line2,#3a3460)', border: '1.5px solid var(--bd,#f6f4ff)', overflow: 'hidden' }}><div style={{ height: '100%', width: c.fillPct, background: c.barColor }} /></div>
-                    </div>
+                    {c.real ? (
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, fontFamily: 'var(--fm)', fontSize: 11.5 }}>
+                        <span style={{ fontWeight: 700, color: 'var(--tx,#f6f4ff)' }}>Spots &amp; bracket on {c.sourceName}</span>
+                        <span style={{ color: 'var(--tx3,#736c92)' }}>{c.feeLabel}</span>
+                      </div>
+                    ) : (
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8, fontFamily: 'var(--fm)', fontSize: 11.5 }}><span style={{ fontWeight: 700, color: 'var(--tx,#f6f4ff)' }}>{c.spotsLeft} spots left</span><span style={{ color: 'var(--tx3,#736c92)' }}>{c.feeLabel}</span></div>
+                        <div style={{ marginTop: 6, height: 7, borderRadius: 5, background: 'var(--line2,#3a3460)', border: '1.5px solid var(--bd,#f6f4ff)', overflow: 'hidden' }}><div style={{ height: '100%', width: c.fillPct, background: c.barColor }} /></div>
+                      </div>
+                    )}
                   </div>
 
                   <div style={{ display: 'flex', alignItems: 'center', marginTop: 14 }}>
@@ -359,6 +487,36 @@ export default function TournamentsPage() {
           <button className="press" onClick={() => setAlertOpen(false)} style={{ width: 34, height: 34, flexShrink: 0, display: 'grid', placeItems: 'center', background: 'var(--bg,#0b0a12)', border: '2px solid var(--line2,#3a3460)', borderRadius: 10, cursor: 'pointer', color: 'var(--tx,#f6f4ff)' }}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round"><path d="M6 6l12 12M18 6 6 18" /></svg></button>
         </div>
         <div className="rail" style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
+          {/* where alerts go */}
+          {token ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 14, background: 'var(--bg,#0b0a12)', border: '2px solid var(--line)', borderRadius: 12, padding: '10px 13px', fontFamily: 'var(--fm)', fontSize: 11.5, color: 'var(--tx2,#aaa3c6)', lineHeight: 1.4 }}>
+              <span style={{ width: 8, height: 8, flexShrink: 0, borderRadius: '50%', background: 'var(--lime)' }} />
+              Synced to your account — alerts go to <b style={{ color: 'var(--tx,#f6f4ff)' }}>{user?.email}</b>
+            </div>
+          ) : (
+            <div style={{ marginBottom: 14, background: 'var(--bg,#0b0a12)', border: '2px solid var(--line)', borderRadius: 12, padding: '12px 13px' }}>
+              <div style={{ fontFamily: 'var(--fm)', fontSize: 10, fontWeight: 700, letterSpacing: '.1em', color: 'var(--tx3,#736c92)', textTransform: 'uppercase', marginBottom: 8 }}>Email for alerts</div>
+              {guestEmail && !emailDraft ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+                  <span style={{ flex: 1, minWidth: 0, fontFamily: 'var(--fm)', fontSize: 12.5, fontWeight: 700, color: 'var(--lime)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{guestEmail}</span>
+                  <button className="press" onClick={() => setEmailDraft(guestEmail)} style={{ flexShrink: 0, fontFamily: 'var(--ff)', fontSize: 11.5, fontWeight: 700, color: 'var(--tx2,#aaa3c6)', background: 'none', border: '2px solid var(--line2,#3a3460)', borderRadius: 9, padding: '5px 10px', cursor: 'pointer' }}>Change</button>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <input
+                    type="email"
+                    value={emailDraft}
+                    onChange={(e) => setEmailDraft(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { saveGuestEmail(); setEmailDraft('') } }}
+                    placeholder="you@email.com"
+                    style={{ flex: 1, minWidth: 0, background: 'var(--card,#1a1630)', border: '2px solid var(--line2,#3a3460)', borderRadius: 10, padding: '8px 11px', color: 'var(--tx,#f6f4ff)', font: 'inherit', fontSize: 13, outline: 'none' }}
+                  />
+                  <button className="press" onClick={() => { saveGuestEmail(); setEmailDraft('') }} style={{ flexShrink: 0, fontFamily: 'var(--fd)', fontSize: 12, fontWeight: 700, color: '#0b0a12', background: 'var(--lime)', border: '2px solid var(--bd,#f6f4ff)', borderRadius: 10, padding: '8px 13px', cursor: 'pointer', boxShadow: '2px 2px 0 var(--hard)' }}>Save</button>
+                </div>
+              )}
+              {!guestEmail && <div style={{ fontFamily: 'var(--fm)', fontSize: 10.5, color: 'var(--tx3,#736c92)', marginTop: 8, lineHeight: 1.45 }}>Needed so we can email you — or log in and it's automatic.</div>}
+            </div>
+          )}
           {tracked.length > 0 ? (
             <>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 12 }}>
@@ -367,12 +525,14 @@ export default function TournamentsPage() {
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {tracked.map((slug) => {
-                  const g = GAMES.find((x) => x.slug === slug) || { slug, name: slug, abbr: slug.slice(0, 3).toUpperCase(), accent: '#a24dff' }
+                  const g = { slug, name: gameName(slug), abbr: gameName(slug).split(/\s+/).map((w) => w[0]).join('').replace(/[^A-Za-z0-9]/g, '').slice(0, 3).toUpperCase() || slug.slice(0, 3).toUpperCase(), accent: GAMES.find((x) => x.slug === slug)?.accent || accentFor(slug) }
                   const its = dataset.filter((t) => t.gameSlug === slug)
                   const on = alertsOn[slug] !== false
                   return (
                     <div key={slug} style={{ display: 'flex', alignItems: 'center', gap: 12, background: 'var(--card2,#221c3c)', border: '2px solid var(--line2,#3a3460)', borderRadius: 14, padding: '11px 13px' }}>
-                      <span style={{ width: 42, height: 42, flexShrink: 0, borderRadius: 12, background: 'var(--card,#1a1630)', border: '2.5px solid var(--bd,#f6f4ff)', boxShadow: `2px 2px 0 ${g.accent}`, display: 'grid', placeItems: 'center', fontFamily: 'var(--fd)', fontWeight: 800, fontSize: 12, color: 'var(--tx,#f6f4ff)' }}>{g.abbr}</span>
+                      <span style={{ position: 'relative', width: 42, height: 42, flexShrink: 0, borderRadius: 12, background: 'var(--card,#1a1630)', border: '2.5px solid var(--bd,#f6f4ff)', boxShadow: `2px 2px 0 ${g.accent}`, display: 'grid', placeItems: 'center', overflow: 'hidden', fontFamily: 'var(--fd)', fontWeight: 800, fontSize: 12, color: 'var(--tx,#f6f4ff)' }}>
+                        {covers[slug] ? <img src={covers[slug]} alt={g.name} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} /> : g.abbr}
+                      </span>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontWeight: 700, fontSize: 14, letterSpacing: '-.01em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{g.name}</div>
                         <div style={{ fontFamily: 'var(--fm)', fontSize: 11, color: 'var(--tx2,#aaa3c6)', marginTop: 2 }}>{its.length} open · {its.filter((t) => t.dlH > 0 && t.dlH < 48).length} closing soon</div>

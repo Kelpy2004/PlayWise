@@ -295,6 +295,18 @@ export const api = {
     },
     token: string
   ) => request<TournamentRecord>('/tournaments', { method: 'POST', body, token }),
+  // Guest-friendly tournament alerts (email + optional game scope, no login).
+  subscribeTournamentAlerts: (
+    body: { email: string; scope: 'ALL' | 'GAME'; gameSlug?: string | null; isActive?: boolean },
+    token?: string | null
+  ) =>
+    request<{ ok: boolean; subscription: TournamentSubscriptionRecord }>('/tournaments/subscribe', {
+      method: 'POST',
+      body,
+      token
+    }),
+  unsubscribeTournamentAlerts: (body: { email: string; gameSlug?: string | null }, token?: string | null) =>
+    request<{ ok: boolean; unsubscribed: number }>('/tournaments/subscribe', { method: 'DELETE', body, token }),
   fetchTournamentSubscriptions: (token: string) =>
     request<TournamentSubscriptionRecord[]>('/users/me/tournament-subscriptions', { token }),
   createTournamentSubscription: (

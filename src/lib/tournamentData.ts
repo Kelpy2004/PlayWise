@@ -62,13 +62,16 @@ export interface TItem {
   dlH: number
   startLabel: string
   region: string
-  fee: number
+  fee: number // -1 = unknown (real tournaments don't expose fees)
   team: string
   fmt: string[]
-  prize: number
+  prize: number // -1 = unknown
   total: number
   filled: number
   left: number
+  real?: boolean // true when mapped from a real backend tournament
+  url?: string | null // real registration/source URL
+  venue?: string // "City, CC" when the provider exposes it
 }
 
 const REG = ['India', 'South Asia', 'Asia', 'EU', 'NA', 'Online', 'India', 'Asia']
@@ -148,36 +151,66 @@ export function generated(): TItem[] {
   return out
 }
 
-// Map real tournaments into the page's card shape, synthesizing the fields the
-// backend doesn't track (deterministically, so they stay stable across renders).
+// Map a provider country code onto the page's region filter values.
+const ASIA_CODES = new Set(['JP', 'KR', 'CN', 'SG', 'TH', 'PH', 'MY', 'ID', 'VN', 'TW', 'HK', 'MO', 'BD', 'PK', 'LK', 'NP'])
+const EU_CODES = new Set(['GB', 'DE', 'FR', 'ES', 'IT', 'NL', 'BE', 'SE', 'NO', 'DK', 'FI', 'PL', 'PT', 'AT', 'CH', 'CZ', 'IE', 'GR', 'HU', 'RO', 'UA'])
+const NA_CODES = new Set(['US', 'CA', 'MX'])
+
+export function regionFromCountry(code?: string | null): string {
+  const c = (code || '').toUpperCase()
+  if (!c) return 'Online'
+  if (c === 'IN') return 'India'
+  if (ASIA_CODES.has(c)) return 'Asia'
+  if (EU_CODES.has(c)) return 'EU'
+  if (NA_CODES.has(c)) return 'NA'
+  return 'Online'
+}
+
+const RAIL_ACCENTS = ['#ff2e6e', '#ffb627', '#1fd7ff', '#a24dff', '#caff3f']
+export function accentFor(slug: string): string {
+  let h = 0
+  for (let i = 0; i < slug.length; i++) h = (h * 31 + slug.charCodeAt(i)) >>> 0
+  return RAIL_ACCENTS[h % RAIL_ACCENTS.length]
+}
+
+// Map real tournaments into the page's card shape using the provider metadata
+// (registration deadline, venue, source URL); fields the providers don't expose
+// (fee/prize/team/format/spots) stay unknown instead of being invented.
 export function mapReal(tournaments: TournamentRecord[], now = Date.now()): TItem[] {
   return tournaments.map((t, i) => {
+    const meta = (t.metadata || {}) as Record<string, unknown>
+    const gameSlug = t.gameSlug || 'game'
     const game = GAMES.find((g) => g.slug === t.gameSlug)
-    const accent = game?.accent || GAMES[i % GAMES.length].accent
-    const provider = (t.metadata?.provider || '').toString().toLowerCase()
+    const accent = game?.accent || accentFor(gameSlug)
+    const provider = String(meta.provider || '').toLowerCase()
     const src = SOURCE_KEYS.find((k) => provider.includes(k) || provider.includes(SRC[k].name.toLowerCase().replace(/[^a-z]/g, ''))) || SOURCE_KEYS[i % 4]
     const live = t.status === 'LIVE_NOW'
-    const dlH = live ? -6 : Math.max(1, Math.round((new Date(t.startsAt).getTime() - now) / 3600000))
-    const total = TOTAL[i % TOTAL.length]
-    const left = Math.max(2, SLEFT[i % SLEFT.length])
+    const regCloses = typeof meta.registrationClosesAt === 'string' ? new Date(meta.registrationClosesAt).getTime() : NaN
+    const deadline = Number.isFinite(regCloses) ? regCloses : new Date(t.startsAt).getTime()
+    const dlH = live ? -6 : Math.max(1, Math.round((deadline - now) / 3600000))
+    const city = typeof meta.city === 'string' ? meta.city : ''
+    const country = typeof meta.countryCode === 'string' ? meta.countryCode : ''
     return {
       id: t.slug || `r${i}`,
-      gameSlug: t.gameSlug || game?.slug || 'valorant',
-      game: game?.name || t.title.split(/[—:-]/)[0].trim(),
+      gameSlug,
+      game: (typeof meta.videogame === 'string' && meta.videogame) || game?.name || t.title.split(/[—:-]/)[0].trim(),
       accent,
       title: t.title,
       src,
       status: live ? 'live' : 'open',
       dlH,
       startLabel: new Date(t.startsAt).toLocaleString('en-US', { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }),
-      region: REG[i % REG.length],
-      fee: FEE[i % FEE.length],
-      team: TEAMS[i % TEAMS.length],
-      fmt: FMT[i % FMT.length],
-      prize: PRIZE[i % PRIZE.length],
-      total,
-      filled: total - left,
-      left,
+      region: regionFromCountry(country),
+      fee: -1,
+      team: '',
+      fmt: [],
+      prize: -1,
+      total: 0,
+      filled: 0,
+      left: 0,
+      real: true,
+      url: (typeof meta.url === 'string' && meta.url) || (typeof meta.registrationUrl === 'string' && meta.registrationUrl) || null,
+      venue: city ? `${city}${country ? `, ${country}` : ''}` : country ? country : '',
     }
   })
 }
@@ -185,6 +218,7 @@ export function mapReal(tournaments: TournamentRecord[], now = Date.now()): TIte
 export interface CardVM {
   id: string
   gameSlug: string
+  game: string
   accent: string
   title: string
   sourceName: string
@@ -208,6 +242,8 @@ export interface CardVM {
   stFg: string
   stBorder: string
   stDot: boolean
+  real: boolean
+  venue: string
 }
 
 export function enrich(t: TItem, now: number): CardVM {
@@ -226,12 +262,13 @@ export function enrich(t: TItem, now: number): CardVM {
   return {
     id: t.id,
     gameSlug: t.gameSlug,
+    game: t.game,
     accent: t.accent,
     title: t.title,
     sourceName: src.name,
     sourceColor: src.color,
     sourceText: src.text,
-    url: src.url,
+    url: t.url || src.url,
     status: t.status,
     deadlineAt,
     leftInit: t.status === 'live' ? 'Live now' : fmtLeft(ms),
@@ -239,15 +276,17 @@ export function enrich(t: TItem, now: number): CardVM {
     region: t.region,
     teamSize: t.team,
     formats: t.fmt,
-    prizeLabel: t.prize === 0 ? 'Casual' : `$${t.prize >= 1000 ? `${t.prize / 1000}K` : t.prize}`,
-    feeLabel: t.fee === 0 ? 'Free entry' : `$${t.fee} entry`,
+    prizeLabel: t.prize < 0 ? '' : t.prize === 0 ? 'Casual' : `$${t.prize >= 1000 ? `${t.prize / 1000}K` : t.prize}`,
+    feeLabel: t.fee < 0 ? 'Entry: see source' : t.fee === 0 ? 'Free entry' : `$${t.fee} entry`,
     spotsLeft: t.left,
-    fillPct: `${Math.round((t.filled / t.total) * 100)}%`,
+    fillPct: t.total > 0 ? `${Math.round((t.filled / t.total) * 100)}%` : '0%',
     barColor: low ? 'var(--pink)' : 'var(--cyan)',
     stLabel,
     stBg,
     stFg,
     stBorder,
     stDot,
+    real: Boolean(t.real),
+    venue: t.venue || '',
   }
 }

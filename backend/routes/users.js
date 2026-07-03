@@ -412,9 +412,10 @@ router.post(
       if (!req.validatedBody.gameSlug) {
         throw new ApiError(400, 'A game slug is required when scope is GAME.')
       }
+      // Tournament game slugs come from providers and may not exist in the games
+      // catalog — canonicalize when we can, otherwise keep the provider slug.
       const identity = await resolveGameIdentity(req.validatedBody.gameSlug)
-      if (!identity.game) throw new ApiError(404, 'Game not found.')
-      canonicalGameSlug = identity.canonicalSlug
+      canonicalGameSlug = identity.game ? identity.canonicalSlug : req.validatedBody.gameSlug
     }
 
     if (isDatabaseReady()) {

@@ -3,6 +3,18 @@
 // supplies representative fallback data when the API is empty/unreachable.
 
 import type { DealRecord, NewsItem, TournamentRecord } from '../types/api'
+import type { GameRecord } from '../types/catalog'
+
+// slug → cover image map, used to give tournaments (and image-less deals) real art.
+export type CoverMap = Record<string, string>
+
+export function buildCoverMap(games: Array<Pick<GameRecord, 'slug' | 'image'>>): CoverMap {
+  const map: CoverMap = {}
+  for (const g of games) {
+    if (g.slug && g.image) map[g.slug] = g.image
+  }
+  return map
+}
 
 // Cover gradients cycled across cards (from the design's buildVM()).
 export const GRADS = [
@@ -77,6 +89,7 @@ export function fmtDM(iso: string): string {
 export interface DealVM {
   title: string
   cover: string
+  image?: string | null
   store: string
   storeColor: string
   badge: string
@@ -90,19 +103,23 @@ export interface DealVM {
 export interface TournVM {
   title: string
   game: string
+  gameSlug?: string | null
   cover: string
+  image?: string | null
   live: boolean
   when: string
   rel: string
   statusColor: string
   statusLabel: string
   startsAt: string
+  url?: string | null
 }
 
 export interface NewsVM {
   title: string
   source: string
   cover: string
+  image?: string | null
   srcColor: string
   time: string
   publishedAt: string
@@ -110,7 +127,7 @@ export interface NewsVM {
   rank?: string
 }
 
-export function mapDeals(deals: DealRecord[]): DealVM[] {
+export function mapDeals(deals: DealRecord[], covers: CoverMap = {}): DealVM[] {
   return deals.map((d, i) => {
     const isFree = d.type === 'FREE_GAME' || d.dealPrice === 0
     const deal = typeof d.dealPrice === 'number' ? d.dealPrice : 0
@@ -118,6 +135,7 @@ export function mapDeals(deals: DealRecord[]): DealVM[] {
     return {
       title: d.title,
       cover: coverFor(i),
+      image: d.imageUrl || (d.gameSlug ? covers[d.gameSlug] : null) || null,
       store: d.store,
       storeColor: storeColor(d.store),
       badge: isFree ? 'FREE' : `−${d.discountPct ?? 0}%`,
@@ -130,19 +148,27 @@ export function mapDeals(deals: DealRecord[]): DealVM[] {
   })
 }
 
-export function mapTourns(tourns: TournamentRecord[], now = Date.now()): TournVM[] {
+export function mapTourns(tourns: TournamentRecord[], now = Date.now(), covers: CoverMap = {}): TournVM[] {
   return tourns.map((t, i) => {
     const live = t.status === 'LIVE_NOW'
+    const meta = t.metadata || {}
+    const gameName =
+      (typeof meta.videogame === 'string' && meta.videogame) ||
+      humanize(t.gameSlug) ||
+      t.title.split(/[—:-]/)[0].trim()
     return {
       title: t.title,
-      game: humanize(t.gameSlug) || t.title.split(/[—:-]/)[0].trim(),
+      game: gameName,
+      gameSlug: t.gameSlug,
       cover: coverFor(i, 2),
+      image: (t.gameSlug ? covers[t.gameSlug] : null) || null,
       live,
       when: live ? 'LIVE NOW' : fmtDM(t.startsAt),
       rel: live ? 'On air now' : relFuture(t.startsAt, now),
       statusColor: live ? '#ff2e6e' : 'rgba(0,0,0,.55)',
       statusLabel: live ? 'LIVE' : 'UPCOMING',
       startsAt: t.startsAt,
+      url: (typeof meta.url === 'string' && meta.url) || (typeof meta.registrationUrl === 'string' && meta.registrationUrl) || null,
     }
   })
 }
@@ -152,6 +178,7 @@ export function mapNews(news: NewsItem[], now = Date.now()): NewsVM[] {
     title: n.title,
     source: n.source,
     cover: coverFor(i, 4),
+    image: n.image || null,
     srcColor: storeColor(n.source),
     time: relPast(n.publishedAt, now),
     publishedAt: n.publishedAt,

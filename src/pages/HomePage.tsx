@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { api } from '../lib/api'
 import { useShell } from '../context/ShellContext'
 import {
+  buildCoverMap,
   fallbackDeals,
   fallbackNews,
   fallbackTourns,
@@ -106,14 +107,21 @@ function DealCard({ d, onClick }: { d: DealVM; onClick: () => void }) {
     <div style={{ flex: '0 0 230px' }}>
       <div onClick={onClick} className="gcard" style={{ height: '100%', background: 'var(--card,#1a1630)', border: '2.5px solid var(--bd,#f6f4ff)', borderRadius: 17, overflow: 'hidden', boxShadow: '4px 4px 0 var(--hard)' }}>
         <div style={{ position: 'relative', height: 148, background: d.cover, overflow: 'hidden', borderBottom: '2.5px solid var(--bd,#f6f4ff)' }}>
-          <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(rgba(0,0,0,.22) 1.4px,transparent 1.5px)', backgroundSize: '11px 11px' }} />
-          <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 14, textAlign: 'center' }}>
-            <span style={{ fontFamily: 'var(--fd)', fontWeight: 800, fontSize: 19, lineHeight: 1, color: 'rgba(255,255,255,.96)', letterSpacing: '-.01em', textShadow: '2px 2px 0 rgba(0,0,0,.3)', maxHeight: '100%', overflow: 'hidden' }}>{d.title}</span>
-          </div>
+          {d.image ? (
+            <img src={d.image} alt={d.title} loading="lazy" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
+          ) : (
+            <>
+              <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(rgba(0,0,0,.22) 1.4px,transparent 1.5px)', backgroundSize: '11px 11px' }} />
+              <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 14, textAlign: 'center' }}>
+                <span style={{ fontFamily: 'var(--fd)', fontWeight: 800, fontSize: 19, lineHeight: 1, color: 'rgba(255,255,255,.96)', letterSpacing: '-.01em', textShadow: '2px 2px 0 rgba(0,0,0,.3)', maxHeight: '100%', overflow: 'hidden' }}>{d.title}</span>
+              </div>
+            </>
+          )}
           <span style={{ position: 'absolute', top: 9, right: 9, fontFamily: 'var(--fd)', fontWeight: 800, fontSize: 12.5, color: '#0b0a12', background: d.badgeColor, border: '2px solid var(--bd,#f6f4ff)', borderRadius: 8, padding: '3px 8px', boxShadow: '2px 2px 0 rgba(0,0,0,.35)', transform: 'rotate(4deg)' }}>{d.badge}</span>
         </div>
         <div style={{ padding: '12px 13px 14px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontFamily: 'var(--fm)', fontSize: 11, fontWeight: 700, letterSpacing: '.04em', color: 'var(--tx2,#aaa3c6)', textTransform: 'uppercase' }}>
+          <div style={{ fontWeight: 700, fontSize: 14, letterSpacing: '-.01em', lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{d.title}</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 7, fontFamily: 'var(--fm)', fontSize: 11, fontWeight: 700, letterSpacing: '.04em', color: 'var(--tx2,#aaa3c6)', textTransform: 'uppercase' }}>
             <span style={{ width: 7, height: 7, borderRadius: '50%', background: d.storeColor }} />{d.store}
           </div>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginTop: 9 }}>
@@ -131,10 +139,20 @@ function TournCard({ t, onClick }: { t: TournVM; onClick: () => void }) {
     <div style={{ flex: '0 0 248px' }}>
       <div onClick={onClick} className="gcard" style={{ height: '100%', background: 'var(--card,#1a1630)', border: '2.5px solid var(--bd,#f6f4ff)', borderRadius: 17, overflow: 'hidden', boxShadow: '4px 4px 0 var(--hard)' }}>
         <div style={{ position: 'relative', height: 128, background: t.cover, overflow: 'hidden', borderBottom: '2.5px solid var(--bd,#f6f4ff)' }}>
-          <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(rgba(0,0,0,.22) 1.4px,transparent 1.5px)', backgroundSize: '11px 11px' }} />
-          <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 12, textAlign: 'center' }}>
-            <span style={{ fontFamily: 'var(--fd)', fontWeight: 800, fontSize: 20, lineHeight: 0.95, color: 'rgba(255,255,255,.96)', letterSpacing: '-.01em', textShadow: '2px 2px 0 rgba(0,0,0,.3)', overflow: 'hidden', maxHeight: '100%' }}>{t.game}</span>
-          </div>
+          {t.image ? (
+            <>
+              <img src={t.image} alt={t.game} loading="lazy" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
+              <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(6,5,12,.82), rgba(6,5,12,.08) 55%, transparent)' }} />
+              <span style={{ position: 'absolute', bottom: 9, left: 10, right: 10, fontFamily: 'var(--fd)', fontWeight: 800, fontSize: 15, lineHeight: 1, color: '#fff', letterSpacing: '-.01em', textShadow: '2px 2px 0 rgba(0,0,0,.45)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.game}</span>
+            </>
+          ) : (
+            <>
+              <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(rgba(0,0,0,.22) 1.4px,transparent 1.5px)', backgroundSize: '11px 11px' }} />
+              <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 12, textAlign: 'center' }}>
+                <span style={{ fontFamily: 'var(--fd)', fontWeight: 800, fontSize: 20, lineHeight: 0.95, color: 'rgba(255,255,255,.96)', letterSpacing: '-.01em', textShadow: '2px 2px 0 rgba(0,0,0,.3)', overflow: 'hidden', maxHeight: '100%' }}>{t.game}</span>
+              </div>
+            </>
+          )}
           <span style={{ position: 'absolute', top: 9, left: 9, display: 'inline-flex', alignItems: 'center', gap: 5, fontFamily: 'var(--fm)', fontWeight: 700, fontSize: 10, letterSpacing: '.08em', color: '#fff', background: t.statusColor, border: '2px solid var(--bd,#f6f4ff)', borderRadius: 7, padding: '3px 8px' }}>
             {t.live && <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#fff', animation: 'pw-blink 1.1s ease-in-out infinite' }} />}{t.statusLabel}
           </span>
@@ -179,6 +197,16 @@ export default function HomePage() {
       if (t.status === 'fulfilled' && t.value.length) setTourns(mapTourns(t.value.slice(0, 8)))
       if (n.status === 'fulfilled' && n.value.length) setNews(mapNews(n.value.slice(0, 8)))
       if (s.status === 'fulfilled') setStats({ games: s.value.gameCount || 5600, stores: s.value.storeCount || 7, deals: s.value.dealCount || 248 })
+
+      // second pass: resolve real cover art for the tournaments' games
+      if (t.status === 'fulfilled' && t.value.length) {
+        const shown = t.value.slice(0, 8)
+        const slugs = [...new Set(shown.map((x) => x.gameSlug).filter((x): x is string => Boolean(x)))]
+        const details = await Promise.allSettled(slugs.map((sl) => api.fetchGameDetails(sl)))
+        if (ignore) return
+        const covers = buildCoverMap(details.flatMap((r) => (r.status === 'fulfilled' ? [r.value] : [])))
+        if (Object.keys(covers).length) setTourns(mapTourns(shown, Date.now(), covers))
+      }
     })()
     return () => { ignore = true }
   }, [])
@@ -231,10 +259,16 @@ export default function HomePage() {
               <div style={{ position: 'absolute', top: -16, right: -14, zIndex: 3, fontFamily: 'var(--fm)', fontWeight: 700, fontSize: 11, letterSpacing: '.08em', color: '#fff', background: 'var(--pink)', border: '2px solid var(--bd,#f6f4ff)', borderRadius: 8, padding: '6px 10px', transform: 'rotate(6deg)' }}>DEAL OF THE DAY</div>
               <div className="dealcard" onClick={() => openDeal(dod)} style={{ cursor: 'pointer', background: 'var(--card,#1a1630)', border: '3px solid var(--bd,#f6f4ff)', borderRadius: 20, boxShadow: '11px 11px 0 var(--vio)', overflow: 'hidden', transform: 'rotate(2.5deg)', transition: 'transform .35s cubic-bezier(.16,1,.3,1)' }}>
                 <div style={{ position: 'relative', height: 188, background: dod.cover, overflow: 'hidden', borderBottom: '3px solid var(--bd,#f6f4ff)' }}>
-                  <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(rgba(0,0,0,.22) 1.5px,transparent 1.6px)', backgroundSize: '13px 13px' }} />
-                  <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', padding: 18 }}>
-                    <span style={{ fontFamily: 'var(--fd)', fontWeight: 900, fontSize: 30, color: 'rgba(255,255,255,.95)', textAlign: 'center', lineHeight: 0.95, letterSpacing: '-.02em', transform: 'rotate(-4deg)', textShadow: '3px 3px 0 rgba(0,0,0,.25)' }}>{dod.title}</span>
-                  </div>
+                  {dod.image ? (
+                    <img src={dod.image} alt={dod.title} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
+                  ) : (
+                    <>
+                      <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(rgba(0,0,0,.22) 1.5px,transparent 1.6px)', backgroundSize: '13px 13px' }} />
+                      <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', padding: 18 }}>
+                        <span style={{ fontFamily: 'var(--fd)', fontWeight: 900, fontSize: 30, color: 'rgba(255,255,255,.95)', textAlign: 'center', lineHeight: 0.95, letterSpacing: '-.02em', transform: 'rotate(-4deg)', textShadow: '3px 3px 0 rgba(0,0,0,.25)' }}>{dod.title}</span>
+                      </div>
+                    </>
+                  )}
                   <span style={{ position: 'absolute', bottom: 11, left: 11, fontFamily: 'var(--fm)', fontSize: 10.5, fontWeight: 700, letterSpacing: '.06em', color: '#fff', background: 'rgba(0,0,0,.45)', border: '1.5px solid rgba(255,255,255,.6)', borderRadius: 6, padding: '4px 8px' }}>{dod.store.toUpperCase()}</span>
                 </div>
                 <div style={{ padding: '16px 17px 18px' }}>
@@ -306,12 +340,19 @@ export default function HomePage() {
           {newsLead && (
             <div className="leadcard" onClick={() => openNews(newsLead)} style={{ flex: '1 1 440px', minWidth: 300, display: 'flex', flexDirection: 'column', background: 'var(--card,#1a1630)', border: '3px solid var(--bd,#f6f4ff)', borderRadius: 20, overflow: 'hidden', boxShadow: '7px 7px 0 var(--hard)', cursor: 'pointer' }}>
               <div style={{ position: 'relative', height: 'clamp(220px,28vw,310px)', overflow: 'hidden', borderBottom: '3px solid var(--bd,#f6f4ff)' }}>
-                <div className="lead-img-zoom" style={{ position: 'absolute', inset: 0, background: newsLead.cover }}>
-                  <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(rgba(0,0,0,.22) 1.6px,transparent 1.7px)', backgroundSize: '15px 15px' }} />
-                  <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <span style={{ fontFamily: 'var(--fd)', fontWeight: 800, fontSize: 'clamp(48px,8vw,84px)', color: 'rgba(255,255,255,.14)', letterSpacing: '.02em' }}>{newsLead.source}</span>
+                {newsLead.image ? (
+                  <div className="lead-img-zoom" style={{ position: 'absolute', inset: 0 }}>
+                    <img src={newsLead.image} alt={newsLead.title} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
+                    <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(6,5,12,.55), transparent 45%)' }} />
                   </div>
-                </div>
+                ) : (
+                  <div className="lead-img-zoom" style={{ position: 'absolute', inset: 0, background: newsLead.cover }}>
+                    <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(rgba(0,0,0,.22) 1.6px,transparent 1.7px)', backgroundSize: '15px 15px' }} />
+                    <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <span style={{ fontFamily: 'var(--fd)', fontWeight: 800, fontSize: 'clamp(48px,8vw,84px)', color: 'rgba(255,255,255,.14)', letterSpacing: '.02em' }}>{newsLead.source}</span>
+                    </div>
+                  </div>
+                )}
                 <span style={{ position: 'absolute', top: 13, left: 13, fontFamily: 'var(--fm)', fontWeight: 700, fontSize: 11, letterSpacing: '.07em', color: '#0b0a12', background: newsLead.srcColor, border: '2px solid var(--bd,#f6f4ff)', borderRadius: 8, padding: '4px 11px' }}>{newsLead.source}</span>
                 <span style={{ position: 'absolute', top: 13, right: 13, fontFamily: 'var(--fd)', fontWeight: 800, fontSize: 12, letterSpacing: '.04em', color: '#0b0a12', background: 'var(--lime)', border: '2.5px solid var(--bd,#f6f4ff)', borderRadius: 9, padding: '5px 11px', boxShadow: '3px 3px 0 rgba(0,0,0,.35)', transform: 'rotate(3deg)' }}>TOP STORY</span>
                 <span style={{ position: 'absolute', bottom: 13, left: 13, display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: 'var(--fm)', fontSize: 11.5, fontWeight: 600, color: '#fff', background: 'rgba(0,0,0,.5)', border: '1.5px solid rgba(255,255,255,.5)', borderRadius: 8, padding: '5px 10px' }}>

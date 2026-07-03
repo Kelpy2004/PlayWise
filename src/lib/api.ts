@@ -345,6 +345,11 @@ export const api = {
   ) => request<{ ok: boolean; subscription: DealSubscriptionRecord }>('/deals/subscribe', { method: 'POST', body, token }),
   unsubscribeFromDealAlerts: (body: { email?: string }, token?: string | null) =>
     request<{ ok: boolean; unsubscribed: number }>('/deals/subscribe', { method: 'DELETE', body, token }),
+  // Per-game price alerts, guest-friendly (email + gameSlug; token optional)
+  createDealPriceAlert: (body: { email: string; gameSlug: string }, token?: string | null) =>
+    request<{ ok: boolean; alert: PriceAlertRecord }>('/deals/price-alerts', { method: 'POST', body, token }),
+  removeDealPriceAlert: (body: { email: string; gameSlug?: string }, token?: string | null) =>
+    request<{ ok: boolean; deactivated: number }>('/deals/price-alerts', { method: 'DELETE', body, token }),
 
   // News (Steam, Xbox, NVIDIA, Epic, Ubisoft, EA)
   fetchNews: (params?: { source?: NewsSourceSlug | string; limit?: number }) => {

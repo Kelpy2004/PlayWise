@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 import { api } from '../lib/api'
+import { useAuth } from '../context/AuthContext'
 import { useShell } from '../context/ShellContext'
 import { GRADS, storeColor } from '../lib/homeData'
 import type { DealRecord } from '../types/api'
@@ -156,6 +157,7 @@ const card = { background: 'var(--card,#1a1630)', border: '2.5px solid var(--bd,
 export default function DealsPage() {
   const navigate = useNavigate()
   const { toast } = useShell()
+  const { token, user } = useAuth()
   const [all, setAll] = useState<DealItem[]>(() => fallbackDeals().map(toItem))
   const [query, setQuery] = useState('')
   const [type, setType] = useState<DealType>('all')
@@ -167,9 +169,12 @@ export default function DealsPage() {
   const [alertOpen, setAlertOpen] = useState(false)
   const [alertQuery, setAlertQuery] = useState('')
   const [alertList, setAlertList] = useState<string[]>([])
-  const [catalog, setCatalog] = useState<string[]>([])
+  const [alertSaving, setAlertSaving] = useState(false)
+  const [catalog, setCatalog] = useState<Array<{ title: string; slug: string }>>([])
   const rootRef = useRef<HTMLDivElement>(null)
   const alertEmailRef = useRef<HTMLInputElement>(null)
+  // gameSlugs that already have an active server-side alert (for save-time diffing)
+  const serverSlugsRef = useRef<Set<string>>(new Set())
 
   useEffect(() => {
     let ignore = false
@@ -182,7 +187,7 @@ export default function DealsPage() {
       }
       try {
         const games = await api.fetchGames()
-        if (!ignore && games.length) setCatalog(games.map((g) => g.title))
+        if (!ignore && games.length) setCatalog(games.map((g) => ({ title: g.title, slug: g.slug })))
       } catch {
         /* fall back to deal titles */
       }
@@ -190,11 +195,32 @@ export default function DealsPage() {
     try {
       const saved = JSON.parse(localStorage.getItem('playwise-alerts') || '{}')
       if (Array.isArray(saved.list)) setAlertList(saved.list)
+      if (saved.email && alertEmailRef.current) alertEmailRef.current.value = saved.email
     } catch {
       /* ignore */
     }
     return () => { ignore = true }
   }, [])
+
+  // logged-in: pull existing server-side price alerts and prefill the list
+  useEffect(() => {
+    if (!token || !catalog.length) return
+    let ignore = false
+    void (async () => {
+      try {
+        const alerts = await api.fetchPriceAlerts(token)
+        if (ignore) return
+        const active = alerts.filter((a) => a.isActive)
+        serverSlugsRef.current = new Set(active.map((a) => a.gameSlug))
+        const titleBySlug = new Map(catalog.map((c) => [c.slug, c.title]))
+        const titles = active.map((a) => titleBySlug.get(a.gameSlug)).filter((t): t is string => Boolean(t))
+        if (titles.length) setAlertList((prev) => [...new Set([...prev, ...titles])])
+      } catch {
+        /* keep local list */
+      }
+    })()
+    return () => { ignore = true }
+  }, [token, catalog])
 
   const persistAlerts = (list: string[]) => {
     try {
@@ -206,17 +232,48 @@ export default function DealsPage() {
   }
   const addAlert = (t: string) => setAlertList((prev) => { const next = prev.includes(t) ? prev : [...prev, t]; persistAlerts(next); return next })
   const removeAlert = (t: string) => setAlertList((prev) => { const next = prev.filter((x) => x !== t); persistAlerts(next); return next })
-  const saveAlerts = () => {
-    const email = alertEmailRef.current?.value.trim() || ''
+
+  const slugByTitle = useMemo(() => {
+    const m = new Map<string, string>()
+    all.forEach((d) => { if (d.slug) m.set(d.title, d.slug) })
+    catalog.forEach((c) => m.set(c.title, c.slug))
+    return m
+  }, [catalog, all])
+
+  const saveAlerts = async () => {
+    const email = alertEmailRef.current?.value.trim() || user?.email || ''
     if (!alertList.length) { toast('Add at least one game to track'); return }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { toast('Enter a valid email to get alerts'); alertEmailRef.current?.focus(); return }
     persistAlerts(alertList)
-    void api.subscribeToDealAlerts({ email, notifyFreeGames: true, notifyDiscounts: true }).catch(() => {})
-    setAlertOpen(false)
-    toast(`${alertList.length} ${alertList.length === 1 ? 'alert' : 'alerts'} set — we'll email ${email}`)
+    setAlertSaving(true)
+
+    const slugs = [...new Set(alertList.map((t) => slugByTitle.get(t)).filter((s): s is string => Boolean(s)))]
+    const removed = [...serverSlugsRef.current].filter((s) => !slugs.includes(s))
+    const results = await Promise.allSettled([
+      ...slugs.map((gameSlug) => api.createDealPriceAlert({ email, gameSlug }, token)),
+      ...removed.map((gameSlug) => api.removeDealPriceAlert({ email, gameSlug }, token)),
+      api.subscribeToDealAlerts({ email, notifyFreeGames: true, notifyDiscounts: true }, token),
+    ])
+    setAlertSaving(false)
+
+    const created = results.slice(0, slugs.length)
+    const okCount = created.filter((r) => r.status === 'fulfilled').length
+    if (okCount > 0) {
+      serverSlugsRef.current = new Set(slugs.filter((_, i) => created[i].status === 'fulfilled'))
+      setAlertOpen(false)
+      toast(`${okCount} ${okCount === 1 ? 'alert' : 'alerts'} set — we'll email ${email}`)
+    } else if (results.at(-1)?.status === 'fulfilled') {
+      setAlertOpen(false)
+      toast(`Deal digest on — we'll email ${email} about free games & big drops`)
+    } else {
+      toast('Could not reach the alert service — your list is saved, try again soon')
+    }
   }
 
-  const searchCatalog = catalog.length ? catalog : Array.from(new Set(all.map((d) => d.title)))
+  const searchCatalog = useMemo(
+    () => (catalog.length ? catalog.map((c) => c.title) : Array.from(new Set(all.map((d) => d.title)))),
+    [catalog, all]
+  )
   const alertResults = useMemo(() => {
     const q = alertQuery.trim().toLowerCase()
     let list: string[]
@@ -234,6 +291,12 @@ export default function DealsPage() {
     const id = window.setInterval(() => setCountdown((c) => (c <= 0 ? 180 : c - 1)), 1000)
     return () => window.clearInterval(id)
   }, [])
+
+  useEffect(() => {
+    if (alertOpen && alertEmailRef.current && !alertEmailRef.current.value && user?.email) {
+      alertEmailRef.current.value = user.email
+    }
+  }, [alertOpen, user])
 
   // distinct stores present, in preferred order
   const storeList = useMemo(() => {
@@ -572,7 +635,7 @@ export default function DealsPage() {
             <div style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '14px 21px', borderTop: '2px solid var(--line)', background: 'var(--card,#1a1630)' }}>
               <div style={{ flex: 1, minWidth: 0, fontFamily: 'var(--fm)', fontSize: 11, color: 'var(--tx3,#736c92)', letterSpacing: '.03em' }}>Free · unsubscribe anytime</div>
               <button className="press" onClick={() => setAlertOpen(false)} style={{ font: 'inherit', fontSize: 13, fontWeight: 700, color: 'var(--tx,#f6f4ff)', background: 'var(--bg,#0b0a12)', border: '2px solid var(--line2,#3a3460)', borderRadius: 11, padding: '10px 15px', cursor: 'pointer' }}>Maybe later</button>
-              <button className="press" onClick={saveAlerts} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontFamily: 'var(--fd)', fontSize: 13, fontWeight: 700, color: '#0b0a12', background: 'var(--lime)', border: '2.5px solid var(--bd,#f6f4ff)', borderRadius: 11, padding: '10px 17px', cursor: 'pointer', boxShadow: '3px 3px 0 var(--hard)' }}>Save alerts{alertList.length > 0 && <span style={{ fontFamily: 'var(--fm)', fontSize: 11, fontWeight: 700, background: '#0b0a12', color: 'var(--lime)', borderRadius: 6, padding: '1px 7px' }}>{alertList.length}</span>}</button>
+              <button className="press" onClick={() => void saveAlerts()} disabled={alertSaving} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontFamily: 'var(--fd)', fontSize: 13, fontWeight: 700, color: '#0b0a12', background: 'var(--lime)', border: '2.5px solid var(--bd,#f6f4ff)', borderRadius: 11, padding: '10px 17px', cursor: 'pointer', boxShadow: '3px 3px 0 var(--hard)', opacity: alertSaving ? 0.7 : 1 }}>{alertSaving ? 'Saving…' : 'Save alerts'}{!alertSaving && alertList.length > 0 && <span style={{ fontFamily: 'var(--fm)', fontSize: 11, fontWeight: 700, background: '#0b0a12', color: 'var(--lime)', borderRadius: 6, padding: '1px 7px' }}>{alertList.length}</span>}</button>
             </div>
           </div>
         </div>

@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext'
 import { useTheme } from '../context/ThemeContext'
 import { ShellContext, DIR_LABELS, DIR_VEL, useShell, type Direction } from '../context/ShellContext'
 import { api } from '../lib/api'
+import { readCache, writeCache } from '../lib/cache'
 import { buildTicker, type TickerItem } from '../lib/homeData'
 import { trackEvent } from '../lib/telemetry'
 import IntroLoader from './shell/IntroLoader'
@@ -136,7 +137,9 @@ function Header() {
 }
 
 function LiveTicker() {
-  const [items, setItems] = useState<TickerItem[]>(TICKER_ITEMS)
+  // Cache-first: last-seen real strip shows instantly; hardcoded list is only the
+  // very-first-visit fallback.
+  const [items, setItems] = useState<TickerItem[]>(() => readCache<TickerItem[]>('ticker') ?? TICKER_ITEMS)
   useEffect(() => {
     let ignore = false
     void (async () => {
@@ -151,7 +154,7 @@ function LiveTicker() {
         t.status === 'fulfilled' ? t.value : [],
         n.status === 'fulfilled' ? n.value : []
       )
-      if (built.length >= 4) setItems(built)
+      if (built.length >= 4) { setItems(built); writeCache('ticker', built) }
     })()
     return () => { ignore = true }
   }, [])

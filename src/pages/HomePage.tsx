@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 import { api } from '../lib/api'
+import { readCache, writeCache } from '../lib/cache'
 import { useShell } from '../context/ShellContext'
 import {
   buildCoverMap,
@@ -108,7 +109,7 @@ function DealCard({ d, onClick }: { d: DealVM; onClick: () => void }) {
       <div onClick={onClick} className="gcard" style={{ height: '100%', background: 'var(--card,#1a1630)', border: '2.5px solid var(--bd,#f6f4ff)', borderRadius: 17, overflow: 'hidden', boxShadow: '4px 4px 0 var(--hard)' }}>
         <div style={{ position: 'relative', height: 148, background: d.cover, overflow: 'hidden', borderBottom: '2.5px solid var(--bd,#f6f4ff)' }}>
           {d.image ? (
-            <img src={d.image} alt={d.title} loading="lazy" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
+            <img src={d.image} alt={d.title} loading="lazy" decoding="async" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
           ) : (
             <>
               <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(rgba(0,0,0,.22) 1.4px,transparent 1.5px)', backgroundSize: '11px 11px' }} />
@@ -141,7 +142,7 @@ function TournCard({ t, onClick }: { t: TournVM; onClick: () => void }) {
         <div style={{ position: 'relative', height: 128, background: t.cover, overflow: 'hidden', borderBottom: '2.5px solid var(--bd,#f6f4ff)' }}>
           {t.image ? (
             <>
-              <img src={t.image} alt={t.game} loading="lazy" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
+              <img src={t.image} alt={t.game} loading="lazy" decoding="async" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
               <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(6,5,12,.82), rgba(6,5,12,.08) 55%, transparent)' }} />
               <span style={{ position: 'absolute', bottom: 9, left: 10, right: 10, fontFamily: 'var(--fd)', fontWeight: 800, fontSize: 15, lineHeight: 1, color: '#fff', letterSpacing: '-.01em', textShadow: '2px 2px 0 rgba(0,0,0,.45)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.game}</span>
             </>
@@ -178,10 +179,14 @@ const FEATURES = [
 export default function HomePage() {
   const navigate = useNavigate()
   const heroSearchRef = useRef<HTMLInputElement>(null)
-  const [deals, setDeals] = useState<DealVM[]>(() => fallbackDeals())
-  const [tourns, setTourns] = useState<TournVM[]>(() => fallbackTourns())
-  const [news, setNews] = useState<NewsVM[]>(() => fallbackNews())
-  const [stats, setStats] = useState<{ games: number; stores: number; deals: number }>({ games: 5600, stores: 7, deals: 248 })
+  // Cache-first: show last-seen real data instantly on repeat visits; the
+  // representative mock is only used on a first-ever visit (empty cache).
+  const [deals, setDeals] = useState<DealVM[]>(() => readCache<DealVM[]>('home.deals') ?? fallbackDeals())
+  const [tourns, setTourns] = useState<TournVM[]>(() => readCache<TournVM[]>('home.tourns') ?? fallbackTourns())
+  const [news, setNews] = useState<NewsVM[]>(() => readCache<NewsVM[]>('home.news') ?? fallbackNews())
+  const [stats, setStats] = useState<{ games: number; stores: number; deals: number }>(
+    () => readCache<{ games: number; stores: number; deals: number }>('home.stats') ?? { games: 5600, stores: 7, deals: 248 }
+  )
 
   useEffect(() => {
     let ignore = false
@@ -193,10 +198,10 @@ export default function HomePage() {
         api.fetchStats(),
       ])
       if (ignore) return
-      if (d.status === 'fulfilled' && d.value.length) setDeals(mapDeals(d.value.slice(0, 12)))
-      if (t.status === 'fulfilled' && t.value.length) setTourns(mapTourns(t.value.slice(0, 8)))
-      if (n.status === 'fulfilled' && n.value.length) setNews(mapNews(n.value.slice(0, 8)))
-      if (s.status === 'fulfilled') setStats({ games: s.value.gameCount || 5600, stores: s.value.storeCount || 7, deals: s.value.dealCount || 248 })
+      if (d.status === 'fulfilled' && d.value.length) { const v = mapDeals(d.value.slice(0, 12)); setDeals(v); writeCache('home.deals', v) }
+      if (t.status === 'fulfilled' && t.value.length) { const v = mapTourns(t.value.slice(0, 8)); setTourns(v); writeCache('home.tourns', v) }
+      if (n.status === 'fulfilled' && n.value.length) { const v = mapNews(n.value.slice(0, 8)); setNews(v); writeCache('home.news', v) }
+      if (s.status === 'fulfilled') { const v = { games: s.value.gameCount || 5600, stores: s.value.storeCount || 7, deals: s.value.dealCount || 248 }; setStats(v); writeCache('home.stats', v) }
 
       // second pass: resolve real cover art for the tournaments' games
       if (t.status === 'fulfilled' && t.value.length) {
@@ -205,7 +210,7 @@ export default function HomePage() {
         const details = await Promise.allSettled(slugs.map((sl) => api.fetchGameDetails(sl)))
         if (ignore) return
         const covers = buildCoverMap(details.flatMap((r) => (r.status === 'fulfilled' ? [r.value] : [])))
-        if (Object.keys(covers).length) setTourns(mapTourns(shown, Date.now(), covers))
+        if (Object.keys(covers).length) { const v = mapTourns(shown, Date.now(), covers); setTourns(v); writeCache('home.tourns', v) }
       }
     })()
     return () => { ignore = true }
@@ -261,7 +266,7 @@ export default function HomePage() {
               <div className="dealcard" onClick={() => openDeal(dod)} style={{ cursor: 'pointer', background: 'var(--card,#1a1630)', border: '3px solid var(--bd,#f6f4ff)', borderRadius: 20, boxShadow: '11px 11px 0 var(--vio)', overflow: 'hidden', transform: 'rotate(2.5deg)', transition: 'transform .35s cubic-bezier(.16,1,.3,1)' }}>
                 <div style={{ position: 'relative', height: 188, background: dod.cover, overflow: 'hidden', borderBottom: '3px solid var(--bd,#f6f4ff)' }}>
                   {dod.image ? (
-                    <img src={dod.image} alt={dod.title} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
+                    <img src={dod.image} alt={dod.title} decoding="async" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
                   ) : (
                     <>
                       <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(rgba(0,0,0,.22) 1.5px,transparent 1.6px)', backgroundSize: '13px 13px' }} />
@@ -343,7 +348,7 @@ export default function HomePage() {
               <div style={{ position: 'relative', height: 'clamp(220px,28vw,310px)', overflow: 'hidden', borderBottom: '3px solid var(--bd,#f6f4ff)' }}>
                 {newsLead.image ? (
                   <div className="lead-img-zoom" style={{ position: 'absolute', inset: 0 }}>
-                    <img src={newsLead.image} alt={newsLead.title} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
+                    <img src={newsLead.image} alt={newsLead.title} loading="lazy" decoding="async" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
                     <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(6,5,12,.55), transparent 45%)' }} />
                   </div>
                 ) : (

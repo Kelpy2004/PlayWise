@@ -14,3 +14,5 @@ backend/data/runtime-store.json
 
 # Claude Design source export (reference only, re-exportable)
 design/
+.cache/
+*.traineddata

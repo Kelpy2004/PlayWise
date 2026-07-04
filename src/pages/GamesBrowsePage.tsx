@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNod
 import { useNavigate, useSearchParams } from 'react-router-dom'
 
 import { api } from '../lib/api'
+import { coverHasBakedTitle } from '../lib/coverTitles'
 import { useShell } from '../context/ShellContext'
 import {
   CHART_WINDOWS,
@@ -93,20 +94,28 @@ const chipMeta: CSSProperties = { fontFamily: 'var(--fm)', fontSize: 9.5, fontWe
 const pagerBtn = (disabled: boolean): CSSProperties => ({ fontFamily: 'var(--ff)', fontSize: 13, fontWeight: 700, color: 'var(--tx,#f6f4ff)', background: 'var(--card,#1a1630)', border: '2px solid var(--bd,#f6f4ff)', borderRadius: 10, padding: '8px 14px', cursor: disabled ? 'not-allowed' : 'pointer', opacity: disabled ? 0.4 : 1, boxShadow: '2px 2px 0 var(--hard)' })
 
 function StackCard({ g, accent, onClick }: { g: Game; accent: string; onClick: () => void }) {
+  // When the cover art already carries the title (detected offline by the free
+  // OCR/vision pass), drop our caption so the name isn't printed twice.
+  const nameInArt = Boolean(g.image) && coverHasBakedTitle(g.slug)
   return (
     <div style={{ flex: '0 0 196px' }}>
-      <div className="gcard" onClick={onClick} style={{ height: '100%', ...card, borderRadius: 16, overflow: 'hidden', boxShadow: '4px 5px 0 var(--hard)' }}>
+      <div className="gcard" onClick={onClick} aria-label={g.title} title={g.title} style={{ height: '100%', ...card, borderRadius: 16, overflow: 'hidden', boxShadow: '4px 5px 0 var(--hard)' }}>
         <div style={{ position: 'relative', height: 150, overflow: 'hidden', borderBottom: '2.5px solid var(--bd,#f6f4ff)', ...coverStyle(g) }}>
-          {!g.image && <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(rgba(0,0,0,.22) 1.4px,transparent 1.5px)', backgroundSize: '11px 11px' }} />}
-          <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 12, textAlign: 'center' }}>
-            <span style={{ fontFamily: 'var(--fd)', fontWeight: 800, fontSize: 17, lineHeight: 1, color: 'rgba(255,255,255,.96)', letterSpacing: '-.01em', textShadow: '2px 2px 0 rgba(0,0,0,.4)' }}>{g.title}</span>
-          </div>
+          {/* Never paint the title over real cover art — only use it as the placeholder when there's no image. */}
+          {!g.image && (
+            <>
+              <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(rgba(0,0,0,.22) 1.4px,transparent 1.5px)', backgroundSize: '11px 11px' }} />
+              <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 12, textAlign: 'center' }}>
+                <span style={{ fontFamily: 'var(--fd)', fontWeight: 800, fontSize: 17, lineHeight: 1, color: 'rgba(255,255,255,.96)', letterSpacing: '-.01em', textShadow: '2px 2px 0 rgba(0,0,0,.4)' }}>{g.title}</span>
+              </div>
+            </>
+          )}
           <span style={{ position: 'absolute', top: 8, right: 8, fontFamily: 'var(--fm)', fontWeight: 700, fontSize: 11, color: '#0b0a12', background: accent, border: '2px solid var(--bd,#f6f4ff)', borderRadius: 8, padding: '2px 7px', boxShadow: '2px 2px 0 rgba(0,0,0,.35)' }}>{g.score.toFixed(1)}</span>
           {g.year ? <span style={{ position: 'absolute', bottom: 8, left: 8, fontFamily: 'var(--fm)', fontWeight: 700, fontSize: 10, color: '#fff', background: 'rgba(0,0,0,.5)', border: '1.5px solid rgba(255,255,255,.5)', borderRadius: 6, padding: '2px 7px' }}>{g.year}</span> : null}
         </div>
         <div style={{ padding: '11px 12px 12px' }}>
-          <div style={{ fontWeight: 700, fontSize: 14, letterSpacing: '-.01em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{g.title}</div>
-          <div style={{ fontFamily: 'var(--fm)', fontSize: 11, color: 'var(--tx2,#aaa3c6)', marginTop: 4 }}>{g.genres.slice(0, 2).join(' · ')}</div>
+          {!nameInArt && <div style={{ fontWeight: 700, fontSize: 14, letterSpacing: '-.01em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{g.title}</div>}
+          <div style={{ fontFamily: 'var(--fm)', fontSize: 11, color: 'var(--tx2,#aaa3c6)', marginTop: nameInArt ? 0 : 4 }}>{g.genres.slice(0, 2).join(' · ')}</div>
           <div style={{ display: 'flex', gap: 5, marginTop: 9, flexWrap: 'wrap' }}>{g.platforms.slice(0, 3).map((p) => <span key={p} style={chipMeta}>{p}</span>)}</div>
         </div>
       </div>

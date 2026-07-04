@@ -173,6 +173,63 @@ export function mapTourns(tourns: TournamentRecord[], now = Date.now(), covers: 
   })
 }
 
+// ---- Live ticker (the moving discount/free/live strip in the shell header) --
+export interface TickerItem {
+  label: string
+  color: string
+  text: string
+}
+
+function shortStore(store?: string | null): string {
+  if (!store) return ''
+  return store.replace(/ (Games )?Store$/i, '').split(' ')[0]
+}
+
+// Build the marquee from real data: live tournaments, free games, biggest
+// discounts and the latest headlines — interleaved so the strip feels varied.
+export function buildTicker(deals: DealRecord[], tourns: TournamentRecord[], news: NewsItem[]): TickerItem[] {
+  const live: TickerItem[] = tourns
+    .filter((t) => t.status === 'LIVE_NOW')
+    .slice(0, 3)
+    .map((t) => {
+      const vg = typeof t.metadata?.videogame === 'string' ? t.metadata.videogame : ''
+      // start.gg buckets misc games under "Other" — skip those and use the event title.
+      const name = [vg, humanize(t.gameSlug)].find((x) => x && x.toLowerCase() !== 'other') || t.title
+      return { label: 'LIVE', color: 'var(--pink)', text: name }
+    })
+
+  const free: TickerItem[] = deals
+    .filter((d) => d.type === 'FREE_GAME' || d.dealPrice === 0)
+    .slice(0, 5)
+    .map((d) => ({ label: 'FREE', color: 'var(--cyan)', text: `${d.title} · ${shortStore(d.store)}` }))
+
+  const discount: TickerItem[] = deals
+    .filter((d) => d.type !== 'FREE_GAME' && (d.discountPct ?? 0) > 0)
+    .sort((a, b) => (b.discountPct ?? 0) - (a.discountPct ?? 0))
+    .slice(0, 8)
+    .map((d) => ({
+      label: `−${d.discountPct}%`,
+      color: (d.discountPct ?? 0) >= 50 ? 'var(--lime)' : 'var(--amber)',
+      text: `${d.title} · ${shortStore(d.store)}`,
+    }))
+
+  const fresh: TickerItem[] = news
+    .slice(0, 3)
+    .map((n) => ({ label: 'NEW', color: 'var(--amber)', text: n.title.length > 46 ? `${n.title.slice(0, 46)}…` : n.title }))
+
+  // round-robin interleave the buckets so categories alternate
+  const buckets = [live, free, discount, fresh]
+  const out: TickerItem[] = []
+  for (let i = 0; out.length < 16; i++) {
+    let added = false
+    for (const b of buckets) {
+      if (b[i]) { out.push(b[i]); added = true }
+    }
+    if (!added) break
+  }
+  return out
+}
+
 export function mapNews(news: NewsItem[], now = Date.now()): NewsVM[] {
   return news.map((n, i) => ({
     title: n.title,

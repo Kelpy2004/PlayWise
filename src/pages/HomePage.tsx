@@ -216,6 +216,7 @@ export default function HomePage() {
   const openNews = (n: NewsVM) => { if (n.url) window.open(n.url, '_blank', 'noopener,noreferrer'); else navigate('/news') }
 
   const dod = deals[0]
+  const trending = deals.slice(0, 3).map((d) => d.title)
   const dealsLoop = [...deals, ...deals]
   const tournLoop = [...tourns, ...tourns]
   const newsLead = news[0]
@@ -244,7 +245,7 @@ export default function HomePage() {
             </div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 15, alignItems: 'center' }}>
               <span style={{ fontFamily: 'var(--fm)', fontSize: 11, color: 'var(--tx3,#736c92)', letterSpacing: '.08em' }}>TRENDING</span>
-              {['Cyberpunk 2077', "Baldur's Gate 3", 'Free games'].map((c) => (
+              {trending.map((c) => (
                 <button key={c} className="chip" onClick={() => search(c)} style={{ font: 'inherit', fontSize: 12.5, fontWeight: 600, color: 'var(--tx2,#aaa3c6)', background: 'var(--card,#1a1630)', border: '2px solid var(--line2,#3a3460)', borderRadius: 100, padding: '6px 13px', cursor: 'pointer', transition: 'transform .15s,border-color .15s,color .15s' }}>{c}</button>
               ))}
             </div>

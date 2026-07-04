@@ -4,13 +4,16 @@ import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useTheme } from '../context/ThemeContext'
 import { ShellContext, DIR_LABELS, DIR_VEL, useShell, type Direction } from '../context/ShellContext'
+import { api } from '../lib/api'
+import { buildTicker, type TickerItem } from '../lib/homeData'
 import { trackEvent } from '../lib/telemetry'
 import IntroLoader from './shell/IntroLoader'
 import AskPlayWise from './shell/AskPlayWise'
 
 const INTRO_FLAG = 'pw.intro.played'
 
-const TICKER_ITEMS: Array<{ label: string; color: string; text: string }> = [
+// Fallback strip shown until the live deals/tournaments/news load (or if offline).
+const TICKER_ITEMS: TickerItem[] = [
   { label: '−85%', color: 'var(--lime)', text: 'Cyberpunk 2077 · Steam' },
   { label: 'FREE', color: 'var(--cyan)', text: 'Fall Guys · Epic' },
   { label: '−40%', color: 'var(--amber)', text: 'Elden Ring · GOG' },
@@ -133,7 +136,26 @@ function Header() {
 }
 
 function LiveTicker() {
-  const row = [...TICKER_ITEMS, ...TICKER_ITEMS]
+  const [items, setItems] = useState<TickerItem[]>(TICKER_ITEMS)
+  useEffect(() => {
+    let ignore = false
+    void (async () => {
+      const [d, t, n] = await Promise.allSettled([
+        api.fetchDeals(),
+        api.fetchTournaments({ limit: 10 }),
+        api.fetchNews({ limit: 6 }),
+      ])
+      if (ignore) return
+      const built = buildTicker(
+        d.status === 'fulfilled' ? d.value : [],
+        t.status === 'fulfilled' ? t.value : [],
+        n.status === 'fulfilled' ? n.value : []
+      )
+      if (built.length >= 4) setItems(built)
+    })()
+    return () => { ignore = true }
+  }, [])
+  const row = [...items, ...items]
   return (
     <div style={{ position: 'relative', zIndex: 5, display: 'flex', alignItems: 'stretch', borderTop: '2px solid var(--line)', borderBottom: '2px solid var(--line)', background: 'var(--panel,#120f1f)', overflow: 'hidden' }}>
       <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 8, background: 'var(--pink)', color: '#fff', fontFamily: 'var(--fm)', fontWeight: 700, fontSize: 12, letterSpacing: '.1em', padding: '11px 16px', borderRight: '2px solid var(--line)' }}>

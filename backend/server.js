@@ -42,6 +42,11 @@ const { startNewsWarmup } = require('./utils/newsAggregator')
 
 const app = express()
 const PORT = env.PORT
+// Local "view the site" mode: connect to the DB and serve existing data, but skip
+// the prod-impacting background work (IGDB/NVIDIA catalog write-syncs, price/deal/
+// news refresh loops, and email notification jobs) so a local instance doesn't
+// duplicate the deployed one or email real users. Unset in prod → full behaviour.
+const DEV_LIGHT = process.env.DEV_LIGHT_START === 'true'
 const DIST_ROOT = path.resolve(__dirname, '..', 'dist')
 const HAS_FRONTEND_BUILD = fs.existsSync(path.join(DIST_ROOT, 'index.html'))
 const FRONTEND_ROOT = DIST_ROOT
@@ -65,8 +70,10 @@ async function connectDatabase() {
     await connectPrisma()
     await ensureAuthInfrastructure()
     await ensureGamesSeeded()
-    await syncExpandedCatalogToDatabase(env.IGDB_TOP_GAMES_LIMIT)
-    await syncNvidiaToDatabase()
+    if (!DEV_LIGHT) {
+      await syncExpandedCatalogToDatabase(env.IGDB_TOP_GAMES_LIMIT)
+      await syncNvidiaToDatabase()
+    }
     await ensureTournamentsSeeded()
     logger.info('PostgreSQL connected successfully and seeds are ready.')
     refreshStatsCache()
@@ -193,10 +200,14 @@ if (HAS_FRONTEND_BUILD) {
 
 app.use(errorHandler)
 
-startPriceRefreshLoop()
-startNotificationJobs()
-startDealsRefreshLoop()
-startNewsWarmup()
+if (DEV_LIGHT) {
+  logger.info('DEV_LIGHT_START: serving existing DB data; skipping refresh loops (price/deals/news) and notification jobs')
+} else {
+  startPriceRefreshLoop()
+  startNotificationJobs()
+  startDealsRefreshLoop()
+  startNewsWarmup()
+}
 setTimeout(() => { void refreshStatsCache() }, 10_000)
 
 app.listen(PORT, () => {

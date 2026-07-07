@@ -3,8 +3,25 @@ import tseslint from 'typescript-eslint'
 import reactHooks from 'eslint-plugin-react-hooks'
 import reactRefresh from 'eslint-plugin-react-refresh'
 
+const nodeGlobals = {
+  process: 'readonly',
+  Buffer: 'readonly',
+  console: 'readonly',
+  fetch: 'readonly',
+  URL: 'readonly',
+  URLSearchParams: 'readonly',
+  TextEncoder: 'readonly',
+  TextDecoder: 'readonly',
+  setTimeout: 'readonly',
+  clearTimeout: 'readonly',
+  setInterval: 'readonly',
+  clearInterval: 'readonly'
+}
+
 export default tseslint.config(
-  { ignores: ['dist/', 'backend/', 'node_modules/', 'public/'] },
+  // Static design comps (mockup HTML + its browser support.js) are reference
+  // material, not app source — they are not built or imported, so don't lint them.
+  { ignores: ['dist/', 'backend/', 'node_modules/', 'public/', 'design/'] },
 
   js.configs.recommended,
   ...tseslint.configs.recommended,
@@ -13,6 +30,14 @@ export default tseslint.config(
     files: ['**/*.cjs'],
     languageOptions: {
       globals: { module: 'readonly', require: 'readonly', __dirname: 'readonly' }
+    }
+  },
+
+  // Node utility scripts (e.g. the cover-title OCR detector) run under Node, not the browser.
+  {
+    files: ['scripts/**/*.{js,mjs,cjs}'],
+    languageOptions: {
+      globals: nodeGlobals
     }
   },
 
@@ -29,6 +54,9 @@ export default tseslint.config(
       'react-hooks/exhaustive-deps': 'warn',
       'react-hooks/purity': 'off',
       'react-hooks/set-state-in-effect': 'off',
+      // Intentional imperative ref patterns in animation code (e.g. syncing a
+      // velocity ref every render) — flag as advisory, not a build failure.
+      'react-hooks/refs': 'warn',
       'react-refresh/only-export-components': ['warn', { allowConstantExport: true }],
       '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
       '@typescript-eslint/no-explicit-any': 'warn'

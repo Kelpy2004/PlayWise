@@ -66,15 +66,16 @@ describe('GET /api/deals/news', () => {
 })
 
 describe('POST /api/deals/subscribe', () => {
-  it('requires authentication', async () => {
+  it('rejects an empty body with 400 (a valid email is required)', async () => {
     const res = await request(app)
       .post('/api/deals/subscribe')
       .send({})
 
-    expect(res.status).toBe(401)
+    expect(res.status).toBe(400)
+    expect(res.body).toHaveProperty('ok', false)
   })
 
-  it('rejects unauthenticated request even with email', async () => {
+  it('allows a guest to subscribe with a valid email (201 created)', async () => {
     const res = await request(app)
       .post('/api/deals/subscribe')
       .send({
@@ -84,7 +85,9 @@ describe('POST /api/deals/subscribe', () => {
         notifyDiscounts: true
       })
 
-    expect(res.status).toBe(401)
+    expect(res.status).toBe(201)
+    expect(res.body).toHaveProperty('ok', true)
+    expect(res.body).toHaveProperty('action', 'created')
   })
 })
 

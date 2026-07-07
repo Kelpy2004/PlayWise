@@ -1,4 +1,8 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
+
+import { api } from '../lib/api';
+import CoverImage from './CoverImage';
+import type { DealRecord } from '../types/api';
 
 interface HeroProps {
   gameCount?: number
@@ -9,11 +13,86 @@ interface HeroProps {
   tournamentCount?: number
 }
 
+interface HeroCard {
+  title: string
+  price: string
+  isFree: boolean
+  badge: string | null
+  image: string | null
+}
+
+// Fixed positions/sizes for the 3 floating cards (front → back).
+const CARD_LAYOUT = [
+  { box: 'w-[260px] h-[340px] top-5 right-[30px] z-[3]', anim: 'animate-float-a', extra: '' },
+  { box: 'w-[200px] h-[270px] top-20 right-[260px] z-[2]', anim: 'animate-float-b', extra: 'opacity-90' },
+  { box: 'w-[180px] h-[240px] bottom-5 right-[140px] z-[1]', anim: 'animate-float-c', extra: 'opacity-80' },
+]
+
+// Shown until live deals load, or if the deals API is unavailable.
+const FALLBACK_CARDS: HeroCard[] = [
+  { title: 'Elden Ring', price: '$29.99', isFree: false, badge: null, image: null },
+  { title: "Baldur's Gate 3", price: '$35.99', isFree: false, badge: null, image: null },
+  { title: 'Counter-Strike 2', price: 'Free', isFree: true, badge: 'Free', image: null },
+]
+
+function isFreeDeal(deal: DealRecord): boolean {
+  return deal.dealPrice === 0 || deal.type === 'FREE_GAME' || deal.type === 'MISSION_FREE'
+}
+
+function dealPriceLabel(deal: DealRecord): string {
+  if (isFreeDeal(deal)) return 'Free'
+  const sym = deal.currency === 'INR' ? '₹' : deal.currency === 'EUR' ? '€' : deal.currency === 'GBP' ? '£' : '$'
+  return `${sym}${(deal.dealPrice ?? 0).toFixed(2)}`
+}
+
+function shuffle<T>(arr: T[]): T[] {
+  const a = [...arr]
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[a[i], a[j]] = [a[j], a[i]]
+  }
+  return a
+}
+
 export default function Hero({ gameCount = 0, dealCount = 0, freeCount: _freeCount = 0, storeCount = 0, stores: _stores = [], tournamentCount: _tournamentCount = 0 }: HeroProps) {
   const heroRef = useRef<HTMLElement>(null);
   const heroVisualRef = useRef<HTMLDivElement>(null);
   const celestialRef = useRef<HTMLDivElement>(null);
   const orbRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const [cards, setCards] = useState<HeroCard[]>(FALLBACK_CARDS);
+
+  // Live "hot right now" deals — free games first, then biggest discounts.
+  // Shuffled among the top picks so the hero shows something fresh each visit.
+  useEffect(() => {
+    let ignore = false;
+    api.fetchDeals()
+      .then((deals) => {
+        if (ignore || !Array.isArray(deals)) return;
+        const withImage = deals.filter((d) => d.imageUrl && d.isActive !== false);
+        const free = withImage.filter(isFreeDeal);
+        const discounted = withImage
+          .filter((d) => d.type === 'DISCOUNT' && (d.dealPrice ?? 0) > 0)
+          .sort((a, b) => (b.discountPct ?? 0) - (a.discountPct ?? 0));
+        // Full random mix: equal candidates from the free games and the biggest
+        // discounts, then shuffle the whole pool — any visit may show free games,
+        // deals, or a blend.
+        const pool = shuffle([...free.slice(0, 6), ...discounted.slice(0, 6)]);
+        const picked = pool.slice(0, 3);
+        if (picked.length === 3) {
+          setCards(
+            picked.map((d) => ({
+              title: d.title,
+              price: dealPriceLabel(d),
+              isFree: isFreeDeal(d),
+              badge: isFreeDeal(d) ? 'Free' : d.discountPct ? `-${d.discountPct}%` : null,
+              image: d.imageUrl ?? null,
+            }))
+          );
+        }
+      })
+      .catch(() => { /* keep fallback cards */ });
+    return () => { ignore = true; };
+  }, []);
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
@@ -148,41 +227,40 @@ export default function Hero({ gameCount = 0, dealCount = 0, freeCount: _freeCou
         className="hero-visual absolute right-[clamp(2rem,8vw,10rem)] top-1/2 -translate-y-1/2 w-[480px] h-[520px] z-[1]"
         style={{ opacity: 0, perspective: '1200px', animation: 'fadeIn 1.2s 0.6s forwards' }}
       >
-        <div className="float-card float-card-1 absolute w-[260px] h-[340px] top-5 right-[30px] rounded-[var(--radius)] overflow-hidden shadow-[0_20px_60px_rgba(0,0,0,0.5)] border border-border z-[3] animate-float-a hover:-translate-y-2 hover:scale-[1.02] transition-transform duration-600">
-          <div className="h-full" style={{ background: 'linear-gradient(135deg, #1a1a3e, #2d1b69)' }}>
-            <div className="absolute inset-0 grid place-items-center z-[1]">
-              <span className="material-symbols-outlined text-white/[0.15]" style={{ fontSize: '72px' }}>sports_esports</span>
+        {cards.map((card, i) => {
+          const layout = CARD_LAYOUT[i];
+          return (
+            <div
+              key={`${i}-${card.title}`}
+              className={`float-card absolute ${layout.box} ${layout.anim} ${layout.extra} rounded-[var(--radius)] overflow-hidden shadow-[0_20px_60px_rgba(0,0,0,0.5)] border border-border hover:-translate-y-2 hover:scale-[1.02] transition-transform duration-600`}
+            >
+              <CoverImage
+                src={card.image}
+                alt={card.title}
+                seed={card.title}
+                className="absolute inset-0 h-full w-full object-cover"
+                letterClassName="text-6xl"
+              />
+              {card.badge && (
+                <span
+                  className={`absolute top-2.5 left-2.5 z-[2] rounded-md px-2 py-0.5 text-[0.6rem] font-black uppercase tracking-[0.08em] shadow-md ${
+                    card.isFree ? 'bg-cyan text-white' : 'bg-green text-[#002200]'
+                  }`}
+                >
+                  {card.badge}
+                </span>
+              )}
+              {/* Legibility gradient behind the caption */}
+              <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/15 to-transparent" />
+              <div className="absolute bottom-0 left-0 right-0 p-4 text-white">
+                <div className="font-bold text-[0.85rem] truncate">{card.title}</div>
+                <div className="font-mono text-[0.8rem] font-bold" style={{ color: card.isFree ? 'var(--cyan)' : 'var(--green)' }}>
+                  {card.price}
+                </div>
+              </div>
             </div>
-          </div>
-          <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/85 to-transparent text-white">
-            <div className="font-bold text-[0.85rem]">Elden Ring</div>
-            <div className="font-mono text-[0.8rem] text-green font-bold">$29.99</div>
-          </div>
-        </div>
-
-        <div className="float-card float-card-2 absolute w-[200px] h-[270px] top-20 right-[260px] rounded-[var(--radius)] overflow-hidden shadow-[0_20px_60px_rgba(0,0,0,0.5)] border border-border z-[2] animate-float-b opacity-85 hover:-translate-y-2 hover:scale-[1.02] transition-transform duration-600">
-          <div className="h-full" style={{ background: 'linear-gradient(135deg, #0d2137, #1a0a2e)' }}>
-            <div className="absolute inset-0 grid place-items-center z-[1]">
-              <span className="material-symbols-outlined text-white/[0.15]" style={{ fontSize: '56px' }}>castle</span>
-            </div>
-          </div>
-          <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/85 to-transparent text-white">
-            <div className="font-bold text-[0.85rem]">Baldur's Gate 3</div>
-            <div className="font-mono text-[0.8rem] text-green font-bold">$35.99</div>
-          </div>
-        </div>
-
-        <div className="float-card float-card-3 absolute w-[180px] h-[240px] bottom-5 right-[140px] rounded-[var(--radius)] overflow-hidden shadow-[0_20px_60px_rgba(0,0,0,0.5)] border border-border z-[1] animate-float-c opacity-70 hover:-translate-y-2 hover:scale-[1.02] transition-transform duration-600">
-          <div className="h-full" style={{ background: 'linear-gradient(135deg, #2d0a0a, #1a0a2e)' }}>
-            <div className="absolute inset-0 grid place-items-center z-[1]">
-              <span className="material-symbols-outlined text-white/[0.15]" style={{ fontSize: '48px' }}>military_tech</span>
-            </div>
-          </div>
-          <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/85 to-transparent text-white">
-            <div className="font-bold text-[0.85rem]">CS2</div>
-            <div className="font-mono text-[0.8rem] font-bold" style={{ color: 'var(--cyan)' }}>Free</div>
-          </div>
-        </div>
+          );
+        })}
       </div>
     </section>
   );

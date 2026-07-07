@@ -19,14 +19,19 @@ function errorHandler(err, req, res, _next) {
     'Unhandled request error'
   )
 
-  captureException(err, {
-    path: req.originalUrl,
-    method: req.method,
-    userId: req.user?.id || null,
-    extra: {
-      statusCode
-    }
-  })
+  // Only report genuine server errors (5xx) to Sentry. 4xx are expected client
+  // errors — bad input, invalid credentials, unverified email — and are noise,
+  // not bugs.
+  if (statusCode >= 500) {
+    captureException(err, {
+      path: req.originalUrl,
+      method: req.method,
+      userId: req.user?.id || null,
+      extra: {
+        statusCode
+      }
+    })
+  }
 
   if (!isDatabaseReady()) {
     recordRuntimeError({

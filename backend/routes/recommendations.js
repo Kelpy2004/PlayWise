@@ -13,7 +13,6 @@ const router = express.Router()
 
 const recommendationSchema = z.object({
   gameSlug: z.string().trim().min(1),
-  hardware: z.record(z.any()).optional(),
   priceSnapshot: z.record(z.any()).nullable().optional(),
   sessionId: z.string().trim().optional()
 })
@@ -31,7 +30,6 @@ router.post(
     }
 
     const recommendation = await buildRecommendation(game, {
-      hardware: req.validatedBody.hardware,
       priceSnapshot: req.validatedBody.priceSnapshot
     })
 

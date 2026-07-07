@@ -1,4 +1,4 @@
-import type { CpuRecord, GameRecord, GpuRecord, LaptopRecord } from './catalog'
+import type { GameRecord } from './catalog'
 
 export interface SessionUser {
   id: string
@@ -46,41 +46,7 @@ export interface ContactResponse {
   message: string
 }
 
-export interface HardwareCatalog {
-  cpus: CpuRecord[]
-  gpus: GpuRecord[]
-  laptops: LaptopRecord[]
-  ramOptions: number[]
-}
-
 export type ReactionKind = 'LIKE' | 'DISLIKE'
-
-export interface HardwareSearchSuggestion {
-  kind: 'laptop' | 'cpu' | 'gpu'
-  label: string
-  value: string
-  matchValue?: string
-  meta?: string
-  confidence?: number
-  matchType?: string
-}
-
-export interface CompatibilityResult {
-  canRun: string
-  performance?: string
-  tone?: string
-  recommendedPreset: string
-  fps?: {
-    low?: string
-    medium?: string
-    high?: string
-  }
-  expectedFps?: string
-  warning?: string
-  source: string
-  platform?: string
-  details?: string[]
-}
 
 export interface CommentRecord {
   id?: string
@@ -169,17 +135,6 @@ export interface PriceSnapshot {
   }
   timing?: PriceTimingInsight
   lastUpdated?: string
-}
-
-export interface SavedHardwareProfile {
-  id: string
-  label: string
-  kind: 'LAPTOP' | 'MANUAL'
-  laptopModel?: string | null
-  cpuName?: string | null
-  gpuName?: string | null
-  ram?: number | null
-  isDefault: boolean
 }
 
 export interface FavoriteGame {

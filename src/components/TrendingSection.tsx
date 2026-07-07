@@ -1,6 +1,7 @@
 import { useRef, useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
+import CoverImage from './CoverImage';
 import type { DealRecord } from '../types/api';
 
 const BADGE_CLASSES: Record<string, string> = {
@@ -136,17 +137,13 @@ export default function TrendingSection() {
               onMouseLeave={handleCardMouseLeave}
             >
               <div className="aspect-[16/10] relative overflow-hidden bg-black">
-                {deal.imageUrl ? (
-                  <img
-                    src={deal.imageUrl}
-                    alt={deal.title}
-                    className="absolute inset-0 w-full h-full object-cover"
-                    loading="lazy"
-                    style={{ imageRendering: 'auto' }}
-                  />
-                ) : (
-                  <div className="absolute inset-0 bg-gradient-to-br from-[#1e0a30] to-[#0a1e30]" />
-                )}
+                <CoverImage
+                  src={deal.imageUrl}
+                  alt={deal.title}
+                  seed={deal.title}
+                  className="absolute inset-0 w-full h-full object-cover"
+                  letterClassName="text-5xl"
+                />
                 {badge && (
                   <span className={`absolute top-[10px] left-[10px] px-[10px] py-1 rounded-md text-[0.65rem] font-extrabold uppercase tracking-[0.08em] z-[2] ${BADGE_CLASSES[badge.type] || BADGE_CLASSES.deal}`}>
                     {badge.text}

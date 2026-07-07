@@ -1,5 +1,3 @@
-const { estimatePerformance } = require('./hardware')
-
 function computeAverageRating(game = {}) {
   const ratings = Object.values(game.structuredRatings || {})
   if (!ratings.length) return null
@@ -12,10 +10,10 @@ function formatDecisionLabel(decision) {
     .toLowerCase()
 }
 
-async function buildRecommendation(game, { hardware = null, priceSnapshot = null } = {}) {
+async function buildRecommendation(game, { priceSnapshot = null } = {}) {
   const averageRating = computeAverageRating(game) || 0
   const valueScore = Number(game.valueRating?.score || averageRating || 0)
-  const compatibility = hardware ? await estimatePerformance(game, hardware) : null
+  const compatibility = null
   const timing = priceSnapshot?.timing || null
 
   const reasons = []

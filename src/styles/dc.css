@@ -1,0 +1,101 @@
+/* ============================================================================
+   PlayWise — new design system ("dc")
+   Ported verbatim from the Claude Design export (PlayWise Dashboard.dc.html).
+   Everything is scoped under `.pw` (the new AppShell root) so the legacy pages
+   that haven't been re-skinned yet keep their own styling until ported.
+   ============================================================================ */
+
+/* Theme tokens — driven by <html data-theme="..."> set by ThemeContext */
+html[data-theme="dark"] .pw {
+  --bg:#0b0a12; --panel:#120f1f; --card:#1a1630; --card2:#221c3c; --ink:#000;
+  --line:#2c2747; --line2:#3a3460; --tx:#f6f4ff; --tx2:#aaa3c6; --tx3:#736c92;
+  --hard:rgba(0,0,0,.55); --bd:#f6f4ff;
+}
+html[data-theme="light"] .pw {
+  --bg:#f3eee2; --panel:#fbf8f0; --card:#ffffff; --card2:#fbf8f0; --ink:#0b0a12;
+  --line:#0b0a12; --line2:#0b0a12; --tx:#140f1f; --tx2:#544f68; --tx3:#85809a;
+  --hard:#0b0a12; --bd:#0b0a12;
+}
+
+/* Brand palette + fonts + motion vars (scoped so they don't leak to old pages) */
+.pw {
+  --pink:#ff2e6e; --vio:#a24dff; --cyan:#1fd7ff; --lime:#caff3f; --amber:#ffb627;
+  --grad:linear-gradient(100deg,#ff2e6e,#a24dff,#1fd7ff);
+  --ff:'Space Grotesk',system-ui,sans-serif;
+  --fd:'Unbounded',sans-serif;
+  --fm:'JetBrains Mono',monospace;
+  --dur:.72s; --ease:cubic-bezier(.16,1,.3,1);
+  background:var(--bg);
+  color:var(--tx);
+  font-family:var(--ff);
+}
+.pw *, .pw *::before, .pw *::after { box-sizing:border-box; }
+.pw ::selection { background:#caff3f; color:#0b0a12; }
+
+/* Motion direction presets (Cinematic / Arcade / Liquid) override --dur/--ease */
+.pw[data-direction="cinematic"] { --dur:.72s; --ease:cubic-bezier(.16,1,.3,1); }
+.pw[data-direction="arcade"]    { --dur:.26s; --ease:cubic-bezier(.34,1.56,.64,1); }
+.pw[data-direction="liquid"]    { --dur:.95s; --ease:cubic-bezier(.45,0,.12,1); }
+
+/* ---- Keyframes -------------------------------------------------------------*/
+@keyframes pw-spinSlow { to { transform:rotate(360deg); } }
+@keyframes pw-spinRev  { to { transform:rotate(-360deg); } }
+@keyframes pw-floaty   { 0%,100%{transform:translateY(0) rotate(var(--rot,0deg));} 50%{transform:translateY(-12px) rotate(var(--rot,0deg));} }
+@keyframes pw-blink    { 0%,100%{opacity:1;} 50%{opacity:.25;} }
+@keyframes pw-marquee  { to { transform:translateX(-50%); } }
+@keyframes pw-sweep    { 0%{background-position:0% 50%;} 100%{background-position:200% 50%;} }
+@keyframes pw-wobble   { 0%,100%{transform:rotate(-7deg);} 50%{transform:rotate(-3deg);} }
+@keyframes pw-rise2    { from{opacity:0;transform:translateY(16px);} to{opacity:1;transform:none;} }
+@keyframes pw-urg      { 0%,100%{box-shadow:0 0 0 0 rgba(255,46,110,0);} 50%{box-shadow:0 0 0 4px rgba(255,46,110,.10);} }
+.pw .tcardin { animation:pw-rise2 .43s var(--ease,cubic-bezier(.16,1,.3,1)) backwards; }
+@keyframes pw-modalin { from{opacity:0;transform:translateY(16px) scale(.97);} to{opacity:1;transform:none;} }
+.pw .pwfield:focus-within { border-color:var(--bd,#f6f4ff)!important; }
+.pw .reg:hover, .pw .srcchip:hover { transform:translateY(-1px); }
+
+/* ---- Reveal (one-shot after intro, exactly like the design) ---------------*/
+.pw .rise { transform:translateY(22px); transition:transform var(--dur,.72s) var(--ease,cubic-bezier(.16,1,.3,1)); }
+.pw[data-ready="1"] .rise { transform:none; }
+
+/* ---- Nav + interaction primitives -----------------------------------------*/
+.pw header nav button, .pw header > button, .pw header > div > button { white-space:nowrap; }
+.pw .navlink { position:relative; }
+.pw .navlink:hover { color:var(--tx)!important; }
+.pw .navlink::after {
+  content:""; position:absolute; left:11px; right:11px; bottom:3px; height:3px;
+  background:var(--grad); border-radius:3px; transform:scaleX(0); transform-origin:left;
+  transition:transform .25s ease;
+}
+.pw .navlink:hover::after { transform:scaleX(1); }
+.pw .press:active { transform:translate(3px,3px)!important; box-shadow:0 0 0 var(--hard)!important; }
+.pw .chip:hover { transform:translateY(-2px); border-color:var(--vio)!important; color:var(--tx)!important; }
+.pw .dealcard:hover { transform:translate(-3px,-3px) rotate(0deg)!important; }
+
+/* ---- Rails (horizontal scrollers) -----------------------------------------*/
+.pw .rail { -ms-overflow-style:none; scrollbar-width:none; }
+.pw .rail::-webkit-scrollbar { display:none; }
+.pw .gcard {
+  cursor:pointer;
+  transition:transform var(--dur,.3s) var(--ease,cubic-bezier(.16,1,.3,1)),
+             box-shadow var(--dur,.3s) var(--ease,cubic-bezier(.16,1,.3,1))!important;
+}
+.pw .gcard:hover { transform:translate(-3px,-4px); box-shadow:8px 9px 0 var(--vio); }
+
+/* ---- News lead + rows -----------------------------------------------------*/
+.pw .leadcard { transition:transform var(--dur,.3s) var(--ease,cubic-bezier(.16,1,.3,1)),box-shadow var(--dur,.3s) var(--ease,cubic-bezier(.16,1,.3,1)); }
+.pw .leadcard:hover { transform:translate(-3px,-3px); box-shadow:12px 12px 0 var(--vio); }
+.pw .leadcard:hover .lead-read { gap:11px; color:var(--tx); }
+.pw .leadcard:hover .lead-img-zoom { transform:scale(1.05); }
+.pw .newsrow { transition:transform var(--dur,.2s) var(--ease,cubic-bezier(.16,1,.3,1)),box-shadow var(--dur,.2s) var(--ease,cubic-bezier(.16,1,.3,1)),background-color .2s; }
+.pw .newsrow:hover { transform:translateX(5px); box-shadow:7px 7px 0 var(--cyan); background:var(--card2,#221c3c); }
+.pw .newsrow:hover .nrh { color:var(--tx,#f6f4ff); }
+.pw .newsrow:hover .nrank { color:var(--cyan); transform:scale(1.12); }
+.pw .newsrow:hover .nchev { transform:translateX(3px); opacity:1; }
+.pw .lead-img-zoom { transition:transform var(--dur,.4s) var(--ease,cubic-bezier(.16,1,.3,1)); }
+.pw .nrank { transition:transform .2s var(--ease,ease),color .2s; }
+.pw .nchev { transition:transform .2s var(--ease,ease),opacity .2s; }
+
+/* ---- Admin tables (data-dense pages) --------------------------------------*/
+.pw .adminrow { transition:background-color .15s; }
+.pw .adminrow:hover { background:var(--card2,#221c3c); }
+.pw .adminlink:hover { color:var(--cyan)!important; }
+.pw .admindanger:hover { color:var(--pink)!important; }

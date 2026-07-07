@@ -5,7 +5,6 @@ import type {
   AuthProvidersResponse,
   AuthResponse,
   CommentRecord,
-  CompatibilityResult,
   ContactResponse,
   DealRecord,
   DealSubscriptionRecord,
@@ -13,8 +12,6 @@ import type {
   NewsSource,
   NewsSourceSlug,
   FavoriteGame,
-  HardwareCatalog,
-  HardwareSearchSuggestion,
   NewsletterSubscriberRecord,
   NotificationAdminOverview,
   NotificationDeliveryRecord,
@@ -23,13 +20,12 @@ import type {
   ReactionKind,
   ReactionSummary,
   RecommendationPreview,
-  SavedHardwareProfile,
   SessionResponse,
   TournamentRecord,
   TournamentSubscriptionRecord,
   TelemetryEventPayload
 } from '../types/api'
-import type { CpuRecord, GameRecord, GpuRecord, LaptopRecord } from '../types/catalog'
+import type { GameRecord } from '../types/catalog'
 
 const LIVE_API_BASE = 'https://playwise-cda1.onrender.com/api' // live backend
 
@@ -219,13 +215,6 @@ export const api = {
     request<{ ok: boolean; message: string }>('/auth/reset-password', { method: 'POST', body }),
   sendContact: (body: { name: string; email: string; message: string }) =>
     request<ContactResponse>('/contact', { method: 'POST', body }),
-  getHardwareCatalog: () => request<HardwareCatalog>('/hardware/catalog'),
-  searchHardware: (kind: 'laptop' | 'cpu' | 'gpu', q: string) =>
-    request<HardwareSearchSuggestion[]>(
-      `/hardware/search?kind=${encodeURIComponent(kind)}&q=${encodeURIComponent(q)}`
-    ),
-  checkCompatibility: (game: GameRecord, hardware: Record<string, unknown>) =>
-    request<CompatibilityResult>('/hardware/compatibility', { method: 'POST', body: { game, hardware } }),
   fetchComments: (slug: string, token?: string | null) => request<CommentRecord[]>(`/comments/${slug}`, { token }),
   postComment: (slug: string, body: { username?: string; message: string }, token?: string | null) =>
     request<CommentRecord>(`/comments/${slug}`, { method: 'POST', body, token }),
@@ -244,12 +233,6 @@ export const api = {
       body: { reaction },
       token
     }),
-  createCpu: (body: CpuRecord, token: string) =>
-    request<CpuRecord>('/hardware/cpus', { method: 'POST', body, token }),
-  createGpu: (body: GpuRecord, token: string) =>
-    request<GpuRecord>('/hardware/gpus', { method: 'POST', body, token }),
-  createLaptop: (body: LaptopRecord, token: string) =>
-    request<LaptopRecord>('/hardware/laptops', { method: 'POST', body, token }),
   trackEvent: (body: TelemetryEventPayload & { sessionId: string; path?: string }, token?: string | null) =>
     request<{ ok: true }>('/telemetry/events', { method: 'POST', body, token }),
   reportClientError: (
@@ -261,14 +244,8 @@ export const api = {
     request<FavoriteGame>('/users/me/favorites', { method: 'POST', token, body: { gameSlug } }),
   removeFavorite: (gameSlug: string, token: string) =>
     request<{ ok: true }>('/users/me/favorites/remove', { method: 'POST', token, body: { gameSlug } }),
-  fetchSavedHardwareProfiles: (token: string) =>
-    request<SavedHardwareProfile[]>('/users/me/hardware-profiles', { token }),
-  createSavedHardwareProfile: (
-    body: Omit<SavedHardwareProfile, 'id'>,
-    token: string
-  ) => request<SavedHardwareProfile>('/users/me/hardware-profiles', { method: 'POST', body, token }),
   previewRecommendation: (
-    body: { gameSlug: string; hardware?: Record<string, unknown>; priceSnapshot?: PriceSnapshot | null },
+    body: { gameSlug: string; priceSnapshot?: PriceSnapshot | null },
     token?: string | null
   ) => request<RecommendationPreview>('/recommendations/assist', { method: 'POST', body, token }),
   askAssistant: (
@@ -318,6 +295,18 @@ export const api = {
     },
     token: string
   ) => request<TournamentRecord>('/tournaments', { method: 'POST', body, token }),
+  // Guest-friendly tournament alerts (email + optional game scope, no login).
+  subscribeTournamentAlerts: (
+    body: { email: string; scope: 'ALL' | 'GAME'; gameSlug?: string | null; isActive?: boolean },
+    token?: string | null
+  ) =>
+    request<{ ok: boolean; subscription: TournamentSubscriptionRecord }>('/tournaments/subscribe', {
+      method: 'POST',
+      body,
+      token
+    }),
+  unsubscribeTournamentAlerts: (body: { email: string; gameSlug?: string | null }, token?: string | null) =>
+    request<{ ok: boolean; unsubscribed: number }>('/tournaments/subscribe', { method: 'DELETE', body, token }),
   fetchTournamentSubscriptions: (token: string) =>
     request<TournamentSubscriptionRecord[]>('/users/me/tournament-subscriptions', { token }),
   createTournamentSubscription: (
@@ -356,6 +345,11 @@ export const api = {
   ) => request<{ ok: boolean; subscription: DealSubscriptionRecord }>('/deals/subscribe', { method: 'POST', body, token }),
   unsubscribeFromDealAlerts: (body: { email?: string }, token?: string | null) =>
     request<{ ok: boolean; unsubscribed: number }>('/deals/subscribe', { method: 'DELETE', body, token }),
+  // Per-game price alerts, guest-friendly (email + gameSlug; token optional)
+  createDealPriceAlert: (body: { email: string; gameSlug: string }, token?: string | null) =>
+    request<{ ok: boolean; alert: PriceAlertRecord }>('/deals/price-alerts', { method: 'POST', body, token }),
+  removeDealPriceAlert: (body: { email: string; gameSlug?: string }, token?: string | null) =>
+    request<{ ok: boolean; deactivated: number }>('/deals/price-alerts', { method: 'DELETE', body, token }),
 
   // News (Steam, Xbox, NVIDIA, Epic, Ubisoft, EA)
   fetchNews: (params?: { source?: NewsSourceSlug | string; limit?: number }) => {

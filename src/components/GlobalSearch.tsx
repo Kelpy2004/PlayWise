@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 
+import CoverImage from './CoverImage'
 import type { GameRecord } from '../types/catalog'
 
 const RECENT_KEY = 'playwise.recentSearches'
@@ -324,13 +325,13 @@ export default function GlobalSearch({ games, theme }: { games: GameRecord[]; th
                         role="option"
                         aria-selected={idx === i}
                       >
-                        {g.image ? (
-                          <img src={g.image} alt="" className="h-9 w-7 rounded object-cover shrink-0" loading="lazy" />
-                        ) : (
-                          <div className="h-9 w-7 rounded bg-[var(--panel)] flex items-center justify-center shrink-0">
-                            <span className="text-[10px] font-black text-[var(--muted)]">{g.title.charAt(0)}</span>
-                          </div>
-                        )}
+                        <CoverImage
+                          src={g.image}
+                          alt={g.title}
+                          seed={g.title}
+                          className="h-9 w-7 rounded object-cover shrink-0"
+                          letterClassName="text-[10px]"
+                        />
                         <div className="min-w-0 flex-1">
                           <p className="text-xs font-semibold text-[var(--text)] truncate">
                             <HighlightMatch text={g.title} query={debounced} />

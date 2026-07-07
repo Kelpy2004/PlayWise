@@ -6,9 +6,12 @@ const {
   upsertRuntimeDealSubscription,
   removeRuntimeDealSubscription
 } = require('../utils/runtimeStore')
-const { optionalAuth, requireAuth } = require('../middleware/auth')
+const { optionalAuth } = require('../middleware/auth')
+const { resolveGameIdentity } = require('../utils/gameResolver')
 
 const router = Router()
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 // GET /api/deals — list active deals (free games + discounts)
 router.get('/', async (req, res, next) => {
@@ -74,12 +77,12 @@ router.get('/subscribe', optionalAuth, async (req, res, next) => {
   }
 })
 
-// POST /api/deals/subscribe — subscribe to deal alerts
-router.post('/subscribe', requireAuth, async (req, res, next) => {
+// POST /api/deals/subscribe — subscribe to deal alerts (guest-friendly: email only)
+router.post('/subscribe', optionalAuth, async (req, res, next) => {
   try {
-    const userId = req.user.id
-    const email = String(req.body.email || req.user.email || '').trim().toLowerCase()
-    if (!email) return res.status(400).json({ ok: false, error: 'Email is required' })
+    const userId = req.user?.id || null
+    const email = String(req.body.email || req.user?.email || '').trim().toLowerCase()
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ ok: false, error: 'A valid email is required' })
 
     const minDiscountPct = Math.max(0, Math.min(100, Number(req.body.minDiscountPct) || 75))
     const notifyFreeGames = req.body.notifyFreeGames !== false
@@ -127,11 +130,11 @@ router.post('/subscribe', requireAuth, async (req, res, next) => {
   }
 })
 
-// DELETE /api/deals/subscribe — unsubscribe from deal alerts
-router.delete('/subscribe', requireAuth, async (req, res, next) => {
+// DELETE /api/deals/subscribe — unsubscribe from deal alerts (guest-friendly)
+router.delete('/subscribe', optionalAuth, async (req, res, next) => {
   try {
-    const userId = req.user.id
-    const email = String(req.body.email || req.user.email || '').trim().toLowerCase()
+    const userId = req.user?.id || null
+    const email = String(req.body.email || req.user?.email || '').trim().toLowerCase()
     if (!email) return res.status(400).json({ ok: false, error: 'Email is required' })
 
     if (isDatabaseReady()) {
@@ -154,6 +157,65 @@ router.delete('/subscribe', requireAuth, async (req, res, next) => {
       removeRuntimeDealSubscription(key, sub.id)
     }
     return res.json({ ok: true, unsubscribed: subs.length })
+  } catch (error) {
+    next(error)
+  }
+})
+
+// POST /api/deals/price-alerts — per-game price alert, guest-friendly (email + gameSlug)
+router.post('/price-alerts', optionalAuth, async (req, res, next) => {
+  try {
+    const email = String(req.body?.email || req.user?.email || '').trim().toLowerCase()
+    const gameSlug = String(req.body?.gameSlug || '').trim()
+    if (!EMAIL_RE.test(email)) return res.status(400).json({ ok: false, error: 'A valid email is required' })
+    if (!gameSlug) return res.status(400).json({ ok: false, error: 'gameSlug is required' })
+    if (!isDatabaseReady()) return res.status(503).json({ ok: false, error: 'Price alerts require SQL database mode' })
+
+    const identity = await resolveGameIdentity(gameSlug)
+    if (!identity.game) return res.status(404).json({ ok: false, error: 'Game not found' })
+
+    const prisma = getPrisma()
+    const userId = req.user?.id || null
+    const existing = await prisma.priceAlert.findFirst({
+      where: { email, gameSlug: identity.canonicalSlug },
+      orderBy: { createdAt: 'desc' }
+    })
+
+    const alert = existing
+      ? await prisma.priceAlert.update({
+          where: { id: existing.id },
+          data: { isActive: true, ...(userId && !existing.userId ? { userId } : {}) }
+        })
+      : await prisma.priceAlert.create({
+          data: { userId, email, gameSlug: identity.canonicalSlug, targetPrice: null, isActive: true }
+        })
+
+    res.status(existing ? 200 : 201).json({ ok: true, alert })
+  } catch (error) {
+    next(error)
+  }
+})
+
+// DELETE /api/deals/price-alerts — deactivate alerts for an email (+ optional game)
+router.delete('/price-alerts', optionalAuth, async (req, res, next) => {
+  try {
+    const email = String(req.body?.email || req.user?.email || '').trim().toLowerCase()
+    const gameSlug = String(req.body?.gameSlug || '').trim()
+    if (!EMAIL_RE.test(email)) return res.status(400).json({ ok: false, error: 'A valid email is required' })
+    if (!isDatabaseReady()) return res.status(503).json({ ok: false, error: 'Price alerts require SQL database mode' })
+
+    let canonicalSlug = null
+    if (gameSlug) {
+      const identity = await resolveGameIdentity(gameSlug)
+      canonicalSlug = identity.game ? identity.canonicalSlug : gameSlug
+    }
+
+    const result = await getPrisma().priceAlert.updateMany({
+      where: { email, ...(canonicalSlug ? { gameSlug: canonicalSlug } : {}) },
+      data: { isActive: false }
+    })
+
+    res.json({ ok: true, deactivated: result.count })
   } catch (error) {
     next(error)
   }

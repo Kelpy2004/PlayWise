@@ -199,6 +199,25 @@ function invalidateMergedCatalogCache() {
 async function syncExpandedCatalogToDatabase(limit = env.IGDB_TOP_GAMES_LIMIT) {
   if (!isDatabaseReady()) return 0
 
+  // Skip the expensive IGDB refetch + full upsert when the catalog was synced
+  // recently. A sync upserts every row (bumping @updatedAt), so the newest row's
+  // updatedAt is a reliable freshness proxy. Fully backward-compatible: any error
+  // here just falls through to a normal sync, and an empty table (first boot,
+  // newest === null) always syncs. Tune with CATALOG_SYNC_TTL_MS (default 12h).
+  const ttlMs = Number(process.env.CATALOG_SYNC_TTL_MS) || 12 * 60 * 60 * 1000
+  try {
+    const newest = await getPrisma().game.findFirst({
+      orderBy: { updatedAt: 'desc' },
+      select: { updatedAt: true }
+    })
+    if (newest?.updatedAt && Date.now() - new Date(newest.updatedAt).getTime() < ttlMs) {
+      logger.info({ ttlHours: Math.round(ttlMs / 3600000) }, 'IGDB catalog is fresh — skipping sync this boot.')
+      return 0
+    }
+  } catch (error) {
+    logger.warn({ error }, 'Catalog freshness check failed; proceeding with full sync.')
+  }
+
   const externalGames = await getTopRatedGames(limit).catch((error) => {
     logger.warn({ error }, 'IGDB catalog sync failed. Keeping existing DB catalog as-is.')
     return []

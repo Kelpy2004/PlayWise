@@ -10,7 +10,6 @@ import {
   useScroll,
   useMotionValue,
   useSpring,
-  AnimatePresence,
 } from 'framer-motion'
 
 import { useAuth } from '../context/AuthContext'
@@ -19,11 +18,9 @@ import { api } from '../lib/api'
 import { getGameBySlug, getRelatedGames } from '../lib/catalog'
 import { trackEvent } from '../lib/telemetry'
 import Seo from '../components/Seo'
+import CoverImage from '../components/CoverImage'
 import type {
   CommentRecord,
-  CompatibilityResult,
-  HardwareCatalog,
-  HardwareSearchSuggestion,
   NewsItem,
   PriceHistoryPoint,
   PriceSnapshot,
@@ -43,19 +40,6 @@ function nextReaction(current: ReactionKind | null | undefined, target: Reaction
   return current === target ? null : target
 }
 
-function buildHardwarePayload(
-  hardwareForm: { laptop: string; cpu: string; gpu: string; ram: string },
-  inputMode: 'laptop' | 'manual',
-): Record<string, unknown> | undefined {
-  if (inputMode === 'laptop') {
-    return hardwareForm.laptop.trim() ? { laptop: hardwareForm.laptop.trim() } : undefined
-  }
-  const cpu = hardwareForm.cpu.trim()
-  const gpu = hardwareForm.gpu.trim()
-  const ram = Number.parseInt(String(hardwareForm.ram || '').trim(), 10)
-  if (!cpu || !gpu) return undefined
-  return { cpu, gpu, ...(Number.isFinite(ram) && ram > 0 ? { ram } : {}) }
-}
 
 function formatDate(value?: string | null): string {
   if (!value) return 'Unknown'
@@ -257,14 +241,6 @@ export default function GamePage() {
   const relatedGames = useMemo(() => (localGame ? getRelatedGames(localGame) : []), [localGame])
 
   /* ── state ── */
-  const [catalog, setCatalog] = useState<HardwareCatalog>({ cpus: [], gpus: [], laptops: [], ramOptions: [8, 12, 16, 32] })
-  const [inputMode, setInputMode] = useState<'laptop' | 'manual'>('laptop')
-  const [hardwareForm, setHardwareForm] = useState({ laptop: '', cpu: '', gpu: '', ram: '16' })
-  const [hardwareSuggestions, setHardwareSuggestions] = useState<{
-    laptop: HardwareSearchSuggestion[]; cpu: HardwareSearchSuggestion[]; gpu: HardwareSearchSuggestion[]
-  }>({ laptop: [], cpu: [], gpu: [] })
-  const [compatibility, setCompatibility] = useState<CompatibilityResult | null>(null)
-  const [compatibilityStatus, setCompatibilityStatus] = useState({ loading: false, message: '' })
   const [comments, setComments] = useState<CommentRecord[]>([])
   const [commentsLoading, setCommentsLoading] = useState(true)
   const [commentForm, setCommentForm] = useState({ username: '', message: '' })
@@ -305,7 +281,7 @@ export default function GamePage() {
   /* ── scroll-driven nav highlight ── */
   const { scrollY } = useScroll()
   useEffect(() => {
-    const ids = ['overview', 'compat', 'pricing', 'community']
+    const ids = ['overview', 'pricing', 'community']
     return scrollY.on('change', () => {
       let cur = 'overview'
       ids.forEach(id => {
@@ -342,22 +318,6 @@ export default function GamePage() {
   useEffect(() => { if (game?.slug) void trackEvent({ category: 'games', action: 'game_viewed', label: game.slug }, token) }, [game?.slug, token])
 
   useEffect(() => {
-    let ignore = false
-    async function loadHardwareCatalog() {
-      try {
-        const hw = await api.getHardwareCatalog()
-        if (ignore) return
-        setCatalog(hw)
-        setHardwareForm(c => ({ ...c, ram: c.ram || String(hw.ramOptions?.[2] || 16) }))
-      } catch {
-        if (!ignore) setCompatibilityStatus({ loading: false, message: 'Hardware catalog could not be loaded right now.' })
-      }
-    }
-    loadHardwareCatalog()
-    return () => { ignore = true }
-  }, [slug])
-
-  useEffect(() => {
     if (!game) return undefined
     let ignore = false
     async function loadComments() {
@@ -378,7 +338,7 @@ export default function GamePage() {
   useEffect(() => {
     setRecommendation(null)
     setRecommendationStatus({ loading: false, tone: 'info', message: '' })
-  }, [game?.slug, inputMode, hardwareForm.laptop, hardwareForm.cpu, hardwareForm.gpu, hardwareForm.ram, prices?.bestDeal?.currentPrice])
+  }, [game?.slug, prices?.bestDeal?.currentPrice])
 
   useEffect(() => {
     if (!game) return undefined
@@ -466,68 +426,11 @@ export default function GamePage() {
     setTournamentPopupOpen(!alreadyDismissed && !alreadySubscribed)
   }, [game, token, tournamentSubscriptions])
 
-  // Hardware suggestion effects
-  useEffect(() => {
-    if (inputMode !== 'laptop') { setHardwareSuggestions(c => ({ ...c, laptop: [] })); return undefined }
-    const q = hardwareForm.laptop.trim()
-    if (q.length < 2) { setHardwareSuggestions(c => ({ ...c, laptop: [] })); return undefined }
-    let ignore = false
-    const tid = window.setTimeout(async () => {
-      try { const r = await api.searchHardware('laptop', q); if (!ignore) setHardwareSuggestions(c => ({ ...c, laptop: r })) }
-      catch { if (!ignore) setHardwareSuggestions(c => ({ ...c, laptop: [] })) }
-    }, 220)
-    return () => { ignore = true; window.clearTimeout(tid) }
-  }, [hardwareForm.laptop, inputMode])
-
-  useEffect(() => {
-    if (inputMode !== 'manual') { setHardwareSuggestions(c => ({ ...c, cpu: [], gpu: [] })); return undefined }
-    const q = hardwareForm.cpu.trim()
-    if (q.length < 2) { setHardwareSuggestions(c => ({ ...c, cpu: [] })); return undefined }
-    let ignore = false
-    const tid = window.setTimeout(async () => {
-      try { const r = await api.searchHardware('cpu', q); if (!ignore) setHardwareSuggestions(c => ({ ...c, cpu: r })) }
-      catch { if (!ignore) setHardwareSuggestions(c => ({ ...c, cpu: [] })) }
-    }, 220)
-    return () => { ignore = true; window.clearTimeout(tid) }
-  }, [hardwareForm.cpu, inputMode])
-
-  useEffect(() => {
-    if (inputMode !== 'manual') { setHardwareSuggestions(c => ({ ...c, gpu: [] })); return undefined }
-    const q = hardwareForm.gpu.trim()
-    if (q.length < 2) { setHardwareSuggestions(c => ({ ...c, gpu: [] })); return undefined }
-    let ignore = false
-    const tid = window.setTimeout(async () => {
-      try { const r = await api.searchHardware('gpu', q); if (!ignore) setHardwareSuggestions(c => ({ ...c, gpu: r })) }
-      catch { if (!ignore) setHardwareSuggestions(c => ({ ...c, gpu: [] })) }
-    }, 220)
-    return () => { ignore = true; window.clearTimeout(tid) }
-  }, [hardwareForm.gpu, inputMode])
-
   const { busySlug: wishlistBusySlug, favoriteSlugSet, status: wishlistStatus, toggleWishlist } = useWishlist(game ? [game] : [])
 
   /* ═══════════════════════════════════════════════════════════════════════ */
   /*  HANDLERS                                                              */
   /* ═══════════════════════════════════════════════════════════════════════ */
-
-  async function handleCompatibilitySubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    setCompatibilityStatus({ loading: true, message: '' })
-    const hardware = buildHardwarePayload(hardwareForm, inputMode)
-    if (!hardware) {
-      setCompatibility(null)
-      setCompatibilityStatus({ loading: false, message: inputMode === 'laptop' ? 'Enter a laptop model before running the check.' : 'Enter CPU and GPU for manual specs before running the check.' })
-      return
-    }
-    try {
-      const response = await api.checkCompatibility(game!, hardware)
-      setCompatibility(response)
-      setCompatibilityStatus({ loading: false, message: '' })
-      void trackEvent({ category: 'compatibility', action: 'compatibility_check', label: game!.slug, meta: { inputMode, source: response.source, preset: response.recommendedPreset } }, token)
-    } catch (error) {
-      setCompatibility(null)
-      setCompatibilityStatus({ loading: false, message: error instanceof Error ? error.message : 'Compatibility check failed.' })
-    }
-  }
 
   async function handleCommentSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -552,7 +455,7 @@ export default function GamePage() {
   async function handleGenerateRecommendation() {
     setRecommendationStatus({ loading: true, tone: 'info', message: '' })
     try {
-      const response = await api.previewRecommendation({ gameSlug: game!.slug, hardware: buildHardwarePayload(hardwareForm, inputMode), priceSnapshot: prices }, token)
+      const response = await api.previewRecommendation({ gameSlug: game!.slug, priceSnapshot: prices }, token)
       setRecommendation(response)
       setRecommendationStatus({ loading: false, tone: 'success', message: 'AI recommendation updated.' })
       void trackEvent({ category: 'recommendation', action: 'recommendation_preview_generated', label: game!.slug, meta: { decision: response.decision, confidence: response.confidence } }, token)
@@ -658,7 +561,7 @@ export default function GamePage() {
   const currentGame = game as GameRecord
   const origin = typeof window !== 'undefined' ? window.location.origin : ''
   const seoTitle = currentGame?.title ? `${currentGame.title} | PlayWise` : 'Game Details | PlayWise'
-  const seoDescription = currentGame?.description || currentGame?.heroTag || 'Compare price history, compatibility, and recommendations for this game on PlayWise.'
+  const seoDescription = currentGame?.description || currentGame?.heroTag || 'Compare price history and recommendations for this game on PlayWise.'
   const seoImage = currentGame?.image || currentGame?.banner || null
   const seoUrl = origin && currentGame?.slug ? `${origin}/games/${currentGame.slug}` : undefined
   const seoJsonLd = currentGame ? {
@@ -916,7 +819,6 @@ export default function GamePage() {
             style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '5px 6px', borderRadius: 18, background: 'rgba(17,17,38,0.85)', border: '1px solid var(--border)', backdropFilter: 'blur(20px) saturate(1.6)', boxShadow: '0 8px 32px rgba(0,0,0,0.4)' }}>
             {[
               { id: 'overview', label: 'Overview', icon: 'dashboard' },
-              { id: 'compat', label: 'Compat', icon: 'memory' },
               { id: 'pricing', label: 'Pricing', icon: 'payments' },
               { id: 'community', label: 'Community', icon: 'forum' },
             ].map(n => (
@@ -958,118 +860,6 @@ export default function GamePage() {
                     <p style={{ fontSize: 11, lineHeight: 1.55, color: 'var(--text-dim)' }}>{s.note}</p>
                   </motion.div>
                 ))}
-              </motion.div>
-            </motion.section>
-
-            {/* ── HARDWARE COMPAT ── */}
-            <motion.section id="compat" variants={sectionV} initial="hidden" whileInView="show" viewport={{ once: true, margin: '-50px' }}>
-              <SectionHead accent="var(--cyan)" label="Hardware Lab" title="Compatibility Checker" sub="Real benchmarks predict your performance tier." />
-              <motion.div variants={cardV} initial="hidden" whileInView="show" viewport={{ once: true }}
-                style={{ borderRadius: 16, background: 'var(--card-bg)', border: '1px solid var(--card-border)', padding: '2rem', position: 'relative', overflow: 'hidden' }}>
-                <div style={{ position: 'absolute', top: -20, right: -20, opacity: 0.025, pointerEvents: 'none' }}>
-                  <Icon name="memory" size={200} style={{ color: 'var(--cyan)' }} />
-                </div>
-
-                {/* Tabs */}
-                <div style={{ display: 'inline-flex', borderRadius: 12, padding: 4, background: 'var(--metric-bg)', border: '1px solid var(--card-border)', marginBottom: 24, position: 'relative', zIndex: 2 }}>
-                  {(['laptop', 'manual'] as const).map(m => (
-                    <button key={m} onClick={() => setInputMode(m)}
-                      style={{ padding: '8px 18px', borderRadius: 8, border: 'none', cursor: 'pointer', fontFamily: "'Outfit', sans-serif", fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', transition: 'all 0.25s',
-                        background: inputMode === m ? 'var(--cyan)' : 'transparent', color: inputMode === m ? '#fff' : 'var(--muted-solid)' }}>
-                      {m === 'laptop' ? 'Laptop' : 'Manual Specs'}
-                    </button>
-                  ))}
-                </div>
-
-                <form onSubmit={handleCompatibilitySubmit} style={{ position: 'relative', zIndex: 2 }}>
-                  <AnimatePresence mode="wait">
-                    {inputMode === 'laptop' ? (
-                      <motion.div key="laptop" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} transition={{ duration: 0.3, ease }}>
-                        <label style={{ display: 'block', fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.18em', color: 'var(--cyan)', marginBottom: 8 }}>Laptop Model</label>
-                        <div style={{ position: 'relative' }}>
-                          <Icon name="search" size={16} style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--muted-solid)' }} />
-                          <input placeholder="e.g. HP Victus i5 12450H RTX 3050 16GB" list="pw-laptop-suggestions" value={hardwareForm.laptop}
-                            onChange={e => setHardwareForm(c => ({ ...c, laptop: e.target.value }))}
-                            style={{ width: '100%', padding: '14px 14px 14px 40px', borderRadius: 12, border: '1px solid var(--card-border)', background: 'var(--input-bg)', color: 'var(--ds-text)', fontFamily: "'Outfit', sans-serif", fontSize: 14, outline: 'none' }} />
-                          <datalist id="pw-laptop-suggestions">
-                            {hardwareSuggestions.laptop.map(item => <option key={`${item.kind}-${item.matchValue || item.label}`} value={item.value} label={item.meta || item.label}>{item.label}</option>)}
-                            {catalog.laptops.slice(0, 120).map(item => <option key={`cat-l-${item.id || item.model}`} value={item.model}>{item.brand} {item.model}</option>)}
-                          </datalist>
-                        </div>
-                      </motion.div>
-                    ) : (
-                      <motion.div key="manual" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.3, ease }}
-                        style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
-                        <div>
-                          <label style={{ display: 'block', fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.18em', color: 'var(--cyan)', marginBottom: 8 }}>CPU</label>
-                          <input placeholder="Intel Core i5-12450H" list="pw-cpu-suggestions" value={hardwareForm.cpu}
-                            onChange={e => setHardwareForm(c => ({ ...c, cpu: e.target.value }))}
-                            style={{ width: '100%', padding: 14, borderRadius: 12, border: '1px solid var(--card-border)', background: 'var(--input-bg)', color: 'var(--ds-text)', fontFamily: "'Outfit', sans-serif", fontSize: 14, outline: 'none' }} />
-                          <datalist id="pw-cpu-suggestions">
-                            {hardwareSuggestions.cpu.map(item => <option key={`${item.kind}-${item.matchValue || item.label}`} value={item.value} label={item.meta || item.label}>{item.label}</option>)}
-                            {catalog.cpus.slice(0, 120).map(item => <option key={`cat-c-${item.id || item.name}`} value={item.name} />)}
-                          </datalist>
-                        </div>
-                        <div>
-                          <label style={{ display: 'block', fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.18em', color: 'var(--cyan)', marginBottom: 8 }}>GPU</label>
-                          <input placeholder="NVIDIA RTX 3050" list="pw-gpu-suggestions" value={hardwareForm.gpu}
-                            onChange={e => setHardwareForm(c => ({ ...c, gpu: e.target.value }))}
-                            style={{ width: '100%', padding: 14, borderRadius: 12, border: '1px solid var(--card-border)', background: 'var(--input-bg)', color: 'var(--ds-text)', fontFamily: "'Outfit', sans-serif", fontSize: 14, outline: 'none' }} />
-                          <datalist id="pw-gpu-suggestions">
-                            {hardwareSuggestions.gpu.map(item => <option key={`${item.kind}-${item.matchValue || item.label}`} value={item.value} label={item.meta || item.label}>{item.label}</option>)}
-                            {catalog.gpus.slice(0, 120).map(item => <option key={`cat-g-${item.id || item.name}`} value={item.name} />)}
-                          </datalist>
-                        </div>
-                        <div>
-                          <label style={{ display: 'block', fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.18em', color: 'var(--cyan)', marginBottom: 8 }}>RAM (GB)</label>
-                          <input type="number" min={4} step={2} list="pw-ram-options" value={hardwareForm.ram}
-                            onChange={e => setHardwareForm(c => ({ ...c, ram: e.target.value }))}
-                            style={{ width: '100%', padding: 14, borderRadius: 12, border: '1px solid var(--card-border)', background: 'var(--input-bg)', color: 'var(--ds-text)', fontFamily: "'Outfit', sans-serif", fontSize: 14, outline: 'none' }} />
-                          <datalist id="pw-ram-options">{catalog.ramOptions.map(r => <option key={`ram-${r}`} value={r} />)}</datalist>
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-
-                  <motion.button type="submit" disabled={compatibilityStatus.loading} whileHover={{ y: -2, boxShadow: '0 0 28px rgba(0,212,255,0.3)' }} whileTap={{ scale: 0.97 }}
-                    style={{ marginTop: 24, padding: '12px 28px', borderRadius: 12, border: 'none', background: 'var(--cyan)', color: '#fff', fontFamily: "'Outfit', sans-serif", fontSize: 14, fontWeight: 700, cursor: 'pointer', boxShadow: '0 0 20px rgba(0,212,255,0.15)' }}>
-                    {compatibilityStatus.loading ? 'Checking...' : 'Run Compatibility Check'}
-                  </motion.button>
-                </form>
-
-                {compatibilityStatus.message && <p style={{ fontSize: 12, color: '#ff7351', marginTop: 14 }}>{compatibilityStatus.message}</p>}
-
-                {compatibility && (
-                  <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} transition={{ delay: 0.2, duration: 0.4 }}
-                    style={{ marginTop: 24, paddingTop: 24, borderTop: '1px solid var(--border)', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                    <div style={{ padding: 16, borderRadius: 12, background: 'var(--metric-bg)', border: '1px solid var(--card-border)' }}>
-                      <p style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.15em', color: 'var(--cyan)', marginBottom: 4 }}>Can It Run?</p>
-                      <p style={{ fontSize: 16, fontWeight: 800, color: 'var(--ds-text)' }}>{compatibility.canRun}</p>
-                      <p style={{ fontSize: 10, color: 'var(--muted-solid)', marginTop: 4 }}>Source: {compatibility.source}</p>
-                    </div>
-                    <div style={{ padding: 16, borderRadius: 12, background: 'var(--metric-bg)', border: '1px solid var(--card-border)' }}>
-                      <p style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.15em', color: 'var(--cyan)', marginBottom: 4 }}>Preset</p>
-                      <p style={{ fontSize: 16, fontWeight: 800, color: 'var(--ds-text)' }}>{compatibility.recommendedPreset}</p>
-                      {compatibility.warning && <p style={{ fontSize: 10, color: 'var(--muted-solid)', marginTop: 4 }}>{compatibility.warning}</p>}
-                    </div>
-                    {compatibility.fps && (
-                      <div style={{ gridColumn: 'span 2', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
-                        {[
-                          { preset: 'Low', fps: compatibility.fps.low, c: 'var(--muted)' },
-                          { preset: 'Medium', fps: compatibility.fps.medium, c: '#3ba7ff' },
-                          { preset: 'High', fps: compatibility.fps.high, c: 'var(--cyan)' },
-                        ].map(f => (
-                          <motion.div key={f.preset} whileHover={{ y: -2 }}
-                            style={{ padding: 16, borderRadius: 12, background: 'var(--metric-bg)', border: '1px solid var(--card-border)', borderTop: `2px solid ${f.c}55`, textAlign: 'center' }}>
-                            <p style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.14em', color: f.c }}>{f.preset}</p>
-                            <p style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 24, fontWeight: 900, color: 'var(--text)', margin: '4px 0 2px' }}>{f.fps}</p>
-                            <p style={{ fontSize: 9, color: 'var(--muted)' }}>FPS avg</p>
-                          </motion.div>
-                        ))}
-                      </div>
-                    )}
-                  </motion.div>
-                )}
               </motion.div>
             </motion.section>
 
@@ -1348,7 +1138,7 @@ export default function GamePage() {
                 <Link key={g.slug} to={`/games/${g.slug}`} style={{ textDecoration: 'none' }}>
                   <motion.div whileHover={{ x: 4 }} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: 8, borderRadius: 10, cursor: 'pointer' }}>
                     <div style={{ width: 38, height: 50, borderRadius: 6, background: 'var(--metric-bg)', border: '1px solid var(--card-border)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden' }}>
-                      {g.image ? <img src={g.image} alt={g.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <Icon name="videogame_asset" size={14} style={{ color: 'var(--muted-solid)' }} />}
+                      <CoverImage src={g.image} alt={g.title} seed={g.title} className="h-full w-full object-cover" letterClassName="text-[11px]" />
                     </div>
                     <div>
                       <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--ds-text)' }}>{g.title}</p>
@@ -1385,7 +1175,12 @@ export default function GamePage() {
                   style={{ flex: 1, padding: '8px 0', borderRadius: 10, border: '1px solid var(--card-border)', background: 'var(--metric-bg)', color: 'var(--ds-text)', fontFamily: "'Outfit', sans-serif", fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>All Events</motion.button>
               </div>
               {tournamentFeedback.message && <p style={{ fontSize: 10, marginBottom: 8, color: tournamentFeedback.tone === 'error' ? '#ff7351' : 'var(--cyan)' }}>{tournamentFeedback.message}</p>}
-              {tournamentsLoading && <p style={{ fontSize: 11, color: 'var(--muted-solid)' }}>Loading events...</p>}
+              {tournamentsLoading && [0, 1].map((i) => (
+                <div key={i} className="animate-pulse" style={{ padding: 12, borderRadius: 10, background: 'var(--metric-bg)', border: '1px solid var(--card-border)', marginBottom: 6 }}>
+                  <div style={{ height: 10, width: '70%', borderRadius: 4, background: 'var(--card-border)', marginBottom: 8 }} />
+                  <div style={{ height: 8, width: '40%', borderRadius: 4, background: 'var(--card-border)' }} />
+                </div>
+              ))}
               {!tournamentsLoading && !visibleTournaments.length && <p style={{ fontSize: 11, color: 'var(--muted-solid)' }}>No tournaments yet.</p>}
               {visibleTournaments.map(t => (
                 <div key={t.id || t.slug} style={{ padding: 12, borderRadius: 10, background: 'var(--metric-bg)', border: '1px solid var(--card-border)', marginBottom: 6 }}>

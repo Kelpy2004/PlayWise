@@ -1,48 +1,20 @@
 {
   "name": "playwise",
-  "private": true,
   "version": "3.0.0",
-  "type": "module",
-  "description": "PlayWise — the gaming decision platform. React + Tailwind frontend with Express + Prisma backend.",
+  "private": true,
+  "description": "PlayWise — gaming deals, tournaments & news aggregator. Monorepo: React/Vite frontend + Express/Prisma backend.",
   "scripts": {
-    "dev": "vite",
-    "dev:frontend": "vite",
+    "dev": "concurrently -k -n web,api -c cyan,magenta \"npm --prefix frontend run dev\" \"npm --prefix backend run dev\"",
+    "dev:frontend": "npm --prefix frontend run dev",
     "dev:backend": "npm --prefix backend run dev",
-    "build": "vite build",
-    "typecheck": "tsc --noEmit",
-    "preview": "vite preview",
-    "start": "npm run build && npm --prefix backend start",
+    "build": "npm --prefix frontend run build",
+    "typecheck": "npm --prefix frontend run typecheck",
+    "lint": "npm --prefix frontend run lint && npm --prefix backend run lint",
+    "test": "npm --prefix backend test",
     "start:backend": "npm --prefix backend start",
-    "lint": "eslint . && npm --prefix backend run lint",
-    "lint:fix": "eslint . --fix && npm --prefix backend run lint:fix",
-    "format": "prettier --write \"src/**/*.{ts,tsx,css}\" \"*.{json,js,md,yml}\"",
-    "format:check": "prettier --check \"src/**/*.{ts,tsx,css}\" \"*.{json,js,md,yml}\""
-  },
-  "dependencies": {
-    "@sentry/react": "^10.47.0",
-    "bootstrap": "^5.3.3",
-    "framer-motion": "^11.18.2",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "react-helmet-async": "^3.0.0",
-    "react-router-dom": "^6.28.0"
+    "install:all": "npm --prefix frontend install && npm --prefix backend install"
   },
   "devDependencies": {
-    "@eslint/js": "^10.0.1",
-    "@types/node": "^22.13.9",
-    "@types/react": "^18.3.18",
-    "@types/react-dom": "^18.3.5",
-    "@vitejs/plugin-react": "^4.3.4",
-    "autoprefixer": "^10.4.20",
-    "eslint": "^10.5.0",
-    "eslint-plugin-react-hooks": "^7.1.1",
-    "eslint-plugin-react-refresh": "^0.5.3",
-    "postcss": "^8.4.49",
-    "prettier": "^3.8.4",
-    "tailwindcss": "^3.4.17",
-    "tesseract.js": "^7.0.0",
-    "typescript": "^5.7.3",
-    "typescript-eslint": "^8.61.1",
-    "vite": "^6.0.5"
+    "concurrently": "^9.1.0"
   }
 }
